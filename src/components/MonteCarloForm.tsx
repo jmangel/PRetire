@@ -246,6 +246,9 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                         name="jobs[][endDate]"
                       />
                     </InputGroup>
+                    <Form.Text className="text-muted">
+                      (leave empty if you'll work to the grave)
+                    </Form.Text>
                   </Form.Group>
                 </Col>
               </Row>
