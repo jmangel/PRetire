@@ -1,4 +1,4 @@
-import { Col, Form, Spinner } from "react-bootstrap";
+import { Col, Form, Row, Spinner } from "react-bootstrap";
 import { ActionFunction, useFetcher } from "react-router-dom";
 import MonteCarloForm from "../components/MonteCarloForm";
 import runMonteCarlo from "../calculators/MonteCarlo";
@@ -18,6 +18,7 @@ const MonteCarloPage = () => {
   const loading = fetcher.state === 'submitting';
 
   const [inflationAdjusted, setInflationAdjusted] = useState(false);
+  const [onlyShowPercentiles, setOnlyShowPercentiles] = useState(false);
 
   return (
     <fetcher.Form method="POST">
@@ -34,19 +35,33 @@ const MonteCarloPage = () => {
               <h5>All data in graph include inflation increases and dollars shown are <strong>not</strong> adjusted to today's dollars.</h5>
             )
           }
-          <Col xs={12} sm={2}>
-            <Form.Group>
-              <Form.Check
-                type="switch"
-                label="Adjust for inflation?"
-                id="inflation_adjusted"
-                checked={inflationAdjusted}
-                onChange={(e) => setInflationAdjusted(e.target.checked)}
-              />
-            </Form.Group>
-          </Col>
+          <Row>
+            <Col xs={12} sm={6}>
+              <Form.Group>
+                <Form.Check
+                  type="switch"
+                  label="Adjust for inflation?"
+                  id="inflation_adjusted"
+                  checked={inflationAdjusted}
+                  onChange={(e) => setInflationAdjusted(e.target.checked)}
+                />
+              </Form.Group>
+            </Col>
+            <Col xs={12} sm={6}>
+              <Form.Group>
+                <Form.Check
+                  type="switch"
+                  label="Only show percentiles?"
+                  id="inflation_adjusted"
+                  checked={onlyShowPercentiles}
+                  onChange={(e) => setOnlyShowPercentiles(e.target.checked)}
+                />
+                <Form.Text>(This will speed up and simplify the graph)</Form.Text>
+              </Form.Group>
+            </Col>
+          </Row>
 
-          <MonteCarloGraph results={fetcher.data as MonteCarloResult[]} inflationAdjusted={inflationAdjusted} />
+          <MonteCarloGraph results={fetcher.data as MonteCarloResult[]} inflationAdjusted={inflationAdjusted} onlyShowPercentiles={onlyShowPercentiles} />
         </>
       )}
     </fetcher.Form>

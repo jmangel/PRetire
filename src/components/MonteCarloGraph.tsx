@@ -11,7 +11,7 @@ import { MonteCarloResult } from "../calculators/MonteCarloSimulation";
 import { useMemo } from "react";
 import { dollarFormatter } from "./MonteCarloForm";
 
-type TooltipData = Record<string, { max: number, p90: number, p10: number, min: number }>;
+type TooltipData = Record<string, { max: number, p90: number, median: number, p10: number, min: number }>;
 
 const CustomTooltip = (props: { label?: string, tooltipData: TooltipData }) => {
   const { tooltipData, label } = props;
@@ -24,15 +24,16 @@ const CustomTooltip = (props: { label?: string, tooltipData: TooltipData }) => {
       <p><strong>Year: {label}</strong></p>
       <p>Max: {dollarFormatter(tooltipYearData.max)}</p>
       <p>90% Percentile: {dollarFormatter(tooltipYearData.p90)}</p>
+      <p>Median: {dollarFormatter(tooltipYearData.median)}</p>
       <p>10% Percentile: {dollarFormatter(tooltipYearData.p10)}</p>
       <p>Min: {dollarFormatter(tooltipYearData.min)}</p>
     </div>
   );
 };
 
-const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted: boolean }) => {
-  const { results, inflationAdjusted } = props;
-  const chartData = useMemo(() => {
+const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted: boolean, onlyShowPercentiles: boolean }) => {
+  const { results, inflationAdjusted, onlyShowPercentiles } = props;
+  const seriesData = useMemo(() => {
     const data: Record<string, number>[] = [];
     const dataKey = inflationAdjusted ? 'inflationAdjustedBalance' : 'balance';
     results.forEach((result, index) => {
@@ -51,10 +52,9 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted
 
     return data;
   }, [results, inflationAdjusted]);
-  const { year, ...yearsSeries } = chartData.length > 0 ? chartData[0] : { year: null };
 
   const tooltipData = useMemo(() => {
-    return chartData.reduce((data, { year, ...yearSeries }) => {
+    return seriesData.reduce((data, { year, ...yearSeries }) => {
       const yearBalances = Object.values(yearSeries).sort((a, b) => a - b);
 
       if (yearBalances.length === 0) return data;
@@ -62,13 +62,29 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted
       data[year] = {
         max: yearBalances[yearBalances.length - 1],
         p90: yearBalances[Math.floor(yearBalances.length * .9)],
+        median: yearBalances[Math.floor(yearBalances.length * .5)],
         p10: yearBalances[Math.floor(yearBalances.length * .1)],
         min: yearBalances[0],
       };
 
       return data;
-    }, {} as Record<string, { max: number, p90: number, p10: number, min: number }>)
-  }, [chartData])
+    }, {} as Record<string, { max: number, p90: number, median: number, p10: number, min: number }>)
+  }, [seriesData]);
+
+  const percentileChartData = useMemo(() => {
+    return Object.entries(tooltipData).map(([year, { min, p10, median, p90, max }]) => ({
+      year,
+      p10,
+      median,
+      p90,
+      min,
+      max,
+    }));
+  }, [tooltipData]);
+
+  const chartData = onlyShowPercentiles ? percentileChartData : seriesData;
+
+  const { year: _, ...yearsSeries } = chartData.length > 0 ? chartData[0] : { year: null };
 
   const tooltip = useMemo(() => <CustomTooltip tooltipData={tooltipData} />, [tooltipData])
 
