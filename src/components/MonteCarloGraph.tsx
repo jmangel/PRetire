@@ -11,7 +11,23 @@ import { MonteCarloResult } from "../calculators/MonteCarloSimulation";
 import { useMemo } from "react";
 import { dollarFormatter } from "./MonteCarloForm";
 
-type TooltipData = Record<string, { max: number, p90: number, median: number, p10: number, min: number }>;
+type Percentiles = {
+  max: number,
+  p90: number,
+  p80: number,
+  p70: number,
+  p60: number,
+  median: number,
+  p40: number,
+  p30: number,
+  p20: number,
+  p10: number,
+  min: number,
+};
+
+type PercentilesChartData = Percentiles & { year: number };
+
+type TooltipData = Record<string, Percentiles>;
 
 const CustomTooltip = (props: { label?: string, tooltipData: TooltipData }) => {
   const { tooltipData, label } = props;
@@ -24,7 +40,13 @@ const CustomTooltip = (props: { label?: string, tooltipData: TooltipData }) => {
       <p><strong>Year: {label}</strong></p>
       <p>Max: {dollarFormatter(tooltipYearData.max)}</p>
       <p>90% Percentile: {dollarFormatter(tooltipYearData.p90)}</p>
+      <p>80% Percentile: {dollarFormatter(tooltipYearData.p80)}</p>
+      <p>70% Percentile: {dollarFormatter(tooltipYearData.p70)}</p>
+      <p>60% Percentile: {dollarFormatter(tooltipYearData.p60)}</p>
       <p>Median: {dollarFormatter(tooltipYearData.median)}</p>
+      <p>40% Percentile: {dollarFormatter(tooltipYearData.p40)}</p>
+      <p>30% Percentile: {dollarFormatter(tooltipYearData.p30)}</p>
+      <p>20% Percentile: {dollarFormatter(tooltipYearData.p20)}</p>
       <p>10% Percentile: {dollarFormatter(tooltipYearData.p10)}</p>
       <p>Min: {dollarFormatter(tooltipYearData.min)}</p>
     </div>
@@ -33,8 +55,9 @@ const CustomTooltip = (props: { label?: string, tooltipData: TooltipData }) => {
 
 const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted: boolean, onlyShowPercentiles: boolean }) => {
   const { results, inflationAdjusted, onlyShowPercentiles } = props;
-  const seriesData = useMemo(() => {
-    const data: Record<string, number>[] = [];
+
+  const chartData = useMemo(() => {
+    let data: Array<Record<string, number>> = [];
     const dataKey = inflationAdjusted ? 'inflationAdjustedBalance' : 'balance';
     results.forEach((result, index) => {
       result.forEach((yearBalance) => {
@@ -50,39 +73,62 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted
       });
     });
 
+    if (onlyShowPercentiles) {
+      data = data.map((entry) => {
+        const { year, ...yearSeries } = entry;
+
+        const newEntry = {
+          year: entry.year,
+        } as PercentilesChartData;
+
+        const yearBalances = Object.values(yearSeries).sort((a, b) => a - b);
+        if (yearBalances.length > 0) {
+          newEntry.max = yearBalances[yearBalances.length - 1];
+          newEntry.p90 = yearBalances[Math.floor(yearBalances.length * .9)];
+          newEntry.p80 = yearBalances[Math.floor(yearBalances.length * .8)];
+          newEntry.p70 = yearBalances[Math.floor(yearBalances.length * .7)];
+          newEntry.p60 = yearBalances[Math.floor(yearBalances.length * .6)];
+          newEntry.median = yearBalances[Math.floor(yearBalances.length * .5)];
+          newEntry.p40 = yearBalances[Math.floor(yearBalances.length * .4)];
+          newEntry.p30 = yearBalances[Math.floor(yearBalances.length * .3)];
+          newEntry.p20 = yearBalances[Math.floor(yearBalances.length * .2)];
+          newEntry.p10 = yearBalances[Math.floor(yearBalances.length * .1)];
+          newEntry.min = yearBalances[0];
+        }
+
+        return newEntry;
+      }) as PercentilesChartData[]
+    }
+
     return data;
-  }, [results, inflationAdjusted]);
+  }, [results, inflationAdjusted, onlyShowPercentiles]);
 
   const tooltipData = useMemo(() => {
-    return seriesData.reduce((data, { year, ...yearSeries }) => {
-      const yearBalances = Object.values(yearSeries).sort((a, b) => a - b);
+    return chartData.reduce((data, { year, ...yearSeries }) => {
+      if (onlyShowPercentiles) {
+        data[year] = yearSeries as PercentilesChartData;
+      } else {
+        const yearBalances = Object.values(yearSeries).sort((a, b) => a - b);
 
-      if (yearBalances.length === 0) return data;
+        if (yearBalances.length === 0) return data;
 
-      data[year] = {
-        max: yearBalances[yearBalances.length - 1],
-        p90: yearBalances[Math.floor(yearBalances.length * .9)],
-        median: yearBalances[Math.floor(yearBalances.length * .5)],
-        p10: yearBalances[Math.floor(yearBalances.length * .1)],
-        min: yearBalances[0],
-      };
-
+        data[year] = {
+          max: yearBalances[yearBalances.length - 1],
+          p90: yearBalances[Math.floor(yearBalances.length * .9)],
+          p80: yearBalances[Math.floor(yearBalances.length * .8)],
+          p70: yearBalances[Math.floor(yearBalances.length * .7)],
+          p60: yearBalances[Math.floor(yearBalances.length * .6)],
+          median: yearBalances[Math.floor(yearBalances.length * .5)],
+          p40: yearBalances[Math.floor(yearBalances.length * .4)],
+          p30: yearBalances[Math.floor(yearBalances.length * .3)],
+          p20: yearBalances[Math.floor(yearBalances.length * .2)],
+          p10: yearBalances[Math.floor(yearBalances.length * .1)],
+          min: yearBalances[0],
+        };
+      }
       return data;
-    }, {} as Record<string, { max: number, p90: number, median: number, p10: number, min: number }>)
-  }, [seriesData]);
-
-  const percentileChartData = useMemo(() => {
-    return Object.entries(tooltipData).map(([year, { min, p10, median, p90, max }]) => ({
-      year,
-      p10,
-      median,
-      p90,
-      min,
-      max,
-    }));
-  }, [tooltipData]);
-
-  const chartData = onlyShowPercentiles ? percentileChartData : seriesData;
+    }, {} as Record<string, Percentiles>)
+  }, [chartData, onlyShowPercentiles]);
 
   const { year: _, ...yearsSeries } = chartData.length > 0 ? chartData[0] : { year: null };
 
