@@ -1,11 +1,11 @@
-import { Col, Form, Row, Spinner } from "react-bootstrap";
+import { Col, Form, Row } from "react-bootstrap";
 import { ActionFunction, useFetcher } from "react-router-dom";
 import MonteCarloForm from "../components/MonteCarloForm";
 import runMonteCarlo from "../calculators/MonteCarlo";
 import MonteCarloGraph from "../components/MonteCarloGraph";
 import { MonteCarloResult } from "../calculators/MonteCarloSimulation";
 import { useMemo, useState } from "react";
-
+import SpinnerOverlay from "../components/SpinnerOverlay";
 
 export const action: ActionFunction = async ({ request }) => {
   const formData = await request.formData();
@@ -63,14 +63,9 @@ const MonteCarloPage = () => {
             </Col>
           </Row>
 
-          <div style={{ position: 'relative' }}>
+          <SpinnerOverlay loading={loading}>
             {graph}
-            {loading && (
-              <div style={{ display: 'block', position: 'absolute', height: '100%', background: 'rgba(0, 0, 0, 0.5)', top: 0, left: 0, right: 0 }}>
-                <Spinner animation="grow" variant="light" style={{ position: 'absolute', top: '50%', left: '50%' }} />
-              </div>
-            )}
-          </div>
+          </SpinnerOverlay>
         </>
       )}
     </fetcher.Form>
