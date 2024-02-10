@@ -328,7 +328,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
           {/* Market Conditions (Inflation + Asset Classes) */}
           <div className={activeSettingsTab === 3 ? '' : 'd-none'}>
             <h5>Inflation</h5>
-            <AssetClassRow isInflation defaultAverageAnnualReturnPercentage={0.029 * 100} defaultStandardDeviationPercentage={0.011343 * 100} />
+            <AssetClassRow isInflation defaultAverageAnnualReturnPercentage={2.9} defaultStandardDeviationPercentage={0.011343 * 100} />
             <hr />
 
             {/* Asset Classes */}
