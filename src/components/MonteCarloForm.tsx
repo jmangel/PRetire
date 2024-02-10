@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button, Card, Col, Form, InputGroup, Nav, Row } from "react-bootstrap";
 import { FetcherWithComponents } from "react-router-dom";
+import HasManyRows from "./HasManyRows";
 
 const NUM_SETTINGS_TABS = 4;
 
@@ -159,7 +160,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
 
           {/* Jobs/Income Sources */}
           <div className={activeSettingsTab === 1 ? '' : 'd-none'}>
-            {[...Array(numJobs)].map((_) => (
+            <HasManyRows numRows={numJobs} rowComponent={(
               <Row>
                 <Col xs={12} sm={6} md={6} lg={2} className="flex-grow-1">
                   <Form.Group>
@@ -248,7 +249,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                   </Form.Group>
                 </Col>
               </Row>
-            ))}
+            )} />
             <Row className="my-2"><Col>
               <Button type="button" onClick={() => setNumJobs(prev => prev + 1)}>Add a job</Button>
             </Col></Row>
@@ -256,7 +257,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
 
           {/* Life Events */}
           <div className={activeSettingsTab === 2 ? '' : 'd-none'}>
-            {[...Array(numLifeEvents)].map((_) => (
+            <HasManyRows numRows={numLifeEvents} rowComponent={(
               <Row>
                 <Col xs={12} sm={6} lg={2} className="flex-grow-1">
                   <Form.Group>
@@ -308,7 +309,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                   </Form.Group>
                 </Col>
               </Row>
-            ))}
+            )} />
             <Row className="my-2"><Col>
               <Button type="button" onClick={() => setNumLifeEvents(prev => prev + 1)}>Add a life event</Button>
             </Col></Row>
@@ -322,15 +323,14 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
 
             {/* Asset Classes */}
             <h5>Asset Allocation</h5>
-            {[...Array(numAssetClasses)].map((_, index) => (
+            <HasManyRows numRows={numAssetClasses} rowComponent={(index) => (
               <AssetClassRow
                 defaultName={defaultAssetClasses[index]?.name || ''}
                 defaultAverageAnnualReturnPercentage={defaultAssetClasses[index]?.averageAnnualReturnPercentage || (0.1 * 100)}
                 defaultStandardDeviationPercentage={defaultAssetClasses[index]?.standardDeviationPercentage || (0.2 * 100)}
                 defaultAllocationPercentage={defaultAssetClasses[index]?.allocationPercentage || 0}
               />
-
-            ))}
+            )} />
             <Row className="my-2"><Col>
               <Button type="button" onClick={() => setNumAssetClasses(prev => prev + 1)}>Add an asset class</Button>
             </Col></Row>
