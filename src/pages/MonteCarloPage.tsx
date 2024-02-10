@@ -4,7 +4,7 @@ import MonteCarloForm from "../components/MonteCarloForm";
 import runMonteCarlo from "../calculators/MonteCarlo";
 import MonteCarloGraph from "../components/MonteCarloGraph";
 import { MonteCarloResult } from "../calculators/MonteCarloSimulation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 
 export const action: ActionFunction = async ({ request }) => {
@@ -20,11 +20,13 @@ const MonteCarloPage = () => {
   const [inflationAdjusted, setInflationAdjusted] = useState(false);
   const [onlyShowPercentiles, setOnlyShowPercentiles] = useState(false);
 
+  const graph = useMemo(() => (
+    <MonteCarloGraph results={fetcher.data as MonteCarloResult[]} inflationAdjusted={inflationAdjusted} onlyShowPercentiles={onlyShowPercentiles} />
+  ), [fetcher.data, inflationAdjusted, onlyShowPercentiles]);
+
   return (
     <fetcher.Form method="POST">
       <MonteCarloForm fetcher={fetcher} />
-
-      {loading && (<p><Spinner animation="grow" /></p>)}
 
       {!!fetcher.data && (
         <>
@@ -61,7 +63,14 @@ const MonteCarloPage = () => {
             </Col>
           </Row>
 
-          <MonteCarloGraph results={fetcher.data as MonteCarloResult[]} inflationAdjusted={inflationAdjusted} onlyShowPercentiles={onlyShowPercentiles} />
+          <div style={{ position: 'relative' }}>
+            {graph}
+            {loading && (
+              <div style={{ display: 'block', position: 'absolute', height: '100%', background: 'rgba(0, 0, 0, 0.5)', top: 0, left: 0, right: 0 }}>
+                <Spinner animation="grow" variant="light" style={{ position: 'absolute', top: '50%', left: '50%' }} />
+              </div>
+            )}
+          </div>
         </>
       )}
     </fetcher.Form>
