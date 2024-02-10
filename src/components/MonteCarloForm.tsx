@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Button, Card, Col, Form, InputGroup, Nav, Row } from "react-bootstrap";
 import { FetcherWithComponents } from "react-router-dom";
 
+const NUM_SETTINGS_TABS = 4;
+
 export const dollarFormatter = (val: number) => val.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
 const defaultAssetClasses = [
@@ -336,9 +338,12 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
         </Card.Body>
       </Card>
 
-      <Row className="m-2"><Col>
-        <Button variant="primary" type="submit" disabled={running}>{running ? 'Running, please wait' : 'Run Simulation'}</Button>
-      </Col></Row>
+      <Row className="m-2">
+        { activeSettingsTab < NUM_SETTINGS_TABS - 1 && (
+          <Col xs="auto"><Button variant="outline-primary" onClick={() => setActiveSettingsTab(prev => prev + 1 % NUM_SETTINGS_TABS)}>{'Next Settings'}</Button></Col>
+        )}
+        <Col><Button variant="primary" type="submit" disabled={running}>{running ? 'Running, please wait' : 'Run Simulation'}</Button></Col>
+      </Row>
     </>
   )
 };
