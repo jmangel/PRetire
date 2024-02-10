@@ -13,7 +13,7 @@ const MonteCarloPage = () => {
   const fetcher = useFetcher();
 
   return (
-    <fetcher.Form method="POST">
+    <fetcher.Form method="POST" noValidate>
       <h1 className="text-center">Monte Carlo PRetirement Projections</h1>
 
       <MonteCarloForm fetcher={fetcher} />
