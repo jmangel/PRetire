@@ -11,8 +11,12 @@ type Props = {
 const HasManyRows = ({ numRows, setNumRows, buttonText, rowComponent }: Props) => {
   return (
     <>
-      {[...Array(numRows)].map((_, index) =>
-        rowComponent instanceof Function ? rowComponent(index) : rowComponent
+      {[...Array(numRows)].map((_, index) => (
+        <>
+          {rowComponent instanceof Function ? rowComponent(index) : rowComponent}
+          {index < numRows - 1 && <hr />}
+        </>
+      )
       )}
       {setNumRows && (
          <Row className="my-2"><Col>
