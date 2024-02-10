@@ -8,6 +8,9 @@ const run = async (formData: FormData) => {
   const monthlyExpensesString = formData.get('monthlyExpenses');
   const monthlyExpenses = monthlyExpensesString ? parseFloat(monthlyExpensesString as string) : 0;
 
+  const endYearString = formData.get('endYear');
+  const endYear = endYearString ? parseInt(endYearString as string) : 2100;
+
   const jobs = zipFormDataArrays(formData, {
     name: 'jobs[][name]',
     postTaxAnnualIncome: 'jobs[][postTaxAnnualIncome]',
@@ -41,7 +44,7 @@ const run = async (formData: FormData) => {
       lifeEvents,
       assetClasses,
       inflation,
-      2100,
+      endYear,
     ).run()
   );
 

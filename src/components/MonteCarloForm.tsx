@@ -125,7 +125,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
         <Card.Body>
           {/* Basic Settings */}
           <Row className={activeSettingsTab === 0 ? '' : 'd-none'}>
-            <Col xs={12} sm={6}>
+            <Col xs={12} sm={4}>
               <Form.Group>
                 <Form.Label>Starting Balance</Form.Label>
                 <InputGroup>
@@ -139,7 +139,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                 </InputGroup>
               </Form.Group>
             </Col>
-            <Col xs={12} sm={6}>
+            <Col xs={12} sm={4}>
               <Form.Group>
                 <Form.Label>Manual Monthly Expenses</Form.Label>
                 <InputGroup>
@@ -154,6 +154,19 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                 <Form.Text className="text-muted">
                   Should usually be negative
                 </Form.Text>
+              </Form.Group>
+            </Col>
+            <Col xs={12} sm={4}>
+              <Form.Group>
+                <Form.Label>Ending Year</Form.Label>
+                <InputGroup>
+                  <Form.Control
+                    type="number"
+                    step={1}
+                    name="endYear"
+                    defaultValue={2100}
+                  />
+                </InputGroup>
               </Form.Group>
             </Col>
           </Row>
