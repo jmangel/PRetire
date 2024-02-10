@@ -1,5 +1,6 @@
-import { Button, Spinner } from "react-bootstrap";
+import { Spinner } from "react-bootstrap";
 import { useFetcher } from "react-router-dom";
+import MonteCarloForm from "../components/MonteCarloForm";
 
 export async function action() {
   const result = await new Promise((resolve) => setTimeout(() => resolve("Hello, world"), 1000));
@@ -14,8 +15,7 @@ const MonteCarloPage = () => {
 
   return (
     <fetcher.Form method="POST">
-      <h1>Monte Carlo!</h1>
-      <Button type="submit">Submit</Button>
+      <MonteCarloForm />
 
       {loading && (<p><Spinner animation="grow" /></p>)}
       {succeeded && <p>Success! {fetcher.data}</p>}
