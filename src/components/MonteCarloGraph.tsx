@@ -134,8 +134,6 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted
 
   const tooltip = useMemo(() => <CustomTooltip tooltipData={tooltipData} />, [tooltipData])
 
-  const successes = results.filter((result) => result.every(({ balance }) => balance >= 0));
-
   const allYValues = useMemo(() => results.flatMap((result) => result.map((yearBalance) => yearBalance[inflationAdjusted ? 'inflationAdjustedBalance' : 'balance'])), [results, inflationAdjusted])
   const [customYTicks, customDomain] = useNiceRechartsTicks(
     allYValues,
@@ -147,42 +145,38 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted
   );
 
   return (
-    <>
-      <h3>Your simulation succeeded {successes.length}/{results.length} times ({successes.length / results.length * 100}%)</h3>
-
-      <ResponsiveContainer width="95%" height={550} debounce={100}>
-        <LineChart
-          key={`${inflationAdjusted ? 'inflationAdjusted' : 'notInflationAdjusted'}${results.length > 0 ? results[0].at(-1)?.balance : null}`}
-          data={chartData}
-          margin={{
-            top: 5,
-            right: 30,
-            left: 20,
-            bottom: 5,
-          }}
-        >
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="year" />
-          <YAxis
-            ticks={customYTicks} domain={customDomain}
-            tickFormatter={dollarFormatter}
-            width={140}
-            allowDataOverflow={true}
+    <ResponsiveContainer width="95%" height={550} debounce={100}>
+      <LineChart
+        key={`${inflationAdjusted ? 'inflationAdjusted' : 'notInflationAdjusted'}${results.length > 0 ? results[0].at(-1)?.balance : null}`}
+        data={chartData}
+        margin={{
+          top: 5,
+          right: 30,
+          left: 20,
+          bottom: 5,
+        }}
+      >
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="year" />
+        <YAxis
+          ticks={customYTicks} domain={customDomain}
+          tickFormatter={dollarFormatter}
+          width={140}
+          allowDataOverflow={true}
+        />
+        <Tooltip content={tooltip} />
+        {Object.entries(yearsSeries).map(([key, _], index) => (
+          <Line
+            type="monotone"
+            dataKey={key}
+            stroke={generateContrastingHexCode()}
+            key={index}
+            isAnimationActive={false}
+            dot={false}
           />
-          <Tooltip content={tooltip} />
-          {Object.entries(yearsSeries).map(([key, _], index) => (
-            <Line
-              type="monotone"
-              dataKey={key}
-              stroke={generateContrastingHexCode()}
-              key={index}
-              isAnimationActive={false}
-              dot={false}
-            />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-    </>
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
   )
 }
 

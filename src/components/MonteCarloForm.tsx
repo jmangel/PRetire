@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Col, Form, InputGroup, Row } from "react-bootstrap";
+import { Button, Card, Col, Form, InputGroup, Nav, Row } from "react-bootstrap";
 import { FetcherWithComponents } from "react-router-dom";
 
 export const dollarFormatter = (val: number) => val.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -98,232 +98,247 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
   const [numLifeEvents, setNumLifeEvents] = useState(1);
   const [numAssetClasses, setNumAssetClasses] = useState(2);
 
+  const [activeSettingsTab, setActiveSettingsTab] = useState(0);
+
   return (
     <>
-      {/* Basic Settings */}
-      <>
-        <h3>Basic Settings</h3>
-        <Row>
-        <Col xs={12} sm={6}>
-            <Form.Group>
-              <Form.Label>Starting Balance</Form.Label>
-              <InputGroup>
-                <InputGroup.Text>$</InputGroup.Text>
-                <Form.Control
-                  type="number"
-                  step="any"
-                  name="startingBalance"
-                  defaultValue={100}
-                />
-              </InputGroup>
-            </Form.Group>
-          </Col>
-          <Col xs={12} sm={6}>
-            <Form.Group>
-              <Form.Label>Manual Monthly Expenses</Form.Label>
-              <InputGroup>
-                <InputGroup.Text>$</InputGroup.Text>
-                <Form.Control
-                  type="number"
-                  step="any"
-                  name="monthlyExpenses"
-                  defaultValue={-4000}
-                />
-              </InputGroup>
-              <Form.Text className="text-muted">
-                Should usually be negative
-              </Form.Text>
-            </Form.Group>
-          </Col>
-        </Row>
-        <hr />
-      </>
-
-      {/* Jobs/Income Sources */}
-      <>
-        <h3>Planned Jobs/Income Sources</h3>
-        {[...Array(numJobs)].map((_) => (
-          <Row>
-            <Col xs={12} sm={6} md={6} lg={2} className="flex-grow-1">
+      <Card border="secondary" className="m-2 bg-light">
+        <Card.Header>
+          <Nav variant="tabs" defaultActiveKey="#first">
+            <Nav.Item>
+              <Nav.Link onClick={() => setActiveSettingsTab(0)}>Basic Settings</Nav.Link>
+            </Nav.Item>
+            <Nav.Item>
+              <Nav.Link onClick={() => setActiveSettingsTab(1)}>Income Sources</Nav.Link>
+            </Nav.Item>
+            <Nav.Item>
+              <Nav.Link onClick={() => setActiveSettingsTab(2)}>Life Events</Nav.Link>
+            </Nav.Item>
+            <Nav.Item>
+              <Nav.Link onClick={() => setActiveSettingsTab(3)}>Market Conditions</Nav.Link>
+            </Nav.Item>
+          </Nav>
+        </Card.Header>
+        <Card.Body>
+          {/* Basic Settings */}
+          <Row className={activeSettingsTab === 0 ? '' : 'd-none'}>
+            <Col xs={12} sm={6}>
               <Form.Group>
-                <Form.Label>Name</Form.Label>
-                <Form.Control type="name" placeholder="Job name"
-                  name="jobs[][name]"
-                />
-              </Form.Group>
-            </Col>
-            <Col xs={12} sm={6} md={6} lg={2} className="flex-grow-1">
-              <Form.Group>
-                <Form.Label>Yearly Income (in today's dollars)</Form.Label>
+                <Form.Label>Starting Balance</Form.Label>
                 <InputGroup>
                   <InputGroup.Text>$</InputGroup.Text>
                   <Form.Control
                     type="number"
                     step="any"
-                    name="jobs[][postTaxAnnualIncome]"
-                    defaultValue={10000}
+                    name="startingBalance"
+                    defaultValue={100}
                   />
                 </InputGroup>
-                <Form.Text>(post-tax)</Form.Text>
               </Form.Group>
             </Col>
-            <Col xs={6} sm={6} md={3} lg={2}>
+            <Col xs={12} sm={6}>
               <Form.Group>
-                <Form.Check
-                  type="switch"
-                  name="jobs[][adjustForInflation]"
-                  defaultChecked
-                  label="Adjust for inflation"
+                <Form.Label>Manual Monthly Expenses</Form.Label>
+                <InputGroup>
+                  <InputGroup.Text>$</InputGroup.Text>
+                  <Form.Control
+                    type="number"
+                    step="any"
+                    name="monthlyExpenses"
+                    defaultValue={-4000}
+                  />
+                </InputGroup>
+                <Form.Text className="text-muted">
+                  Should usually be negative
+                </Form.Text>
+              </Form.Group>
+            </Col>
+          </Row>
+
+          {/* Jobs/Income Sources */}
+          <div className={activeSettingsTab === 1 ? '' : 'd-none'}>
+            {[...Array(numJobs)].map((_) => (
+              <Row>
+                <Col xs={12} sm={6} md={6} lg={2} className="flex-grow-1">
+                  <Form.Group>
+                    <Form.Label>Name</Form.Label>
+                    <Form.Control type="name" placeholder="Job name"
+                      name="jobs[][name]"
+                    />
+                  </Form.Group>
+                </Col>
+                <Col xs={12} sm={6} md={6} lg={2} className="flex-grow-1">
+                  <Form.Group>
+                    <Form.Label>Yearly Income (in today's dollars)</Form.Label>
+                    <InputGroup>
+                      <InputGroup.Text>$</InputGroup.Text>
+                      <Form.Control
+                        type="number"
+                        step="any"
+                        name="jobs[][postTaxAnnualIncome]"
+                        defaultValue={10000}
+                      />
+                    </InputGroup>
+                    <Form.Text>(post-tax)</Form.Text>
+                  </Form.Group>
+                </Col>
+                <Col xs={6} sm={6} md={3} lg={2}>
+                  <Form.Group>
+                    <Form.Check
+                      type="switch"
+                      name="jobs[][adjustForInflation]"
+                      defaultChecked
+                      label="Adjust for inflation"
+                  />
+                    <Form.Text className="text-muted">
+                      Increase income each year by the inflation amount entered, <strong>starting immediately</strong>
+                    </Form.Text>
+                  </Form.Group>
+                </Col>
+
+                {/* <Col xs={6} sm={6} md={3} lg={2} className="flex-grow-1">
+                  <Form.Group>
+                    <Form.Label>Yearly Raise Percentage</Form.Label>
+                    <InputGroup>
+                    <Form.Control
+                        type="number"
+                        step="any"
+                        name="jobs[][yearlyRaisePercentage]"
+                        disabled
+                      />
+                      <InputGroup.Text>%</InputGroup.Text>
+                    </InputGroup>
+                    <Form.Text className="text-muted">
+                    Increase income <strong>in addition to inflation</strong>{' '}
+                    by this percentage each year, <strong>starting after the job starts</strong>
+                      <br />
+                      <em>
+                        <strong>Note:</strong>{' '}
+                        If you want to include inflation/cost-of-living increases in{' '}
+                        these yearly raises, uncheck the previous option
+                      </em>
+                    </Form.Text>
+                  </Form.Group>
+                </Col> */}
+                <Col xs={12} sm={6} md={3} lg={2} className="flex-grow-1">
+                  <Form.Group>
+                    <Form.Label>Start Date</Form.Label>
+                    <InputGroup>
+                      <Form.Control
+                        type="date"
+                        name="jobs[][startDate]"
+                      />
+                    </InputGroup>
+                    <Form.Text className="text-muted">
+                      (leave empty if already started)
+                    </Form.Text>
+                  </Form.Group>
+                </Col>
+                <Col xs={12} sm={6} md={3} lg={2} className="flex-grow-1">
+                  <Form.Group>
+                    <Form.Label>End Date</Form.Label>
+                    <InputGroup>
+                      <Form.Control
+                        type="date"
+                        name="jobs[][endDate]"
+                      />
+                    </InputGroup>
+                  </Form.Group>
+                </Col>
+              </Row>
+            ))}
+            <Row className="my-2"><Col>
+              <Button type="button" onClick={() => setNumJobs(prev => prev + 1)}>Add a job</Button>
+            </Col></Row>
+          </div>
+
+          {/* Life Events */}
+          <div className={activeSettingsTab === 2 ? '' : 'd-none'}>
+            {[...Array(numLifeEvents)].map((_) => (
+              <Row>
+                <Col xs={12} sm={6} lg={2} className="flex-grow-1">
+                  <Form.Group>
+                    <Form.Label>Name</Form.Label>
+                    <Form.Control type="name" placeholder="Name"
+                      name="life_events[][name]"
+                    />
+                  </Form.Group>
+                </Col>
+                <Col xs={12} sm={6} lg={2} className="flex-grow-1">
+                  <Form.Group>
+                    <Form.Label>Date</Form.Label>
+                    <InputGroup>
+                      <Form.Control
+                        type="date"
+                        name="life_events[][date]"
+                      />
+                    </InputGroup>
+                  </Form.Group>
+                </Col>
+                <Col xs={12} lg={4} className="flex-grow-1">
+                  <Form.Group>
+                    <Form.Label>Change In Balance (in today's dollars)</Form.Label>
+                    <InputGroup>
+                      <InputGroup.Text>$</InputGroup.Text>
+                      <Form.Control
+                        type="number"
+                        step="any"
+                        name="life_events[][balanceChange]"
+                        defaultValue={0}
+                      />
+                    </InputGroup>
+                    <Form.Text>(ie., if you will spend $100,000 on a house, enter -100,000)</Form.Text>
+                  </Form.Group>
+                </Col>
+                <Col xs={12} lg={4} className="flex-grow-1">
+                  <Form.Group>
+                    <Form.Label>Change In Monthly Expenses (in today's dollars)</Form.Label>
+                    <InputGroup>
+                      <InputGroup.Text>$</InputGroup.Text>
+                      <Form.Control
+                        type="number"
+                        step="any"
+                        name="life_events[][monthlyExpensesChange]"
+                        defaultValue={0}
+                      />
+                    </InputGroup>
+                    <Form.Text>(Positive numbers mean expenses get smaller. ie., if you expect to stop paying your mortgage of $2,000/month, enter 2,000)</Form.Text>
+                  </Form.Group>
+                </Col>
+              </Row>
+            ))}
+            <Row className="my-2"><Col>
+              <Button type="button" onClick={() => setNumLifeEvents(prev => prev + 1)}>Add a life event</Button>
+            </Col></Row>
+          </div>
+
+          {/* Market Conditions (Inflation + Asset Classes) */}
+          <div className={activeSettingsTab === 3 ? '' : 'd-none'}>
+            <h5>Inflation</h5>
+            <AssetClassRow isInflation defaultAverageAnnualReturnPercentage={0.029 * 100} defaultStandardDeviationPercentage={0.011343 * 100} />
+            <hr />
+
+            {/* Asset Classes */}
+            <h5>Asset Allocation</h5>
+            {[...Array(numAssetClasses)].map((_, index) => (
+              <AssetClassRow
+                defaultName={defaultAssetClasses[index]?.name || ''}
+                defaultAverageAnnualReturnPercentage={defaultAssetClasses[index]?.averageAnnualReturnPercentage || (0.1 * 100)}
+                defaultStandardDeviationPercentage={defaultAssetClasses[index]?.standardDeviationPercentage || (0.2 * 100)}
+                defaultAllocationPercentage={defaultAssetClasses[index]?.allocationPercentage || 0}
               />
-                <Form.Text className="text-muted">
-                  Increase income each year by the inflation amount entered, <strong>starting immediately</strong>
-                </Form.Text>
-              </Form.Group>
-            </Col>
 
-            <Col xs={6} sm={6} md={3} lg={2} className="flex-grow-1">
-              <Form.Group>
-                <Form.Label>Yearly Raise Percentage</Form.Label>
-                <InputGroup>
-                <Form.Control
-                    type="number"
-                    step="any"
-                    name="jobs[][yearlyRaisePercentage]"
-                    disabled
-                  />
-                  <InputGroup.Text>%</InputGroup.Text>
-                </InputGroup>
-                <Form.Text className="text-muted">
-                Increase income <strong>in addition to inflation</strong>{' '}
-                by this percentage each year, <strong>starting after the job starts</strong>
-                  <br />
-                  <em>
-                    <strong>Note:</strong>{' '}
-                    If you want to include inflation/cost-of-living increases in{' '}
-                    these yearly raises, uncheck the previous option
-                  </em>
-                </Form.Text>
-              </Form.Group>
-            </Col>
-            <Col xs={12} sm={6} md={3} lg={2} className="flex-grow-1">
-              <Form.Group>
-                <Form.Label>Start Date</Form.Label>
-                <InputGroup>
-                  <Form.Control
-                    type="date"
-                    name="jobs[][startDate]"
-                  />
-                </InputGroup>
-                <Form.Text className="text-muted">
-                  (leave empty if already started)
-                </Form.Text>
-              </Form.Group>
-            </Col>
-            <Col xs={12} sm={6} md={3} lg={2} className="flex-grow-1">
-              <Form.Group>
-                <Form.Label>End Date</Form.Label>
-                <InputGroup>
-                  <Form.Control
-                    type="date"
-                    name="jobs[][endDate]"
-                  />
-                </InputGroup>
-              </Form.Group>
-            </Col>
-          </Row>
-        ))}
-        <Row>
-          <Button type="button" onClick={() => setNumJobs(prev => prev + 1)}>Add a job</Button>
-        </Row>
-        <hr />
-      </>
+            ))}
+            <Row className="my-2"><Col>
+              <Button type="button" onClick={() => setNumAssetClasses(prev => prev + 1)}>Add an asset class</Button>
+            </Col></Row>
+          </div>
+        </Card.Body>
+      </Card>
 
-      {/* Life Events */}
-      <>
-        <h3>Life Events</h3>
-        {[...Array(numLifeEvents)].map((_) => (
-          <Row>
-            <Col xs={12} sm={6} lg={2} className="flex-grow-1">
-              <Form.Group>
-                <Form.Label>Name</Form.Label>
-                <Form.Control type="name" placeholder="Name"
-                  name="life_events[][name]"
-                />
-              </Form.Group>
-            </Col>
-            <Col xs={12} sm={6} lg={2} className="flex-grow-1">
-              <Form.Group>
-                <Form.Label>Date</Form.Label>
-                <InputGroup>
-                  <Form.Control
-                    type="date"
-                    name="life_events[][date]"
-                  />
-                </InputGroup>
-              </Form.Group>
-            </Col>
-            <Col xs={12} lg={4} className="flex-grow-1">
-              <Form.Group>
-                <Form.Label>Change In Balance (in today's dollars)</Form.Label>
-                <InputGroup>
-                  <InputGroup.Text>$</InputGroup.Text>
-                  <Form.Control
-                    type="number"
-                    step="any"
-                    name="life_events[][balanceChange]"
-                    defaultValue={0}
-                  />
-                </InputGroup>
-                <Form.Text>(ie., if you will spend $100,000 on a house, enter -100,000)</Form.Text>
-              </Form.Group>
-            </Col>
-            <Col xs={12} lg={4} className="flex-grow-1">
-              <Form.Group>
-                <Form.Label>Change In Monthly Expenses (in today's dollars)</Form.Label>
-                <InputGroup>
-                  <InputGroup.Text>$</InputGroup.Text>
-                  <Form.Control
-                    type="number"
-                    step="any"
-                    name="life_events[][monthlyExpensesChange]"
-                    defaultValue={0}
-                  />
-                </InputGroup>
-                <Form.Text>(Positive numbers mean expenses get smaller. ie., if you expect to stop paying your mortgage of $2,000/month, enter 2,000)</Form.Text>
-              </Form.Group>
-            </Col>
-          </Row>
-        ))}
-        <Row>
-          <Button type="button" onClick={() => setNumLifeEvents(prev => prev + 1)}>Add a life event</Button>
-        </Row>
-        <hr />
-      </>
-
-      {/* Market Conditions (Inflation + Asset Classes) */}
-      <>
-        <h3>Market Conditions</h3>
-
-        <h5>Inflation</h5>
-        <AssetClassRow isInflation defaultAverageAnnualReturnPercentage={0.029 * 100} defaultStandardDeviationPercentage={0.011343 * 100} />
-
-        {/* Asset Classes */}
-        {[...Array(numAssetClasses)].map((_, index) => (
-          <AssetClassRow
-            defaultName={defaultAssetClasses[index]?.name || ''}
-            defaultAverageAnnualReturnPercentage={defaultAssetClasses[index]?.averageAnnualReturnPercentage || (0.1 * 100)}
-            defaultStandardDeviationPercentage={defaultAssetClasses[index]?.standardDeviationPercentage || (0.2 * 100)}
-            defaultAllocationPercentage={defaultAssetClasses[index]?.allocationPercentage || 0}
-          />
-
-        ))}
-        <Row>
-          <Button type="button" onClick={() => setNumAssetClasses(prev => prev + 1)}>Add an asset class</Button>
-        </Row>
-      </>
-      <Row>
+      <Row className="m-2"><Col>
         <Button variant="primary" type="submit" disabled={running}>{running ? 'Running, please wait' : 'Run Simulation'}</Button>
-      </Row>
+      </Col></Row>
     </>
   )
 };
