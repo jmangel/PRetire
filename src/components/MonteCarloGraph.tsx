@@ -203,9 +203,9 @@ const useNiceRechartsTicks = (
   numTicks = Math.max(2, numTicks);
 
   const [ticks, domain] = useMemo(() => {
-    let minValue = Math.min(...values);
+    let minValue = getMin(values);
     if (isNaN(minValue)) minValue = 0;
-    let maxValue = Math.max(...values);
+    let maxValue = getMax(values);
     if (isNaN(maxValue)) maxValue = 1000;
 
     const rawStepSize = Math.max(1, (maxValue - minValue) / (numTicks - 1));
@@ -257,6 +257,28 @@ const generateContrastingHexCode = () => {
     const hex = x.toString(16);
     return hex.length === 1 ? '0' + hex : hex;
   }).join('');
+}
+
+const getMax = (arr: number[]) => {
+  // Apparently Math.max hits a call stack size exceeded error when the array gets too big
+  let len = arr.length;
+  let max = -Infinity;
+
+  while (len--) {
+      max = arr[len] > max ? arr[len] : max;
+  }
+  return max;
+}
+
+const getMin = (arr: number[]) => {
+  // Apparently Math.min hits a call stack size exceeded error when the array gets too big
+  let len = arr.length;
+  let min = Infinity;
+
+  while (len--) {
+      min = arr[len] < min ? arr[len] : min;
+  }
+  return min;
 }
 
 export default MonteCarloGraph;
