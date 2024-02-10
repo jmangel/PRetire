@@ -3,7 +3,7 @@ import './App.css';
 import Root from './routes/root'
 import { Navigate, RouteObject, RouterProvider, createBrowserRouter } from 'react-router-dom';
 import ErrorPage from './pages/ErrorPage';
-import MonteCarloPage from './pages/MonteCarloPage';
+import MonteCarloPage, { action as monteCarloAction } from './pages/MonteCarloPage';
 
 const App = () => {
   const routes: RouteObject[] = [
@@ -19,6 +19,7 @@ const App = () => {
         {
           path: "monte_carlo",
           element: <MonteCarloPage />,
+          action: monteCarloAction,
         },
       ],
     },
