@@ -160,7 +160,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
 
           {/* Jobs/Income Sources */}
           <div className={activeSettingsTab === 1 ? '' : 'd-none'}>
-            <HasManyRows numRows={numJobs} rowComponent={(
+            <HasManyRows numRows={numJobs} setNumRows={setNumJobs} buttonText="Add an income source" rowComponent={(
               <Row>
                 <Col xs={12} sm={6} md={6} lg={2} className="flex-grow-1">
                   <Form.Group>
@@ -250,14 +250,11 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                 </Col>
               </Row>
             )} />
-            <Row className="my-2"><Col>
-              <Button type="button" onClick={() => setNumJobs(prev => prev + 1)}>Add a job</Button>
-            </Col></Row>
           </div>
 
           {/* Life Events */}
           <div className={activeSettingsTab === 2 ? '' : 'd-none'}>
-            <HasManyRows numRows={numLifeEvents} rowComponent={(
+            <HasManyRows numRows={numLifeEvents} setNumRows={setNumLifeEvents} buttonText="Add a life event" rowComponent={(
               <Row>
                 <Col xs={12} sm={6} lg={2} className="flex-grow-1">
                   <Form.Group>
@@ -310,9 +307,6 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                 </Col>
               </Row>
             )} />
-            <Row className="my-2"><Col>
-              <Button type="button" onClick={() => setNumLifeEvents(prev => prev + 1)}>Add a life event</Button>
-            </Col></Row>
           </div>
 
           {/* Market Conditions (Inflation + Asset Classes) */}
@@ -323,7 +317,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
 
             {/* Asset Classes */}
             <h5>Asset Allocation</h5>
-            <HasManyRows numRows={numAssetClasses} rowComponent={(index) => (
+            <HasManyRows numRows={numAssetClasses} setNumRows={setNumAssetClasses} buttonText="Add an asset class" rowComponent={(index) => (
               <AssetClassRow
                 defaultName={defaultAssetClasses[index]?.name || ''}
                 defaultAverageAnnualReturnPercentage={defaultAssetClasses[index]?.averageAnnualReturnPercentage || (0.1 * 100)}
@@ -331,9 +325,6 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                 defaultAllocationPercentage={defaultAssetClasses[index]?.allocationPercentage || 0}
               />
             )} />
-            <Row className="my-2"><Col>
-              <Button type="button" onClick={() => setNumAssetClasses(prev => prev + 1)}>Add an asset class</Button>
-            </Col></Row>
           </div>
         </Card.Body>
       </Card>
