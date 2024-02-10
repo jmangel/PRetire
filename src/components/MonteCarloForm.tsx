@@ -48,6 +48,7 @@ const AssetClassRow = ({ isInflation, defaultName, defaultAverageAnnualReturnPer
               <InputGroup>
               <Form.Control
                   type="number"
+                  step="any"
                   name={`${fieldNamePrefix}[allocationPercentage]`}
                   defaultValue={defaultAllocationPercentage || 0}
                 />
@@ -63,6 +64,7 @@ const AssetClassRow = ({ isInflation, defaultName, defaultAverageAnnualReturnPer
           <InputGroup>
             <Form.Control
               type="number"
+              step="any"
               name={`${fieldNamePrefix}[averageAnnualReturnPercentage]`}
               defaultValue={defaultAverageAnnualReturnPercentage || 0}
             />
@@ -77,6 +79,7 @@ const AssetClassRow = ({ isInflation, defaultName, defaultAverageAnnualReturnPer
           <InputGroup>
           <Form.Control
               type="number"
+              step="any"
               name={`${fieldNamePrefix}[standardDeviationPercentage]`}
               defaultValue={defaultStandardDeviationPercentage || 0}
             />
@@ -108,6 +111,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                 <InputGroup.Text>$</InputGroup.Text>
                 <Form.Control
                   type="number"
+                  step="any"
                   name="startingBalance"
                   defaultValue={100}
                 />
@@ -121,6 +125,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                 <InputGroup.Text>$</InputGroup.Text>
                 <Form.Control
                   type="number"
+                  step="any"
                   name="monthlyExpenses"
                   defaultValue={-4000}
                 />
@@ -154,6 +159,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                   <InputGroup.Text>$</InputGroup.Text>
                   <Form.Control
                     type="number"
+                    step="any"
                     name="jobs[][postTaxAnnualIncome]"
                     defaultValue={10000}
                   />
@@ -181,6 +187,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                 <InputGroup>
                 <Form.Control
                     type="number"
+                    step="any"
                     name="jobs[][yearlyRaisePercentage]"
                     disabled
                   />
@@ -262,6 +269,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                   <InputGroup.Text>$</InputGroup.Text>
                   <Form.Control
                     type="number"
+                    step="any"
                     name="life_events[][balanceChange]"
                     defaultValue={0}
                   />
@@ -276,6 +284,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                   <InputGroup.Text>$</InputGroup.Text>
                   <Form.Control
                     type="number"
+                    step="any"
                     name="life_events[][monthlyExpensesChange]"
                     defaultValue={0}
                   />
