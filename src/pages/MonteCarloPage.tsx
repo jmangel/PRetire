@@ -16,7 +16,7 @@ const MonteCarloPage = () => {
   return (
     <fetcher.Form method="POST" noValidate>
       <div className="text-center m-2">
-        <h1>Monte Carlo PREtirement Projections</h1>
+        <h1>PREtirement Planning - Monte Carlo Projections</h1>
         <p><em>Your data stays with you. All computation is done on your browser and your data never leaves your device.</em></p>
         <h4>Fully configure your Monte Carlo simulations</h4>
         <Accordion>
