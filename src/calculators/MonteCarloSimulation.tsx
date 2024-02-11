@@ -3,8 +3,8 @@ export class Inflation {
   standardDeviation: number;
 
   constructor({ averageAnnualReturnPercentage, standardDeviationPercentage }:{
-    averageAnnualReturnPercentage: string,
-    standardDeviationPercentage: string
+    averageAnnualReturnPercentage: number,
+    standardDeviationPercentage: number
   }) {
     this.averageAnnualReturn = convertPercentageToDecimal(averageAnnualReturnPercentage)
     this.standardDeviation = convertPercentageToDecimal(standardDeviationPercentage)
@@ -21,9 +21,9 @@ export class AssetClass extends Inflation {
     allocationPercentage,
     name,
   }:{
-    averageAnnualReturnPercentage: string,
-    standardDeviationPercentage: string,
-    allocationPercentage: string,
+    averageAnnualReturnPercentage: number,
+    standardDeviationPercentage: number,
+    allocationPercentage: number,
     name: string,
   }) {
     super({ averageAnnualReturnPercentage, standardDeviationPercentage });
@@ -89,7 +89,7 @@ export class LifeEvent {
   }
 }
 
-const convertPercentageToDecimal = (percentage: string) => parseFloat(percentage) / 100;
+const convertPercentageToDecimal = (percent: number) => percent / 100;
 
 const boxMuller = () => {
   let u = 0;

@@ -2,39 +2,100 @@ import MonteCarloSimulation from "./MonteCarloSimulation";
 import { AssetClass, Inflation, Job, LifeEvent } from "./MonteCarloSimulation";
 
 const run = async (formData: FormData) => {
-  const startingBalanceString = formData.get('startingBalance');
-  const startingBalance = startingBalanceString ? parseFloat(startingBalanceString as string) : 0;
+  const startingBalance = parseFloat(formData.get('startingBalance') as string) || 0;
 
-  const monthlyExpensesString = formData.get('monthlyExpenses');
-  const monthlyExpenses = monthlyExpensesString ? parseFloat(monthlyExpensesString as string) : 0;
+  const monthlyExpenses = parseFloat(formData.get('monthlyExpenses') as string) || 0;
 
-  const endYearString = formData.get('endYear');
-  const endYear = endYearString ? parseInt(endYearString as string) : 2100;
+  const endYear = parseInt(formData.get('endYear') as string) || 2100;
 
-  const jobs = zipFormDataArrays(formData, {
-    name: 'jobs[][name]',
-    postTaxAnnualIncome: 'jobs[][postTaxAnnualIncome]',
-    adjustForInflation: 'jobs[][adjustForInflation]',
-    yearlyRaisePercentage: 'jobs[][yearlyRaisePercentage]',
-    startDate: 'jobs[][startDate]',
-    endDate: 'jobs[][endDate]',
-  }).map((job) => new Job(job));
-  const lifeEvents = zipFormDataArrays(formData, {
-    name: 'life_events[][name]',
-    balanceChange: 'life_events[][balanceChange]',
-    monthlyExpensesChange: 'life_events[][monthlyExpensesChange]',
-    date: 'life_events[][date]',
-  }).map((lifeEvent) => new LifeEvent(lifeEvent));
-  const assetClasses = zipFormDataArrays(formData, {
-    name: 'asset_classes[][name]',
-    averageAnnualReturnPercentage: 'asset_classes[][averageAnnualReturnPercentage]',
-    standardDeviationPercentage: 'asset_classes[][standardDeviationPercentage]',
-    allocationPercentage: 'asset_classes[][allocationPercentage]',
-  }).map((assetClass) => new AssetClass(assetClass));
-  const inflation = new Inflation(zipFormDataArrays(formData, {
-    averageAnnualReturnPercentage: 'inflation[averageAnnualReturnPercentage]',
-    standardDeviationPercentage: 'inflation[standardDeviationPercentage]',
-  })[0]);
+  const jobs = zipFormDataArrays(formData, [
+    {
+      formDataKey: 'jobs[][name]',
+      resultsKey: 'name',
+      isNum: false,
+    },
+    {
+      formDataKey: 'jobs[][postTaxAnnualIncome]',
+      resultsKey: 'postTaxAnnualIncome',
+      isNum: true,
+    },
+    {
+      formDataKey: 'jobs[][adjustForInflation]',
+      resultsKey: 'adjustForInflation',
+      isNum: false,
+    },
+    {
+      formDataKey: 'jobs[][yearlyRaisePercentage]',
+      resultsKey: 'yearlyRaisePercentage',
+      isNum: true,
+    },
+    {
+      formDataKey: 'jobs[][startDate]',
+      resultsKey: 'startDate',
+      isNum: false,
+    },
+    {
+      formDataKey: 'jobs[][endDate]',
+      resultsKey: 'endDate',
+      isNum: false,
+    },
+  ]).map((job) => new Job(job));
+  const lifeEvents = zipFormDataArrays(formData, [
+    {
+      formDataKey: 'life_events[][name]',
+      resultsKey: 'name',
+      isNum: false,
+    },
+    {
+      formDataKey: 'life_events[][balanceChange]',
+      resultsKey: 'balanceChange',
+      isNum: true,
+    },
+    {
+      formDataKey: 'life_events[][monthlyExpensesChange]',
+      resultsKey: 'monthlyExpensesChange',
+      isNum: true,
+    },
+    {
+      formDataKey: 'life_events[][date]',
+      resultsKey: 'date',
+      isNum: false,
+    },
+  ]).map((lifeEvent) => new LifeEvent(lifeEvent));
+  const assetClasses = zipFormDataArrays(formData, [
+    {
+      formDataKey: 'asset_classes[][name]',
+      resultsKey: 'name',
+      isNum: false,
+    },
+    {
+      formDataKey: 'asset_classes[][averageAnnualReturnPercentage]',
+      resultsKey: 'averageAnnualReturnPercentage',
+      isNum: true,
+    },
+    {
+      formDataKey: 'asset_classes[][standardDeviationPercentage]',
+      resultsKey: 'standardDeviationPercentage',
+      isNum: true,
+    },
+    {
+      formDataKey: 'asset_classes[][allocationPercentage]',
+      resultsKey: 'allocationPercentage',
+      isNum: true,
+    },
+  ]).map((assetClass) => new AssetClass(assetClass));
+  const inflation = new Inflation(zipFormDataArrays(formData, [
+    {
+      formDataKey: 'inflation[averageAnnualReturnPercentage]',
+      resultsKey: 'averageAnnualReturnPercentage',
+      isNum: true
+    },
+    {
+      formDataKey: 'inflation[standardDeviationPercentage]',
+      resultsKey: 'standardDeviationPercentage',
+      isNum: true
+    },
+  ])[0]);
 
   const results = [...Array(1000)].map((i) =>
     new MonteCarloSimulation(
@@ -53,18 +114,18 @@ const run = async (formData: FormData) => {
 
 export default run;
 
-const zipFormDataArrays = <T extends Record<string, string>>(
+const zipFormDataArrays = <T extends {}>(
   formData: FormData,
-  keys: T
-): { [K in keyof T]: string }[] => {
-  const resultsArray: { [K in keyof T]: string }[] = [];
+  keys: Array<{ isNum: boolean, formDataKey: string, resultsKey: keyof T }>
+):T[] => {
+  const resultsArray: T[] = [];
 
-  Object.entries(keys).forEach(([resultsKey, formDataKey]) => {
+  keys.forEach(({ isNum, resultsKey, formDataKey }) => {
     formData.getAll(formDataKey).forEach((value, index) => {
       if (!resultsArray[index]) {
-        resultsArray[index] = {} as { [K in keyof T]: string };
+        resultsArray[index] = {} as T;
       }
-      resultsArray[index][resultsKey as keyof T] = value as string;
+      resultsArray[index][resultsKey as keyof T] = (isNum ? parseFloat(value as string) || 0 : value) as T[keyof T];
     });
   })
 
