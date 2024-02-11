@@ -1,5 +1,6 @@
 import { Container, Nav, Navbar } from "react-bootstrap";
 import { Link, Outlet, useLocation } from "react-router-dom";
+import LegalDisclaimer from "../components/LegalDisclaimer";
 
 export default function Root() {
   const location = useLocation();
@@ -19,7 +20,9 @@ export default function Root() {
           </Navbar.Collapse>
         </Container>
       </Navbar>
+      <LegalDisclaimer />
       <Outlet />
+      <LegalDisclaimer />
     </>
   );
 }
