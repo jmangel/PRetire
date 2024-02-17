@@ -134,7 +134,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                     type="number"
                     step="any"
                     name="startingBalance"
-                    defaultValue={100}
+                    placeholder="1000000"
                   />
                 </InputGroup>
               </Form.Group>
@@ -148,7 +148,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                     type="number"
                     step="any"
                     name="monthlyExpenses"
-                    defaultValue={-4000}
+                    placeholder="-4000"
                   />
                 </InputGroup>
                 <Form.Text className="text-muted">
@@ -192,7 +192,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                         type="number"
                         step="any"
                         name="jobs[][postTaxAnnualIncome]"
-                        defaultValue={10000}
+                        placeholder="10000"
                       />
                     </InputGroup>
                     <Form.Text>(post-tax)</Form.Text>
