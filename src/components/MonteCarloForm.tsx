@@ -54,6 +54,7 @@ const AssetClassRow = ({ isInflation, defaultName, defaultAverageAnnualReturnPer
                   step="any"
                   name={`${fieldNamePrefix}[allocationPercentage]`}
                   defaultValue={defaultAllocationPercentage || 0}
+                  autoFocus
                 />
                 <InputGroup.Text>%</InputGroup.Text>
               </InputGroup>
@@ -193,6 +194,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                         step="any"
                         name="jobs[][postTaxAnnualIncome]"
                         placeholder="10000"
+                        autoFocus
                       />
                     </InputGroup>
                     <Form.Text>(post-tax)</Form.Text>
@@ -287,6 +289,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
                       <Form.Control
                         type="date"
                         name="life_events[][date]"
+                        autoFocus
                       />
                     </InputGroup>
                   </Form.Group>
