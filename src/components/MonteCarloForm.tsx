@@ -113,7 +113,7 @@ const MonteCarloForm = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) =>
               <Nav.Link onClick={() => setActiveSettingsTab(0)} eventKey={0}>Basic Settings</Nav.Link>
             </Nav.Item>
             <Nav.Item>
-              <Nav.Link onClick={() => setActiveSettingsTab(1)} eventKey={1}>Income Sources</Nav.Link>
+              <Nav.Link onClick={() => setActiveSettingsTab(1)} eventKey={1}>Income</Nav.Link>
             </Nav.Item>
             <Nav.Item>
               <Nav.Link onClick={() => setActiveSettingsTab(2)} eventKey={2}>Life Events</Nav.Link>
