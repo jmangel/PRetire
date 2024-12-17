@@ -2,12 +2,19 @@ export class Inflation {
   averageAnnualReturn: number;
   standardDeviation: number;
 
-  constructor({ averageAnnualReturnPercentage, standardDeviationPercentage }:{
-    averageAnnualReturnPercentage: number,
-    standardDeviationPercentage: number
+  constructor({
+    averageAnnualReturnPercentage,
+    standardDeviationPercentage,
+  }: {
+    averageAnnualReturnPercentage: number;
+    standardDeviationPercentage: number;
   }) {
-    this.averageAnnualReturn = convertPercentageToDecimal(averageAnnualReturnPercentage)
-    this.standardDeviation = convertPercentageToDecimal(standardDeviationPercentage)
+    this.averageAnnualReturn = convertPercentageToDecimal(
+      averageAnnualReturnPercentage
+    );
+    this.standardDeviation = convertPercentageToDecimal(
+      standardDeviationPercentage
+    );
   }
 }
 
@@ -20,15 +27,15 @@ export class AssetClass extends Inflation {
     standardDeviationPercentage,
     allocationPercentage,
     name,
-  }:{
-    averageAnnualReturnPercentage: number,
-    standardDeviationPercentage: number,
-    allocationPercentage: number,
-    name: string,
+  }: {
+    averageAnnualReturnPercentage: number;
+    standardDeviationPercentage: number;
+    allocationPercentage: number;
+    name: string;
   }) {
     super({ averageAnnualReturnPercentage, standardDeviationPercentage });
 
-    this.allocation = convertPercentageToDecimal(allocationPercentage)
+    this.allocation = convertPercentageToDecimal(allocationPercentage);
     this.name = name;
   }
 }
@@ -48,13 +55,13 @@ export class Job {
     yearlyRaisePercentage,
     startDate,
     endDate,
-  }:{
-    name: string,
-    postTaxAnnualIncome: string,
-    adjustForInflation: string,
-    yearlyRaisePercentage: string,
-    startDate: string,
-    endDate: string,
+  }: {
+    name: string;
+    postTaxAnnualIncome: string;
+    adjustForInflation: string;
+    yearlyRaisePercentage: string;
+    startDate: string;
+    endDate: string;
   }) {
     this.name = name;
     this.postTaxAnnualIncome = parseFloat(postTaxAnnualIncome);
@@ -76,11 +83,11 @@ export class LifeEvent {
     balanceChange,
     monthlyExpensesChange,
     date,
-  }:{
-    name: string,
-    balanceChange: string,
-    monthlyExpensesChange: string,
-    date: string,
+  }: {
+    name: string;
+    balanceChange: string;
+    monthlyExpensesChange: string;
+    date: string;
   }) {
     this.name = name;
     this.balanceChange = parseFloat(balanceChange);
@@ -98,11 +105,11 @@ const boxMuller = () => {
   while (v === 0) v = Math.random();
 
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-}
+};
 
 const sampleRandomNormal = (mean: number, standardDeviation: number) => {
   return mean + standardDeviation * boxMuller();
-}
+};
 
 export type MonteCarloResult = Array<{
   year: number;
@@ -130,7 +137,7 @@ class MonteCarloSimulation {
     lifeEvents: LifeEvent[],
     assetClasses: AssetClass[],
     inflation: Inflation,
-    endYear: number,
+    endYear: number
   ) {
     this.runningBalance = startingBalance;
     this.runningMonthlyExpenses = monthlyExpenses;
@@ -146,7 +153,11 @@ class MonteCarloSimulation {
   run() {
     const yearResults = [];
 
-    for (let year = new Date().getFullYear() + 1; year <= this.endYear; year++) {
+    for (
+      let year = new Date().getFullYear() + 1;
+      year <= this.endYear;
+      year++
+    ) {
       this.applyPreInflationBalanceChanges(year);
       const inflation = this.applyInflation();
       this.applyPostInflationChanges(year);
@@ -154,11 +165,13 @@ class MonteCarloSimulation {
       yearResults.push({
         year,
         balance: this.runningBalance,
-        inflationAdjustedBalance: this.runningBalance / this.cumulativeInflationMultiplier,
+        inflationAdjustedBalance:
+          this.runningBalance / this.cumulativeInflationMultiplier,
         inflation,
         monthlyExpenses: this.runningMonthlyExpenses,
-        inflationAdjustedMonthlyExpenses: this.runningMonthlyExpenses / this.cumulativeInflationMultiplier,
-      })
+        inflationAdjustedMonthlyExpenses:
+          this.runningMonthlyExpenses / this.cumulativeInflationMultiplier,
+      });
     }
 
     return yearResults;
@@ -173,7 +186,10 @@ class MonteCarloSimulation {
   }
 
   applyInflation() {
-    const inflationRate = sampleRandomNormal(this.inflation.averageAnnualReturn, this.inflation.standardDeviation);
+    const inflationRate = sampleRandomNormal(
+      this.inflation.averageAnnualReturn,
+      this.inflation.standardDeviation
+    );
 
     this.cumulativeInflationMultiplier *= 1 + inflationRate;
 
@@ -183,9 +199,12 @@ class MonteCarloSimulation {
   }
 
   applyPostInflationChanges(year: number) {
-    this.runningMonthlyExpenses += this.lifeEventsMonthlyExpensesChange(year) * this.cumulativeInflationMultiplier;
+    this.runningMonthlyExpenses +=
+      this.lifeEventsMonthlyExpensesChange(year) *
+      this.cumulativeInflationMultiplier;
 
-    this.runningBalance += this.lifeEventsBalanceChange(year) * this.cumulativeInflationMultiplier;
+    this.runningBalance +=
+      this.lifeEventsBalanceChange(year) * this.cumulativeInflationMultiplier;
   }
 
   investmentGain() {
@@ -194,7 +213,14 @@ class MonteCarloSimulation {
 
   totalWeightedInvestmentReturnRate() {
     return this.assetClasses.reduce((acc, assetClass) => {
-      return acc + (assetClass.allocation * sampleRandomNormal(assetClass.averageAnnualReturn, assetClass.standardDeviation));
+      return (
+        acc +
+        assetClass.allocation *
+          sampleRandomNormal(
+            assetClass.averageAnnualReturn,
+            assetClass.standardDeviation
+          )
+      );
     }, 0);
   }
 
@@ -227,4 +253,4 @@ class MonteCarloSimulation {
   }
 }
 
-export default MonteCarloSimulation
+export default MonteCarloSimulation;

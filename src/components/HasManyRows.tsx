@@ -6,9 +6,14 @@ type Props = {
   setNumRows?: Dispatch<SetStateAction<number>>;
   buttonText?: string;
   rowComponent: React.ReactNode | ((index: number) => React.ReactNode);
-}
+};
 
-const HasManyRows = ({ numRows, setNumRows, buttonText, rowComponent }: Props) => {
+const HasManyRows = ({
+  numRows,
+  setNumRows,
+  buttonText,
+  rowComponent,
+}: Props) => {
   return (
     <>
       {[...Array(numRows)].map((_, index) => (
@@ -19,14 +24,19 @@ const HasManyRows = ({ numRows, setNumRows, buttonText, rowComponent }: Props) =
       )
       )}
       {setNumRows && (
-         <Row className="my-2"><Col>
-          <Button type="button" onClick={() => setNumRows(prev => prev + 1)}>
-            {buttonText || 'Add a row'}
-          </Button>
-        </Col></Row>
+        <Row className="my-2">
+          <Col>
+            <Button
+              type="button"
+              onClick={() => setNumRows((prev) => prev + 1)}
+            >
+              {buttonText || 'Add a row'}
+            </Button>
+          </Col>
+        </Row>
       )}
     </>
-  )
-}
+  );
+};
 
 export default HasManyRows;
