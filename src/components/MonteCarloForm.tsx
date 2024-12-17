@@ -208,8 +208,8 @@ const MonteCarloForm = ({
               numRows={numJobs}
               setNumRows={setNumJobs}
               buttonText="Add an income source"
-              rowComponent={
-                <Row>
+              rowComponent={(index) => (
+                <Row key={`income-source-row-${index}`}>
                   <Col xs={12} sm={6} md={6} lg={2} className="flex-grow-1">
                     <Form.Group>
                       <Form.Label>Name</Form.Label>
@@ -300,7 +300,7 @@ const MonteCarloForm = ({
                     </Form.Group>
                   </Col>
                 </Row>
-              }
+              )}
             />
           </div>
 
@@ -310,8 +310,8 @@ const MonteCarloForm = ({
               numRows={numLifeEvents}
               setNumRows={setNumLifeEvents}
               buttonText="Add a life event"
-              rowComponent={
-                <Row>
+              rowComponent={(index) => (
+                <Row key={`life-event-row-${index}`}>
                   <Col xs={12} sm={6} lg={2} className="flex-grow-1">
                     <Form.Group>
                       <Form.Label>Name</Form.Label>
@@ -376,7 +376,7 @@ const MonteCarloForm = ({
                     </Form.Group>
                   </Col>
                 </Row>
-              }
+              )}
             />
           </div>
 
@@ -398,6 +398,7 @@ const MonteCarloForm = ({
               buttonText="Add an asset class"
               rowComponent={(index) => (
                 <AssetClassRow
+                  key={`asset-class-row-${index}`}
                   defaultName={defaultAssetClasses[index]?.name || ''}
                   defaultAverageAnnualReturnPercentage={
                     defaultAssetClasses[index]?.averageAnnualReturnPercentage ||

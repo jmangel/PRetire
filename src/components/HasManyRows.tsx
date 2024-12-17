@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction } from 'react';
+import { Dispatch, Fragment, SetStateAction } from 'react';
 import { Button, Col, Row } from 'react-bootstrap';
 
 type Props = {
@@ -17,12 +17,12 @@ const HasManyRows = ({
   return (
     <>
       {[...Array(numRows)].map((_, index) => (
-        <>
+        <Fragment key={`has-many-rows-${index}`}>
           {rowComponent instanceof Function
             ? rowComponent(index)
             : rowComponent}
           {index < numRows - 1 && <hr />}
-        </>
+        </Fragment>
       ))}
       {setNumRows && (
         <Row className="my-2">
