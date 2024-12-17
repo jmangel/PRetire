@@ -178,9 +178,9 @@ class MonteCarloSimulation {
   }
 
   applyPreInflationBalanceChanges(year: number) {
-    this.runningBalance += this.runningMonthlyExpenses * 12;
-
     this.runningBalance += this.investmentGain();
+
+    this.runningBalance += this.runningMonthlyExpenses * 12;
 
     this.runningBalance += this.jobsIncome(year);
   }
