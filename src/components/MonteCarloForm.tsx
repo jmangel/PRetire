@@ -204,47 +204,56 @@ const MonteCarloForm = ({
 
           {/* Jobs/Income Sources */}
           <div className={activeSettingsTab === 1 ? '' : 'd-none'}>
-            <HasManyRows numRows={numJobs} setNumRows={setNumJobs} buttonText="Add an income source" rowComponent={(
-              <Row>
-                <Col xs={12} sm={6} md={6} lg={2} className="flex-grow-1">
-                  <Form.Group>
-                    <Form.Label>Name</Form.Label>
-                    <Form.Control type="name" placeholder="Job name"
-                      name="jobs[][name]"
-                    />
-                  </Form.Group>
-                </Col>
-                <Col xs={12} sm={6} md={6} lg={2} className="flex-grow-1">
-                  <Form.Group>
-                    <Form.Label>Yearly Income (in today's dollars)</Form.Label>
-                    <InputGroup>
-                      <InputGroup.Text>$</InputGroup.Text>
+            <HasManyRows
+              numRows={numJobs}
+              setNumRows={setNumJobs}
+              buttonText="Add an income source"
+              rowComponent={(index) => (
+                <Row key={`income-source-row-${index}`}>
+                  <Col xs={12} sm={6} md={6} lg={2} className="flex-grow-1">
+                    <Form.Group>
+                      <Form.Label>Name</Form.Label>
                       <Form.Control
-                        type="number"
-                        step="any"
-                        name="jobs[][postTaxAnnualIncome]"
-                        placeholder="10000"
-                        autoFocus
+                        type="name"
+                        placeholder="Job name"
+                        name="jobs[][name]"
                       />
-                    </InputGroup>
-                    <Form.Text>(post-tax)</Form.Text>
-                  </Form.Group>
-                </Col>
-                <Col xs={6} sm={6} md={3} lg={2}>
-                  <Form.Group>
-                    <Form.Check
-                      type="switch"
-                      name="jobs[][adjustForInflation]"
-                      defaultChecked
-                      label="Adjust for inflation"
-                  />
-                    <Form.Text className="text-muted">
-                      Increase income each year by the inflation amount entered, <strong>starting immediately</strong>
-                    </Form.Text>
-                  </Form.Group>
-                </Col>
+                    </Form.Group>
+                  </Col>
+                  <Col xs={12} sm={6} md={6} lg={2} className="flex-grow-1">
+                    <Form.Group>
+                      <Form.Label>
+                        Yearly Income (in today's dollars)
+                      </Form.Label>
+                      <InputGroup>
+                        <InputGroup.Text>$</InputGroup.Text>
+                        <Form.Control
+                          type="number"
+                          step="any"
+                          name="jobs[][postTaxAnnualIncome]"
+                          placeholder="10000"
+                          autoFocus
+                        />
+                      </InputGroup>
+                      <Form.Text>(post-tax)</Form.Text>
+                    </Form.Group>
+                  </Col>
+                  <Col xs={6} sm={6} md={3} lg={2}>
+                    <Form.Group>
+                      <Form.Check
+                        type="switch"
+                        name="jobs[][adjustForInflation]"
+                        defaultChecked
+                        label="Adjust for inflation"
+                      />
+                      <Form.Text className="text-muted">
+                        Increase income each year by the inflation amount
+                        entered, <strong>starting immediately</strong>
+                      </Form.Text>
+                    </Form.Group>
+                  </Col>
 
-                {/* <Col xs={6} sm={6} md={3} lg={2} className="flex-grow-1">
+                  {/* <Col xs={6} sm={6} md={3} lg={2} className="flex-grow-1">
                   <Form.Group>
                     <Form.Label>Yearly Raise Percentage</Form.Label>
                     <InputGroup>
