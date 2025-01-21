@@ -1,308 +1,410 @@
-import MonteCarloSimulation from './MonteCarloSimulation';
+/* TODO
+lint (wip)
+hasmanyrows fragment
+move monthly expense subtraction after investment gain
+test cleanup
+add tests
+*/
+
+import MonteCarloSimulation, { LifeEvent } from './MonteCarloSimulation';
 import { AssetClass, Inflation, Job } from './MonteCarloSimulation';
 
 describe('MonteCarloSimulation', () => {
-  const allCashAssetClasses = [
-    new AssetClass({
-      name: 'Cash',
-      standardDeviationPercentage: 0,
-      averageAnnualReturnPercentage: 0,
-      allocationPercentage: 100,
-    }),
-  ];
-  const allStockAssetClasses = [
-    new AssetClass({
-      name: 'Stocks',
-      standardDeviationPercentage: 0,
-      averageAnnualReturnPercentage: 10,
-      allocationPercentage: 100,
-    }),
-  ];
-
-  type TestEmbellishmentTuple = [string, AssetClass[], number];
-  const testCaseEmbellishments = [
-    ['all cash, no inflation', allCashAssetClasses, 0],
-    ['all cash, 3% inflation', allCashAssetClasses, 3],
-    ['all 10% growth stocks, no inflation', allStockAssetClasses, 0],
-    ['all 10% growth stocks, 3% inflation', allStockAssetClasses, 3],
-  ] as TestEmbellishmentTuple[];
-
-  describe.each<TestEmbellishmentTuple>(testCaseEmbellishments)(
-    'single job with %s',
-    (_name, assetClasses, inflationPercentage) => {
-      const inflation = new Inflation({
-        averageAnnualReturnPercentage: inflationPercentage,
+  describe('single asset class', () => {
+    const allCashAssetClasses = [
+      new AssetClass({
+        name: 'Cash',
         standardDeviationPercentage: 0,
-      });
+        averageAnnualReturnPercentage: 0,
+        allocationPercentage: 100,
+      }),
+    ];
+    const allStockAssetClasses = [
+      new AssetClass({
+        name: 'Stocks',
+        standardDeviationPercentage: 0,
+        averageAnnualReturnPercentage: 10,
+        allocationPercentage: 100,
+      }),
+    ];
 
-      const deflate = (balance: number, elapsedYears: number) => {
-        return (
-          balance / Math.pow(1 + inflation.averageAnnualReturn, elapsedYears)
-        );
-      };
+    type TestEmbellishmentTuple = [string, AssetClass[], number];
+    const testCaseEmbellishments = [
+      ['all cash, no inflation', allCashAssetClasses, 0],
+      ['all cash, 3% inflation', allCashAssetClasses, 3],
+      ['all 10% growth stocks, no inflation', allStockAssetClasses, 0],
+      ['all 10% growth stocks, 3% inflation', allStockAssetClasses, 3],
+    ] as TestEmbellishmentTuple[];
 
-      const growBalanceWithNetIncome = (
-        balance: number,
-        offset: number,
-        elapsedYears: number
-      ) => {
-        const growthRate = 1 + assetClasses[0].averageAnnualReturn;
-        const inflationRate = 1 + inflation.averageAnnualReturn;
+    describe.each<TestEmbellishmentTuple>(testCaseEmbellishments)(
+      'single job with %s',
+      (_name, assetClasses, inflationPercentage) => {
+        const inflation = new Inflation({
+          averageAnnualReturnPercentage: inflationPercentage,
+          standardDeviationPercentage: 0,
+        });
 
-        const totalOffset =
-          growthRate === inflationRate
-            ? offset * elapsedYears
-            : (offset *
-                (Math.pow(inflationRate, elapsedYears) -
-                  Math.pow(growthRate, elapsedYears))) /
-              (inflationRate - growthRate);
+        const deflate = (balance: number, elapsedYears: number) => {
+          return (
+            balance / Math.pow(1 + inflation.averageAnnualReturn, elapsedYears)
+          );
+        };
 
-        return balance * Math.pow(growthRate, elapsedYears) + totalOffset;
-      };
+        const growBalanceWithNetIncome = (
+          balance: number,
+          offset: number,
+          elapsedYears: number
+        ) => {
+          const growthRate = 1 + assetClasses[0].averageAnnualReturn;
+          const inflationRate = 1 + inflation.averageAnnualReturn;
 
-      test('single perfect job', () => {
-        const startingBalance = 1;
-        const monthlyExpenses = -5000;
-        const yearlyExpenses = monthlyExpenses * 12;
-        const yearlyIncome = -yearlyExpenses;
-        const jobs = [
-          new Job({
-            name: 'Job That Covers Exact Starting Expenses',
-            postTaxAnnualIncome: yearlyIncome.toString(),
-            adjustForInflation: 'on',
-            yearlyRaisePercentage: '0',
-            startDate: '',
-            endDate: '',
-          }),
-        ];
+          const totalOffset =
+            growthRate === inflationRate
+              ? offset * elapsedYears
+              : (offset *
+                  (Math.pow(inflationRate, elapsedYears) -
+                    Math.pow(growthRate, elapsedYears))) /
+                (inflationRate - growthRate);
 
-        const yearlyResults = new MonteCarloSimulation(
-          startingBalance,
-          monthlyExpenses,
-          jobs,
-          [],
-          assetClasses,
-          inflation,
-          new Date().getFullYear() + 100
-        ).run();
+          return balance * Math.pow(growthRate, elapsedYears) + totalOffset;
+        };
 
-        expect(yearlyResults.length).toBe(100);
+        describe('single job', () => {
+          test('single perfect job', () => {
+            const startingBalance = 1;
+            const monthlyExpenses = -5000;
+            const yearlyExpenses = monthlyExpenses * 12;
+            const yearlyIncome = -yearlyExpenses;
+            const jobs = [
+              new Job({
+                name: 'Job That Covers Exact Starting Expenses',
+                postTaxAnnualIncome: yearlyIncome.toString(),
+                adjustForInflation: 'on',
+                yearlyRaisePercentage: '0',
+                startDate: '',
+                endDate: '',
+              }),
+            ];
 
-        const firstYear = yearlyResults[0];
-        const lastYear = yearlyResults[yearlyResults.length - 1];
+            const yearlyResults = new MonteCarloSimulation(
+              startingBalance,
+              monthlyExpenses,
+              jobs,
+              [],
+              assetClasses,
+              inflation,
+              new Date().getFullYear() + 100
+            ).run();
 
-        if (
-          inflationPercentage === 0 &&
-          assetClasses[0].averageAnnualReturn === 0
-        ) {
-          /* eslint-disable jest/no-conditional-expect */
-          expect(firstYear.balance).toBe(startingBalance);
-          expect(firstYear.inflationAdjustedBalance).toBe(firstYear.balance);
+            expect(yearlyResults.length).toBe(100);
 
-          expect(lastYear.balance).toBe(startingBalance);
-          expect(lastYear.inflationAdjustedBalance).toBe(lastYear.balance);
-          /* eslint-enable jest/no-conditional-expect */
-        }
+            const firstYear = yearlyResults[0];
+            const lastYear = yearlyResults[yearlyResults.length - 1];
 
-        let expectedBalance = growBalanceWithNetIncome(startingBalance, 0, 1);
-        expect(firstYear.balance).toBeCloseTo(expectedBalance);
-        expect(firstYear.inflationAdjustedBalance).toBeCloseTo(
-          deflate(expectedBalance, 1)
-        );
+            if (
+              inflationPercentage === 0 &&
+              assetClasses[0].averageAnnualReturn === 0
+            ) {
+              /* eslint-disable jest/no-conditional-expect */
+              expect(firstYear.balance).toBe(startingBalance);
+              expect(firstYear.inflationAdjustedBalance).toBe(
+                firstYear.balance
+              );
 
-        expectedBalance = growBalanceWithNetIncome(startingBalance, 0, 100);
-        expect(lastYear.balance).toBeCloseTo(expectedBalance);
-        expect(lastYear.inflationAdjustedBalance).toBeCloseTo(
-          deflate(expectedBalance, 100)
-        );
-      });
+              expect(lastYear.balance).toBe(startingBalance);
+              expect(lastYear.inflationAdjustedBalance).toBe(lastYear.balance);
+              /* eslint-enable jest/no-conditional-expect */
+            }
 
-      test('single losing job', () => {
-        const startingBalance = 1;
-        const monthlyExpenses = -5000;
-        const yearlyExpenses = monthlyExpenses * 12;
-        const yearlyIncome = -yearlyExpenses - 1;
-        const jobs = [
-          new Job({
-            name: 'Job That ALMOST Covers Exact Starting Expenses',
-            postTaxAnnualIncome: yearlyIncome.toString(),
-            adjustForInflation: 'on',
-            yearlyRaisePercentage: '0',
-            startDate: '',
-            endDate: '',
-          }),
-        ];
+            let expectedBalance = growBalanceWithNetIncome(
+              startingBalance,
+              0,
+              1
+            );
+            expect(firstYear.balance).toBeCloseTo(expectedBalance);
+            expect(firstYear.inflationAdjustedBalance).toBeCloseTo(
+              deflate(expectedBalance, 1)
+            );
 
-        const yearlyResults = new MonteCarloSimulation(
-          startingBalance,
-          monthlyExpenses,
-          jobs,
-          [],
-          assetClasses,
-          inflation,
-          new Date().getFullYear() + 100
-        ).run();
+            expectedBalance = growBalanceWithNetIncome(startingBalance, 0, 100);
+            expect(lastYear.balance).toBeCloseTo(expectedBalance);
+            expect(lastYear.inflationAdjustedBalance).toBeCloseTo(
+              deflate(expectedBalance, 100)
+            );
+          });
 
-        expect(yearlyResults.length).toBe(100);
+          test('single losing job', () => {
+            const startingBalance = 1;
+            const monthlyExpenses = -5000;
+            const yearlyExpenses = monthlyExpenses * 12;
+            const yearlyIncome = -yearlyExpenses - 1;
+            const jobs = [
+              new Job({
+                name: 'Job That ALMOST Covers Exact Starting Expenses',
+                postTaxAnnualIncome: yearlyIncome.toString(),
+                adjustForInflation: 'on',
+                yearlyRaisePercentage: '0',
+                startDate: '',
+                endDate: '',
+              }),
+            ];
 
-        const firstYear = yearlyResults[0];
-        const lastYear = yearlyResults[yearlyResults.length - 1];
+            const yearlyResults = new MonteCarloSimulation(
+              startingBalance,
+              monthlyExpenses,
+              jobs,
+              [],
+              assetClasses,
+              inflation,
+              new Date().getFullYear() + 100
+            ).run();
 
-        if (
-          inflationPercentage === 0 &&
-          assetClasses[0].averageAnnualReturn === 0
-        ) {
-          /* eslint-disable jest/no-conditional-expect */
-          expect(firstYear.balance).toBe(startingBalance - 1);
-          expect(firstYear.inflationAdjustedBalance).toBe(firstYear.balance);
+            expect(yearlyResults.length).toBe(100);
 
-          expect(lastYear.balance).toBe(startingBalance - 100);
-          expect(lastYear.inflationAdjustedBalance).toBe(lastYear.balance);
-          /* eslint-enable jest/no-conditional-expect */
-        }
+            const firstYear = yearlyResults[0];
+            const lastYear = yearlyResults[yearlyResults.length - 1];
 
-        let expectedBalance = growBalanceWithNetIncome(startingBalance, -1, 1);
-        expect(firstYear.balance).toBeCloseTo(expectedBalance);
-        expect(firstYear.inflationAdjustedBalance).toBeCloseTo(
-          deflate(expectedBalance, 1)
-        );
+            if (
+              inflationPercentage === 0 &&
+              assetClasses[0].averageAnnualReturn === 0
+            ) {
+              /* eslint-disable jest/no-conditional-expect */
+              expect(firstYear.balance).toBe(startingBalance - 1);
+              expect(firstYear.inflationAdjustedBalance).toBe(
+                firstYear.balance
+              );
 
-        expectedBalance = growBalanceWithNetIncome(startingBalance, -1, 100);
-        expect(lastYear.balance).toBeCloseTo(expectedBalance);
-        expect(lastYear.inflationAdjustedBalance).toBeCloseTo(
-          deflate(expectedBalance, 100)
-        );
-      });
+              expect(lastYear.balance).toBe(startingBalance - 100);
+              expect(lastYear.inflationAdjustedBalance).toBe(lastYear.balance);
+              /* eslint-enable jest/no-conditional-expect */
+            }
 
-      test('single winning job', () => {
-        const startingBalance = 0;
-        const monthlyExpenses = -5000;
-        const yearlyExpenses = monthlyExpenses * 12;
-        const yearlyIncome = -yearlyExpenses + 1;
-        const jobs = [
-          new Job({
-            name: 'Job That Covers Exact Starting Expenses PLUS $1',
-            postTaxAnnualIncome: yearlyIncome.toString(),
-            adjustForInflation: 'on',
-            yearlyRaisePercentage: '0',
-            startDate: '',
-            endDate: '',
-          }),
-        ];
+            let expectedBalance = growBalanceWithNetIncome(
+              startingBalance,
+              -1,
+              1
+            );
+            expect(firstYear.balance).toBeCloseTo(expectedBalance);
+            expect(firstYear.inflationAdjustedBalance).toBeCloseTo(
+              deflate(expectedBalance, 1)
+            );
 
-        const yearlyResults = new MonteCarloSimulation(
-          startingBalance,
-          monthlyExpenses,
-          jobs,
-          [],
-          assetClasses,
-          inflation,
-          new Date().getFullYear() + 100
-        ).run();
+            expectedBalance = growBalanceWithNetIncome(
+              startingBalance,
+              -1,
+              100
+            );
+            expect(lastYear.balance).toBeCloseTo(expectedBalance);
+            expect(lastYear.inflationAdjustedBalance).toBeCloseTo(
+              deflate(expectedBalance, 100)
+            );
+          });
 
-        expect(yearlyResults.length).toBe(100);
+          test('single winning job', () => {
+            const startingBalance = 0;
+            const monthlyExpenses = -5000;
+            const yearlyExpenses = monthlyExpenses * 12;
+            const yearlyIncome = -yearlyExpenses + 1;
+            const jobs = [
+              new Job({
+                name: 'Job That Covers Exact Starting Expenses PLUS $1',
+                postTaxAnnualIncome: yearlyIncome.toString(),
+                adjustForInflation: 'on',
+                yearlyRaisePercentage: '0',
+                startDate: '',
+                endDate: '',
+              }),
+            ];
 
-        const firstYear = yearlyResults[0];
-        const lastYear = yearlyResults[yearlyResults.length - 1];
+            const yearlyResults = new MonteCarloSimulation(
+              startingBalance,
+              monthlyExpenses,
+              jobs,
+              [],
+              assetClasses,
+              inflation,
+              new Date().getFullYear() + 100
+            ).run();
 
-        if (
-          inflationPercentage === 0 &&
-          assetClasses[0].averageAnnualReturn === 0
-        ) {
-          /* eslint-disable jest/no-conditional-expect */
-          expect(firstYear.balance).toBe(startingBalance + 1);
-          expect(firstYear.inflationAdjustedBalance).toBe(firstYear.balance);
+            expect(yearlyResults.length).toBe(100);
 
-          expect(lastYear.balance).toBe(startingBalance + 100);
-          expect(lastYear.inflationAdjustedBalance).toBe(lastYear.balance);
-          /* eslint-enable jest/no-conditional-expect */
-        }
+            const firstYear = yearlyResults[0];
+            const lastYear = yearlyResults[yearlyResults.length - 1];
 
-        let expectedBalance = growBalanceWithNetIncome(startingBalance, 1, 1);
-        expect(firstYear.balance).toBeCloseTo(expectedBalance);
-        expect(firstYear.inflationAdjustedBalance).toBeCloseTo(
-          deflate(expectedBalance, 1)
-        );
+            if (
+              inflationPercentage === 0 &&
+              assetClasses[0].averageAnnualReturn === 0
+            ) {
+              /* eslint-disable jest/no-conditional-expect */
+              expect(firstYear.balance).toBe(startingBalance + 1);
+              expect(firstYear.inflationAdjustedBalance).toBe(
+                firstYear.balance
+              );
 
-        expectedBalance = growBalanceWithNetIncome(startingBalance, 1, 100);
-        expect(lastYear.balance).toBeCloseTo(expectedBalance);
-        expect(lastYear.inflationAdjustedBalance).toBeCloseTo(
-          deflate(expectedBalance, 100)
-        );
-      });
+              expect(lastYear.balance).toBe(startingBalance + 100);
+              expect(lastYear.inflationAdjustedBalance).toBe(lastYear.balance);
+              /* eslint-enable jest/no-conditional-expect */
+            }
 
-      // test('all factors interact', () => {
-      //   const startingYear = new Date().getFullYear();
-      //   const endingYear = startingYear + 100;
+            let expectedBalance = growBalanceWithNetIncome(
+              startingBalance,
+              1,
+              1
+            );
+            expect(firstYear.balance).toBeCloseTo(expectedBalance);
+            expect(firstYear.inflationAdjustedBalance).toBeCloseTo(
+              deflate(expectedBalance, 1)
+            );
 
-      //   const startingBalance = 100000;
-      //   const monthlyExpenses = 2000;
-      //   const jobs = [
-      //     new Job({
-      //       name: 'Job That Covers Exact Starting Expenses',
-      //       postTaxAnnualIncome: '24000',
-      //       adjustForInflation: 'true',
-      //       yearlyRaisePercentage: '0',
-      //       startDate: '',
-      //       endDate: '2025-12-31',
-      //     }),
-      //     new Job({
-      //       name: 'Big Girl Job',
-      //       postTaxAnnualIncome: '100000',
-      //       adjustForInflation: 'on',
-      //       yearlyRaisePercentage: '0',
-      //       startDate: '2026-01-01',
-      //       endDate: '2050-12-31',
-      //     }),
-      //   ];
-      //   const lifeEvents = [
-      //     new LifeEvent({
-      //       name: 'Buy House',
-      //       balanceChange: '-100000',
-      //       monthlyExpensesChange: '1000',
-      //       date: '2031-01-01',
-      //     }),
-      //   ];
-      //   // asset classes average out to 5% annual return
-      //   const assetClasses = [
-      //     new AssetClass({
-      //       name: 'Stocks',
-      //       standardDeviationPercentage: 0,
-      //       averageAnnualReturnPercentage: 10,
-      //       allocationPercentage: 25,
-      //     }),
-      //     new AssetClass({
-      //       name: 'Bonds',
-      //       standardDeviationPercentage: 0,
-      //       averageAnnualReturnPercentage: 5,
-      //       allocationPercentage: 50,
-      //     }),
-      //     new AssetClass({
-      //       name: 'Cash',
-      //       standardDeviationPercentage: 0,
-      //       averageAnnualReturnPercentage: 0,
-      //       allocationPercentage: 25,
-      //     }),
-      //   ];
-      //   const inflation = new Inflation({
-      //     averageAnnualReturnPercentage: 3,
-      //     standardDeviationPercentage: 0,
-      //   });
-      //   const yearlyResults = new MonteCarloSimulation(
-      //     startingBalance,
-      //     monthlyExpenses,
-      //     jobs,
-      //     lifeEvents,
-      //     assetClasses,
-      //     inflation,
-      //     endingYear
-      //   ).run();
+            expectedBalance = growBalanceWithNetIncome(startingBalance, 1, 100);
+            expect(lastYear.balance).toBeCloseTo(expectedBalance);
+            expect(lastYear.inflationAdjustedBalance).toBeCloseTo(
+              deflate(expectedBalance, 100)
+            );
+          });
+        });
 
-      //   expect(yearlyResults.length).toBe(100);
-      //   console.warn(yearlyResults[0]);
-      // });
-    }
-  );
+        describe('life events', () => {
+          test.only('balance decrease', () => {
+            const startingDate = new Date();
+            const startingYear = startingDate.getFullYear();
+
+            const halfwayDate = new Date(startingDate);
+            halfwayDate.setFullYear(startingYear + 50);
+            // console.warn(halfwayDate.toString());
+
+            const startingBalance = 100000;
+
+            const yearlyResults = new MonteCarloSimulation(
+              startingBalance,
+              0,
+              [],
+              [
+                new LifeEvent({
+                  name: 'Lose It All In Hustlers Casino',
+                  monthlyExpensesChange: '0',
+                  balanceChange: (-startingBalance).toString(),
+                  // TODO: these tests are failing because LifeEvent
+                  // balanceChanges adjust to inflation, but the starting
+                  // balance has stayed the same. change test or change source?
+                  date: halfwayDate.toString(),
+                }),
+              ],
+              assetClasses,
+              inflation,
+              startingYear + 100
+            ).run();
+
+            console.warn('first year', yearlyResults[0]);
+            console.warn('second year', yearlyResults[1]);
+            console.warn('48th year', yearlyResults[48]);
+            console.warn('49th year', yearlyResults[49]);
+            console.warn('50th year', yearlyResults[50]);
+            console.warn('51st year', yearlyResults[51]);
+
+            expect(yearlyResults.length).toBe(100);
+
+            const isStatic = assetClasses.every(
+              ({ averageAnnualReturn: apr }) => apr === 0
+            );
+
+            yearlyResults.forEach((year, index) => {
+              /* eslint-disable jest/no-conditional-expect */
+              // console.warn('index', index);
+              if (index < 49) {
+                if (isStatic) expect(year.balance).toBe(startingBalance);
+                const expectedAdjustedBalance =
+                  startingBalance *
+                  Math.pow(
+                    (1 + assetClasses[0].averageAnnualReturn) /
+                      (1 + inflation.averageAnnualReturn),
+                    index + 1
+                  );
+                expect(year.inflationAdjustedBalance).toBeCloseTo(
+                  expectedAdjustedBalance
+                );
+              } else {
+                expect(year.balance).toBe(0);
+                expect(year.inflationAdjustedBalance).toBe(0);
+              }
+              /* eslint-enable jest/no-conditional-expect */
+            });
+          });
+        });
+
+        // test('all factors interact', () => {
+        //   const startingYear = new Date().getFullYear();
+        //   const endingYear = startingYear + 100;
+
+        //   const startingBalance = 100000;
+        //   const monthlyExpenses = 2000;
+        //   const jobs = [
+        //     new Job({
+        //       name: 'Job That Covers Exact Starting Expenses',
+        //       postTaxAnnualIncome: '24000',
+        //       adjustForInflation: 'true',
+        //       yearlyRaisePercentage: '0',
+        //       startDate: '',
+        //       endDate: '2025-12-31',
+        //     }),
+        //     new Job({
+        //       name: 'Big Girl Job',
+        //       postTaxAnnualIncome: '100000',
+        //       adjustForInflation: 'on',
+        //       yearlyRaisePercentage: '0',
+        //       startDate: '2026-01-01',
+        //       endDate: '2050-12-31',
+        //     }),
+        //   ];
+        //   const lifeEvents = [
+        //     new LifeEvent({
+        //       name: 'Buy House',
+        //       balanceChange: '-100000',
+        //       monthlyExpensesChange: '1000',
+        //       date: '2031-01-01',
+        //     }),
+        //   ];
+        //   // asset classes average out to 5% annual return
+        //   const assetClasses = [
+        //     new AssetClass({
+        //       name: 'Stocks',
+        //       standardDeviationPercentage: 0,
+        //       averageAnnualReturnPercentage: 10,
+        //       allocationPercentage: 25,
+        //     }),
+        //     new AssetClass({
+        //       name: 'Bonds',
+        //       standardDeviationPercentage: 0,
+        //       averageAnnualReturnPercentage: 5,
+        //       allocationPercentage: 50,
+        //     }),
+        //     new AssetClass({
+        //       name: 'Cash',
+        //       standardDeviationPercentage: 0,
+        //       averageAnnualReturnPercentage: 0,
+        //       allocationPercentage: 25,
+        //     }),
+        //   ];
+        //   const inflation = new Inflation({
+        //     averageAnnualReturnPercentage: 3,
+        //     standardDeviationPercentage: 0,
+        //   });
+        //   const yearlyResults = new MonteCarloSimulation(
+        //     startingBalance,
+        //     monthlyExpenses,
+        //     jobs,
+        //     lifeEvents,
+        //     assetClasses,
+        //     inflation,
+        //     endingYear
+        //   ).run();
+
+        //   expect(yearlyResults.length).toBe(100);
+        //   console.warn(yearlyResults[0]);
+        // });
+      }
+    );
+  });
 });
 
 // TODO:
