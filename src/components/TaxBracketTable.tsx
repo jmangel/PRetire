@@ -1,6 +1,6 @@
 import React from 'react';
 import { Table } from 'react-bootstrap';
-import { TaxBracketSet } from '../calculators/TaxCalculator';
+import { TaxBracketSet, calculateTax } from '../calculators/TaxCalculator';
 
 interface TaxBracketTableProps {
   taxBracketSet: TaxBracketSet;
@@ -13,12 +13,17 @@ const TaxBracketTable: React.FC<TaxBracketTableProps> = ({ taxBracketSet }) => {
         <tr>
           <th>Income Range</th>
           <th>Rate</th>
+          <th>Maximum Tax in Bracket</th>
         </tr>
       </thead>
       <tbody>
         {taxBracketSet.brackets.map((bracket, index) => {
           const lowerBound =
             index === 0 ? 0 : taxBracketSet.brackets[index - 1].upperBound;
+          const maxTaxInBracket = bracket.upperBound
+            ? calculateTax(bracket.upperBound, taxBracketSet.brackets)
+            : null;
+
           return (
             <tr key={index}>
               <td>
@@ -28,6 +33,11 @@ const TaxBracketTable: React.FC<TaxBracketTableProps> = ({ taxBracketSet }) => {
                   : '∞'}
               </td>
               <td>{(bracket.rate * 100).toFixed(2)}%</td>
+              <td>
+                {maxTaxInBracket !== null
+                  ? `$${maxTaxInBracket.toLocaleString()}`
+                  : '∞'}
+              </td>
             </tr>
           );
         })}
