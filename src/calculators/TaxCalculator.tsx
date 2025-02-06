@@ -1,9 +1,9 @@
 import Papa from 'papaparse';
 
 export interface TaxBracket {
-  lowerBound: number;
   upperBound: number | null; // null represents infinity
   rate: number; // as decimal (e.g., 0.25 for 25%)
+  cumulativeTaxAtStart: number; // Pre-calculated tax up to this bracket's start
 }
 
 export interface TaxBracketSet {
@@ -12,9 +12,28 @@ export interface TaxBracketSet {
   year: number;
 }
 
-// Efficiently sort tax brackets by lower bound
-export function sortTaxBrackets(brackets: TaxBracket[]): TaxBracket[] {
-  return brackets.sort((a, b) => a.lowerBound - b.lowerBound);
+// Sort tax brackets by upper bound and pre-calculate cumulative tax
+export function prepareTaxBrackets(brackets: TaxBracket[]): TaxBracket[] {
+  const sortedBrackets = brackets.sort((a, b) => {
+    if (a.upperBound === null) return 1;
+    if (b.upperBound === null) return -1;
+    return a.upperBound - b.upperBound;
+  });
+
+  let cumulativeTax = 0;
+  let previousUpperBound = 0;
+
+  return sortedBrackets.map((bracket) => {
+    const bracketStart = previousUpperBound;
+    if (bracket.upperBound !== null) {
+      cumulativeTax += (bracket.upperBound - bracketStart) * bracket.rate;
+      previousUpperBound = bracket.upperBound;
+    }
+    return {
+      ...bracket,
+      cumulativeTaxAtStart: cumulativeTax,
+    };
+  });
 }
 
 export function parseTaxBracketsFromCSV(csvContent: string): TaxBracketSet {
@@ -25,37 +44,32 @@ export function parseTaxBracketsFromCSV(csvContent: string): TaxBracketSet {
   }
 
   const brackets: TaxBracket[] = results.data.map((row: any) => ({
-    lowerBound: parseFloat(row.lowerBound),
     upperBound: row.upperBound === 'null' ? null : parseFloat(row.upperBound),
     rate: parseFloat(row.rate) / 100, // Convert percentage to decimal
+    cumulativeTaxAtStart: 0, // Will be calculated in prepareTaxBrackets
   }));
 
   return {
     name: 'Imported Tax Brackets',
-    brackets: sortTaxBrackets(brackets),
+    brackets: prepareTaxBrackets(brackets),
     year: new Date().getFullYear(),
   };
 }
 
 export function calculateTax(income: number, brackets: TaxBracket[]): number {
-  let totalTax = 0;
-  let remainingIncome = income;
+  // Find the applicable bracket
+  const bracket = brackets.find(
+    (b) => b.upperBound === null || income <= b.upperBound
+  );
+  if (!bracket) return 0;
 
-  for (const bracket of brackets) {
-    const bracketSize =
-      bracket.upperBound === null
-        ? remainingIncome
-        : Math.min(bracket.upperBound - bracket.lowerBound, remainingIncome);
+  // Get the previous bracket's upper bound (or 0 if it's the first bracket)
+  const bracketIndex = brackets.indexOf(bracket);
+  const bracketStart =
+    bracketIndex > 0 ? brackets[bracketIndex - 1].upperBound! : 0;
 
-    if (bracketSize <= 0) break;
-
-    totalTax += bracketSize * bracket.rate;
-    remainingIncome -= bracketSize;
-
-    if (remainingIncome <= 0) break;
-  }
-
-  return totalTax;
+  // Calculate tax using pre-calculated cumulative tax
+  return bracket.cumulativeTaxAtStart + (income - bracketStart) * bracket.rate;
 }
 
 export function calculateEffectiveTaxRate(
@@ -66,15 +80,14 @@ export function calculateEffectiveTaxRate(
   return totalTax / income;
 }
 
-// Binary search to find pre-tax income that results in target post-tax income
 export function findPreTaxIncome(
   targetPostTaxIncome: number,
   brackets: TaxBracket[]
 ): number {
   // binary search
   let low = targetPostTaxIncome;
-  let high = targetPostTaxIncome * 2; // Initial guess: double the post-tax income
-  const tolerance = 0.01; // Acceptable difference in dollars
+  let high = targetPostTaxIncome * 2;
+  const tolerance = 0.01;
 
   while (high - low > tolerance) {
     const mid = (low + high) / 2;
