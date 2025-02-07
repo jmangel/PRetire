@@ -11,6 +11,7 @@ import ErrorPage from './pages/ErrorPage';
 import MonteCarloPage, {
   action as monteCarloAction,
 } from './pages/MonteCarloPage';
+import TaxCalculatorPage from './pages/TaxCalculatorPage';
 
 const App = () => {
   const routes: RouteObject[] = [
@@ -27,6 +28,10 @@ const App = () => {
           path: 'monte_carlo',
           element: <MonteCarloPage />,
           action: monteCarloAction,
+        },
+        {
+          path: 'tax_calculator',
+          element: <TaxCalculatorPage />,
         },
       ],
     },
