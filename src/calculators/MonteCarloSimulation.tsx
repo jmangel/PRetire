@@ -199,12 +199,9 @@ class MonteCarloSimulation {
   }
 
   applyPostInflationChanges(year: number) {
-    this.runningMonthlyExpenses +=
-      this.lifeEventsMonthlyExpensesChange(year) *
-      this.cumulativeInflationMultiplier;
+    this.runningMonthlyExpenses += this.lifeEventsMonthlyExpensesChange(year);
 
-    this.runningBalance +=
-      this.lifeEventsBalanceChange(year) * this.cumulativeInflationMultiplier;
+    this.runningBalance += this.lifeEventsBalanceChange(year);
   }
 
   investmentGain() {
@@ -237,19 +234,25 @@ class MonteCarloSimulation {
   }
 
   lifeEventsMonthlyExpensesChange(year: number) {
-    return this.lifeEvents.reduce((acc, lifeEvent) => {
-      if (!lifeEvent.date || lifeEvent.date.getFullYear() !== year) return acc;
+    return (
+      this.lifeEvents.reduce((acc, lifeEvent) => {
+        if (!lifeEvent.date || lifeEvent.date.getFullYear() !== year)
+          return acc;
 
-      return acc + lifeEvent.monthlyExpensesChange;
-    }, 0);
+        return acc + lifeEvent.monthlyExpensesChange;
+      }, 0) * this.cumulativeInflationMultiplier
+    );
   }
 
   lifeEventsBalanceChange(year: number) {
-    return this.lifeEvents.reduce((acc, lifeEvent) => {
-      if (!lifeEvent.date || lifeEvent.date.getFullYear() !== year) return acc;
+    return (
+      this.lifeEvents.reduce((acc, lifeEvent) => {
+        if (!lifeEvent.date || lifeEvent.date.getFullYear() !== year)
+          return acc;
 
-      return acc + lifeEvent.balanceChange;
-    }, 0);
+        return acc + lifeEvent.balanceChange;
+      }, 0) * this.cumulativeInflationMultiplier
+    );
   }
 }
 
