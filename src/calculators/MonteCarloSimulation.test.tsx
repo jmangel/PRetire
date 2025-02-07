@@ -342,6 +342,353 @@ describe('MonteCarloSimulation', () => {
               /* eslint-enable jest/no-conditional-expect */
             });
           });
+
+          test('multiple life events affect balance and expenses', () => {
+            const startingDate = new Date();
+            const startingYear = startingDate.getFullYear();
+
+            const quarterDate = new Date(startingDate);
+            quarterDate.setFullYear(startingYear + 25);
+
+            const halfwayDate = new Date(startingDate);
+            halfwayDate.setFullYear(startingYear + 50);
+
+            const threeQuarterDate = new Date(startingDate);
+            threeQuarterDate.setFullYear(startingYear + 75);
+
+            const startingBalance = 100000;
+            const monthlyExpenses = -1000;
+
+            const yearlyResults = new MonteCarloSimulation(
+              startingBalance,
+              monthlyExpenses,
+              [],
+              [
+                new LifeEvent({
+                  name: 'Buy House',
+                  monthlyExpensesChange: '-2000',
+                  balanceChange: '-50000',
+                  date: quarterDate.toString(),
+                }),
+                new LifeEvent({
+                  name: 'Inheritance',
+                  monthlyExpensesChange: '0',
+                  balanceChange: '200000',
+                  date: halfwayDate.toString(),
+                }),
+                new LifeEvent({
+                  name: 'Retirement',
+                  monthlyExpensesChange: '500',
+                  balanceChange: '0',
+                  date: threeQuarterDate.toString(),
+                }),
+              ],
+              assetClasses,
+              inflation,
+              startingYear + 100
+            ).run();
+
+            expect(yearlyResults.length).toBe(100);
+
+            const averageReturn = assetClasses.reduce(
+              (acc, { averageAnnualReturn, allocation }) =>
+                acc + averageAnnualReturn * allocation,
+              0
+            );
+
+            yearlyResults.forEach((year, index) => {
+              const inflationMultiplier = Math.pow(
+                1 + inflation.averageAnnualReturn,
+                index + 1
+              );
+
+              /* eslint-disable jest/no-conditional-expect */
+              if (index === 24) {
+                // After first life event (Buy House)
+                expect(year.monthlyExpenses).toBeCloseTo(
+                  -3000 * inflationMultiplier
+                );
+                if (averageReturn === 0) {
+                  expect(year.inflationAdjustedBalance).toBeCloseTo(
+                    startingBalance - 50000
+                  );
+                }
+              } else if (index === 49) {
+                // After second life event (Inheritance)
+                expect(year.monthlyExpenses).toBeCloseTo(
+                  -3000 * inflationMultiplier
+                );
+                if (averageReturn === 0) {
+                  expect(year.balance).toBeCloseTo(
+                    startingBalance - 50000 + 200000
+                  );
+                }
+              } else if (index === 74) {
+                // After third life event (Retirement)
+                expect(year.monthlyExpenses).toBeCloseTo(
+                  -2500 * inflationMultiplier
+                );
+                if (averageReturn === 0) {
+                  expect(year.balance).toBeCloseTo(
+                    startingBalance - 50000 + 200000
+                  );
+                }
+              }
+              /* eslint-enable jest/no-conditional-expect */
+            });
+          });
+        });
+
+        describe('multiple jobs', () => {
+          test('overlapping jobs with different inflation adjustments', () => {
+            const startingDate = new Date();
+            const startingYear = startingDate.getFullYear();
+
+            const startingBalance = 0;
+            const monthlyExpenses = -5000;
+            const jobs = [
+              new Job({
+                name: 'Part Time Job',
+                postTaxAnnualIncome: '30000',
+                adjustForInflation: 'off',
+                yearlyRaisePercentage: '0',
+                startDate: '',
+                endDate: (startingYear + 50).toString() + '-12-31',
+              }),
+              new Job({
+                name: 'Full Time Job',
+                postTaxAnnualIncome: '70000',
+                adjustForInflation: 'on',
+                yearlyRaisePercentage: '0',
+                startDate: '',
+                endDate: (startingYear + 25).toString() + '-12-31',
+              }),
+              new Job({
+                name: 'Side Gig',
+                postTaxAnnualIncome: '20000',
+                adjustForInflation: 'on',
+                yearlyRaisePercentage: '0',
+                startDate: (startingYear + 10).toString() + '-01-01',
+                endDate: (startingYear + 35).toString() + '-12-31',
+              }),
+            ];
+
+            const yearlyResults = new MonteCarloSimulation(
+              startingBalance,
+              monthlyExpenses,
+              jobs,
+              [],
+              assetClasses,
+              inflation,
+              startingYear + 100
+            ).run();
+
+            expect(yearlyResults.length).toBe(100);
+
+            yearlyResults.forEach((year, index) => {
+              const inflationMultiplier = Math.pow(
+                1 + inflation.averageAnnualReturn,
+                index + 1
+              );
+
+              /* eslint-disable jest/no-conditional-expect */
+              if (index < 10) {
+                // First 10 years: Part Time + Full Time
+                const expectedIncome = 30000 + 70000 * inflationMultiplier;
+                expect(year.balance).toBeCloseTo(
+                  growBalanceWithNetIncome(
+                    startingBalance,
+                    expectedIncome + monthlyExpenses * 12,
+                    index + 1
+                  )
+                );
+              } else if (index < 25) {
+                // Years 10-25: All three jobs
+                const expectedIncome =
+                  30000 +
+                  70000 * inflationMultiplier +
+                  20000 * inflationMultiplier;
+                expect(year.balance).toBeCloseTo(
+                  growBalanceWithNetIncome(
+                    startingBalance,
+                    expectedIncome + monthlyExpenses * 12,
+                    index + 1
+                  )
+                );
+              } else if (index < 35) {
+                // Years 25-35: Part Time + Side Gig
+                const expectedIncome = 30000 + 20000 * inflationMultiplier;
+                expect(year.balance).toBeCloseTo(
+                  growBalanceWithNetIncome(
+                    startingBalance,
+                    expectedIncome + monthlyExpenses * 12,
+                    index + 1
+                  )
+                );
+              } else if (index < 50) {
+                // Years 35-50: Just Part Time
+                const expectedIncome = 30000;
+                expect(year.balance).toBeCloseTo(
+                  growBalanceWithNetIncome(
+                    startingBalance,
+                    expectedIncome + monthlyExpenses * 12,
+                    index + 1
+                  )
+                );
+              }
+              /* eslint-enable jest/no-conditional-expect */
+            });
+          });
+        });
+
+        describe('multiple asset classes', () => {
+          test('balanced portfolio with different returns', () => {
+            const startingBalance = 100000;
+            const monthlyExpenses = 0;
+            const multipleAssetClasses = [
+              new AssetClass({
+                name: 'Stocks',
+                standardDeviationPercentage: 0,
+                averageAnnualReturnPercentage: 10,
+                allocationPercentage: 60,
+              }),
+              new AssetClass({
+                name: 'Bonds',
+                standardDeviationPercentage: 0,
+                averageAnnualReturnPercentage: 5,
+                allocationPercentage: 30,
+              }),
+              new AssetClass({
+                name: 'Cash',
+                standardDeviationPercentage: 0,
+                averageAnnualReturnPercentage: 2,
+                allocationPercentage: 10,
+              }),
+            ];
+
+            const yearlyResults = new MonteCarloSimulation(
+              startingBalance,
+              monthlyExpenses,
+              [],
+              [],
+              multipleAssetClasses,
+              inflation,
+              new Date().getFullYear() + 100
+            ).run();
+
+            expect(yearlyResults.length).toBe(100);
+
+            // Expected weighted return: (10% * 0.6) + (5% * 0.3) + (2% * 0.1) = 7.7%
+            const expectedReturn = 0.077;
+
+            yearlyResults.forEach((year, index) => {
+              const expectedBalance =
+                startingBalance * Math.pow(1 + expectedReturn, index + 1);
+              const inflationAdjustedExpectedBalance =
+                expectedBalance /
+                Math.pow(1 + inflation.averageAnnualReturn, index + 1);
+
+              expect(year.balance).toBeCloseTo(expectedBalance);
+              expect(year.inflationAdjustedBalance).toBeCloseTo(
+                inflationAdjustedExpectedBalance
+              );
+            });
+          });
+
+          test('rebalancing maintains target allocations', () => {
+            const startingBalance = 100000;
+            const monthlyExpenses = 0;
+            const multipleAssetClasses = [
+              new AssetClass({
+                name: 'High Growth',
+                standardDeviationPercentage: 0,
+                averageAnnualReturnPercentage: 15,
+                allocationPercentage: 40,
+              }),
+              new AssetClass({
+                name: 'Low Growth',
+                standardDeviationPercentage: 0,
+                averageAnnualReturnPercentage: 5,
+                allocationPercentage: 60,
+              }),
+            ];
+
+            const yearlyResults = new MonteCarloSimulation(
+              startingBalance,
+              monthlyExpenses,
+              [],
+              [],
+              multipleAssetClasses,
+              inflation,
+              new Date().getFullYear() + 100
+            ).run();
+
+            expect(yearlyResults.length).toBe(100);
+
+            // Expected weighted return: (15% * 0.4) + (5% * 0.6) = 9%
+            const expectedReturn = 0.09;
+
+            yearlyResults.forEach((year, index) => {
+              const expectedBalance =
+                startingBalance * Math.pow(1 + expectedReturn, index + 1);
+              const inflationAdjustedExpectedBalance =
+                expectedBalance /
+                Math.pow(1 + inflation.averageAnnualReturn, index + 1);
+
+              expect(year.balance).toBeCloseTo(expectedBalance);
+              expect(year.inflationAdjustedBalance).toBeCloseTo(
+                inflationAdjustedExpectedBalance
+              );
+            });
+          });
+        });
+
+        describe('standard deviation', () => {
+          test('returns vary within expected range', () => {
+            const startingBalance = 100000;
+            const monthlyExpenses = 0;
+            const volatileAssetClass = [
+              new AssetClass({
+                name: 'Volatile Asset',
+                standardDeviationPercentage: 15,
+                averageAnnualReturnPercentage: 10,
+                allocationPercentage: 100,
+              }),
+            ];
+
+            // Run multiple simulations to test statistical properties
+            const numSimulations = 1000;
+            const returns: number[] = [];
+
+            for (let i = 0; i < numSimulations; i++) {
+              const yearlyResults = new MonteCarloSimulation(
+                startingBalance,
+                monthlyExpenses,
+                [],
+                [],
+                volatileAssetClass,
+                inflation,
+                new Date().getFullYear() + 1
+              ).run();
+
+              const annualReturn =
+                (yearlyResults[0].balance - startingBalance) / startingBalance;
+              returns.push(annualReturn);
+            }
+
+            // Calculate mean and standard deviation of returns
+            const mean =
+              returns.reduce((sum, val) => sum + val, 0) / returns.length;
+            const variance =
+              returns.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) /
+              returns.length;
+            const stdDev = Math.sqrt(variance);
+
+            // Check if mean is close to expected return (10%)
+            expect(mean).toBeCloseTo(0.1, 1);
+            // Check if standard deviation is close to expected (15%)
+            expect(stdDev).toBeCloseTo(0.15, 1);
+          });
         });
       }
     );
