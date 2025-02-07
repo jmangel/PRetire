@@ -1,7 +1,7 @@
 import MonteCarloSimulation, { LifeEvent } from './MonteCarloSimulation';
 import { AssetClass, Inflation, Job } from './MonteCarloSimulation';
 
-describe.skip('MonteCarloSimulation', () => {
+describe('MonteCarloSimulation', () => {
   describe('single asset class', () => {
     const allCashAssetClasses = [
       new AssetClass({
@@ -22,10 +22,10 @@ describe.skip('MonteCarloSimulation', () => {
 
     type TestEmbellishmentTuple = [string, AssetClass[], number];
     const testCaseEmbellishments = [
-      // ['all cash, no inflation', allCashAssetClasses, 0],
-      // ['all cash, 3% inflation', allCashAssetClasses, 3],
-      // ['all 10% growth stocks, no inflation', allStockAssetClasses, 0],
-      // ['all 10% growth stocks, 3% inflation', allStockAssetClasses, 3],
+      ['all cash, no inflation', allCashAssetClasses, 0],
+      ['all cash, 3% inflation', allCashAssetClasses, 3],
+      ['all 10% growth stocks, no inflation', allStockAssetClasses, 0],
+      ['all 10% growth stocks, 3% inflation', allStockAssetClasses, 3],
       ['all 10% growth stocks, 10% inflation', allStockAssetClasses, 10],
     ] as TestEmbellishmentTuple[];
 
@@ -51,39 +51,24 @@ describe.skip('MonteCarloSimulation', () => {
           const growthRate = 1 + assetClasses[0].averageAnnualReturn;
           const inflationRate = 1 + inflation.averageAnnualReturn;
 
-          console.warn(
-            `growthRate===inflationRate? ${
-              growthRate === inflationRate
-            } ${growthRate} === ${inflationRate}`
+          const totalCompoundedOffset = Array.from(
+            { length: elapsedYears },
+            (_, i) => {
+              // offset is applied before inflation, so inflation has happened i times
+              const yearsToInflateThisOffset = i;
+              // growth happens each year after offset is applied, so growth has happened elapsedYears - 1 - i times
+              const yearsToGrowThisOffset = elapsedYears - 1 - i;
+              return (
+                offset *
+                Math.pow(inflationRate, yearsToInflateThisOffset) *
+                Math.pow(growthRate, yearsToGrowThisOffset)
+              );
+            }
+          ).reduce((acc, curr) => acc + curr, 0);
+
+          return (
+            balance * Math.pow(growthRate, elapsedYears) + totalCompoundedOffset
           );
-
-          // thisYearsOffset = offset * (inflationRate^(elapsedYears - 1))
-          // thisYearsBalance = previousOffset * growthRate
-
-          // SUM of
-          const totalYears = 100;
-          const finalCompoundedSurplusFromThisYear =
-            offset *
-            Math.pow(inflationRate, elapsedYears - 1) *
-            Math.pow(growthRate, totalYears - elapsedYears);
-          // O * j^(k-1) * g^(K-k)
-          // sum gives this:
-          const wolframSum =
-            offset * Math.pow(growthRate, totalYears) -
-            Math.pow(inflationRate, totalYears) / (growthRate - inflationRate);
-          // TODO sum this in wolframalpha to get the formula?
-          // SUM from 0 to elapsedYears of offset * (inflationRate^(elapsedYears - 1))
-
-          const totalOffset =
-            growthRate === inflationRate
-              ? offset * elapsedYears
-              : (offset *
-                  (Math.pow(inflationRate, elapsedYears) -
-                    Math.pow(growthRate, elapsedYears))) /
-                (inflationRate - growthRate);
-
-          return balance * Math.pow(growthRate, elapsedYears) + totalOffset;
-          // return balance * Math.pow(growthRate, elapsedYears) + wolframSum;
         };
 
         describe('single job', () => {
@@ -201,6 +186,7 @@ describe.skip('MonteCarloSimulation', () => {
               -1,
               1
             );
+
             expect(firstYear.balance).toBeCloseTo(expectedBalance);
             expect(firstYear.inflationAdjustedBalance).toBeCloseTo(
               deflate(expectedBalance, 1)
@@ -217,7 +203,7 @@ describe.skip('MonteCarloSimulation', () => {
             );
           });
 
-          test.only('single winning job', () => {
+          test('single winning job', () => {
             const startingBalance = 0;
             const monthlyExpenses = -5000;
             const yearlyExpenses = monthlyExpenses * 12;
@@ -268,20 +254,14 @@ describe.skip('MonteCarloSimulation', () => {
               1,
               1
             );
+
             expect(firstYear.balance).toBeCloseTo(expectedBalance);
             expect(firstYear.inflationAdjustedBalance).toBeCloseTo(
               deflate(expectedBalance, 1)
             );
 
             expectedBalance = growBalanceWithNetIncome(startingBalance, 1, 100);
-            console.warn(
-              'expectedBalance',
-              expectedBalance,
-              'lastYear.balance',
-              lastYear.balance,
-              'lastYear.inflationAdjustedBalance',
-              lastYear.inflationAdjustedBalance
-            );
+
             expect(lastYear.balance).toBeCloseTo(expectedBalance);
             expect(lastYear.inflationAdjustedBalance).toBeCloseTo(
               deflate(expectedBalance, 100)
@@ -347,26 +327,16 @@ describe.skip('MonteCarloSimulation', () => {
                   expect(year.balance).toBeGreaterThan(0);
                   expect(year.inflationAdjustedBalance).toBeGreaterThan(0);
 
-                  // TODO: I would like these to work, just added them on 2025/01/21
-                  // I'm not sure why they don't.
-                  // Most important are the 'general' cases (toBeGreaterThan(0) vs toBeLessThan(0)),
-                  // and thankfully those already succeed
-
-                  // expect(year.balance).toBeCloseTo(
-                  //   expectedAdjustedBalance - startingBalance
-                  // );
+                  expect(year.inflationAdjustedBalance).toBeCloseTo(
+                    expectedAdjustedBalance - startingBalance
+                  );
                 } else {
                   expect(year.balance).toBeLessThan(0);
                   expect(year.inflationAdjustedBalance).toBeLessThan(0);
 
-                  // TODO: I would like these to work, just added them on 2025/01/21
-                  // I'm not sure why they don't.
-                  // Most important are the 'general' cases (toBeGreaterThan(0) vs toBeLessThan(0)),
-                  // and thankfully those already succeed
-
-                  // expect(year.balance).toBeCloseTo(
-                  //   expectedAdjustedBalance - startingBalance
-                  // );
+                  expect(year.inflationAdjustedBalance).toBeCloseTo(
+                    expectedAdjustedBalance - startingBalance
+                  );
                 }
               }
               /* eslint-enable jest/no-conditional-expect */
