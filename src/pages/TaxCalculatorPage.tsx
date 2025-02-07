@@ -11,6 +11,7 @@ import {
 } from '../calculators/TaxBracketValidation';
 import TaxBracketTable from '../components/TaxBracketTable';
 import TaxCalculatorForm from '../components/TaxCalculatorForm';
+import './TaxCalculatorPage.css';
 
 const TaxCalculatorPage: React.FC = () => {
   const [taxBracketSet, setTaxBracketSet] = useState<TaxBracketSet | null>(
@@ -57,18 +58,19 @@ const TaxCalculatorPage: React.FC = () => {
   };
 
   return (
-    <Container className="py-4">
-      <h1>Tax Calculator</h1>
+    <Container className="tax-calculator-container py-4">
+      <h1 className="tax-calculator-title">Tax Calculator</h1>
 
       <Card className="mb-4">
         <Card.Body>
-          <Card.Title>Tax Brackets</Card.Title>
-          <Form.Group controlId="csvUpload" className="mb-3">
+          <Card.Title className="mb-3">Tax Brackets</Card.Title>
+          <Form.Group controlId="csvUpload" className="mb-4">
             <Form.Label>Import Tax Brackets (CSV)</Form.Label>
             <Form.Control
               type="file"
               accept=".csv"
               onChange={handleFileUpload}
+              className="mb-2"
             />
             <Form.Text className="text-muted">
               CSV should have columns: upperBound, rate (as percentage)
@@ -88,12 +90,16 @@ const TaxCalculatorPage: React.FC = () => {
         </Card.Body>
       </Card>
 
-      {error && <Alert variant="danger">{error}</Alert>}
+      {error && (
+        <Alert variant="danger" className="mb-4">
+          {error}
+        </Alert>
+      )}
 
       {taxBracketSet && (
         <Card>
           <Card.Body>
-            <Card.Title>Calculate Tax</Card.Title>
+            <Card.Title className="mb-3">Calculate Tax</Card.Title>
             <TaxCalculatorForm
               taxBracketSet={taxBracketSet}
               preTaxIncome={preTaxIncome}

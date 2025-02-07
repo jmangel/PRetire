@@ -6,6 +6,7 @@ import {
   calculateEffectiveTaxRate,
   findPreTaxIncome,
 } from '../calculators/TaxCalculator';
+import './TaxCalculatorForm.css';
 
 interface TaxCalculatorFormProps {
   taxBracketSet: TaxBracketSet;
@@ -56,40 +57,63 @@ const TaxCalculatorForm: React.FC<TaxCalculatorFormProps> = ({
   };
 
   return (
-    <>
-      <Form.Group className="mb-3">
-        <Form.Label htmlFor="preTaxIncome">Pre-tax Income</Form.Label>
+    <div className="tax-calculator-form">
+      <Form.Group className="mb-4">
+        <Form.Label htmlFor="preTaxIncome" className="fw-bold">
+          Pre-tax Income
+        </Form.Label>
         <Form.Control
           id="preTaxIncome"
           type="number"
+          inputMode="decimal"
           min="0"
           step="1000"
           value={preTaxIncome || ''}
           onChange={handlePreTaxChange}
           placeholder="Enter pre-tax income"
+          className="income-input"
         />
       </Form.Group>
 
       {taxResults && (
-        <div className="mb-3">
-          <p>Tax Amount: ${taxResults.tax.toLocaleString()}</p>
-          <p>Post-tax Income: ${taxResults.postTaxIncome.toLocaleString()}</p>
-          <p>Effective Tax Rate: {taxResults.effectiveRate.toFixed(2)}%</p>
+        <div className="tax-results mb-4">
+          <p className="tax-result-item">
+            <span className="result-label">Tax Amount:</span>
+            <span className="result-value">
+              ${taxResults.tax.toLocaleString()}
+            </span>
+          </p>
+          <p className="tax-result-item">
+            <span className="result-label">Post-tax Income:</span>
+            <span className="result-value">
+              ${taxResults.postTaxIncome.toLocaleString()}
+            </span>
+          </p>
+          <p className="tax-result-item mb-0">
+            <span className="result-label">Effective Tax Rate:</span>
+            <span className="result-value">
+              {taxResults.effectiveRate.toFixed(2)}%
+            </span>
+          </p>
         </div>
       )}
 
       <hr className="my-4" />
 
-      <Form.Group className="mb-3">
-        <Form.Label htmlFor="postTaxIncome">Desired Post-tax Income</Form.Label>
+      <Form.Group className="mb-4">
+        <Form.Label htmlFor="postTaxIncome" className="fw-bold">
+          Desired Post-tax Income
+        </Form.Label>
         <Form.Control
           id="postTaxIncome"
           type="number"
+          inputMode="decimal"
           min="0"
           step="1000"
           value={postTaxIncome || ''}
           onChange={handlePostTaxChange}
           placeholder="Enter desired post-tax income"
+          className="income-input"
         />
       </Form.Group>
 
@@ -97,10 +121,11 @@ const TaxCalculatorForm: React.FC<TaxCalculatorFormProps> = ({
         variant="primary"
         onClick={handleFindPreTaxIncome}
         disabled={!postTaxIncome || isNaN(postTaxIncome)}
+        className="w-100 calculate-btn"
       >
         Calculate Required Pre-tax Income
       </Button>
-    </>
+    </div>
   );
 };
 
