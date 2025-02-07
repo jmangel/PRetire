@@ -343,79 +343,129 @@ describe('MonteCarloSimulation', () => {
             });
           });
         });
-
-        // test('all factors interact', () => {
-        //   const startingYear = new Date().getFullYear();
-        //   const endingYear = startingYear + 100;
-
-        //   const startingBalance = 100000;
-        //   const monthlyExpenses = 2000;
-        //   const jobs = [
-        //     new Job({
-        //       name: 'Job That Covers Exact Starting Expenses',
-        //       postTaxAnnualIncome: '24000',
-        //       adjustForInflation: 'true',
-        //       yearlyRaisePercentage: '0',
-        //       startDate: '',
-        //       endDate: '2025-12-31',
-        //     }),
-        //     new Job({
-        //       name: 'Big Girl Job',
-        //       postTaxAnnualIncome: '100000',
-        //       adjustForInflation: 'on',
-        //       yearlyRaisePercentage: '0',
-        //       startDate: '2026-01-01',
-        //       endDate: '2050-12-31',
-        //     }),
-        //   ];
-        //   const lifeEvents = [
-        //     new LifeEvent({
-        //       name: 'Buy House',
-        //       balanceChange: '-100000',
-        //       monthlyExpensesChange: '1000',
-        //       date: '2031-01-01',
-        //     }),
-        //   ];
-        //   // asset classes average out to 5% annual return
-        //   const assetClasses = [
-        //     new AssetClass({
-        //       name: 'Stocks',
-        //       standardDeviationPercentage: 0,
-        //       averageAnnualReturnPercentage: 10,
-        //       allocationPercentage: 25,
-        //     }),
-        //     new AssetClass({
-        //       name: 'Bonds',
-        //       standardDeviationPercentage: 0,
-        //       averageAnnualReturnPercentage: 5,
-        //       allocationPercentage: 50,
-        //     }),
-        //     new AssetClass({
-        //       name: 'Cash',
-        //       standardDeviationPercentage: 0,
-        //       averageAnnualReturnPercentage: 0,
-        //       allocationPercentage: 25,
-        //     }),
-        //   ];
-        //   const inflation = new Inflation({
-        //     averageAnnualReturnPercentage: 3,
-        //     standardDeviationPercentage: 0,
-        //   });
-        //   const yearlyResults = new MonteCarloSimulation(
-        //     startingBalance,
-        //     monthlyExpenses,
-        //     jobs,
-        //     lifeEvents,
-        //     assetClasses,
-        //     inflation,
-        //     endingYear
-        //   ).run();
-
-        //   expect(yearlyResults.length).toBe(100);
-        //   console.warn(yearlyResults[0]);
-        // });
       }
     );
+
+    test('all factors interact', () => {
+      const startingYear = new Date().getFullYear();
+      const endingYear = startingYear + 100;
+
+      const startingBalance = 100000;
+      const monthlyExpenses = -2000;
+      const jobs = [
+        new Job({
+          name: 'Initial Job',
+          postTaxAnnualIncome: '24000',
+          adjustForInflation: 'on',
+          yearlyRaisePercentage: '0',
+          startDate: '',
+          endDate: (startingYear + 5).toString() + '-12-31',
+        }),
+        new Job({
+          name: 'Career Job',
+          postTaxAnnualIncome: '100000',
+          adjustForInflation: 'on',
+          yearlyRaisePercentage: '3',
+          startDate: (startingYear + 6).toString() + '-01-01',
+          endDate: (startingYear + 30).toString() + '-12-31',
+        }),
+      ];
+      const lifeEvents = [
+        new LifeEvent({
+          name: 'Buy House',
+          balanceChange: '-100000',
+          monthlyExpensesChange: '-1000',
+          date: (startingYear + 10).toString() + '-02-01',
+        }),
+        new LifeEvent({
+          name: 'Inheritance',
+          balanceChange: '200000',
+          monthlyExpensesChange: '0',
+          date: (startingYear + 20).toString() + '-02-01',
+        }),
+        new LifeEvent({
+          name: 'Retirement',
+          balanceChange: '0',
+          monthlyExpensesChange: '1000',
+          date: (startingYear + 30).toString() + '-02-01',
+        }),
+      ];
+      const assetClasses = [
+        new AssetClass({
+          name: 'Stocks',
+          standardDeviationPercentage: 0,
+          averageAnnualReturnPercentage: 10,
+          allocationPercentage: 60,
+        }),
+        new AssetClass({
+          name: 'Bonds',
+          standardDeviationPercentage: 0,
+          averageAnnualReturnPercentage: 5,
+          allocationPercentage: 30,
+        }),
+        new AssetClass({
+          name: 'Cash',
+          standardDeviationPercentage: 0,
+          averageAnnualReturnPercentage: 2,
+          allocationPercentage: 10,
+        }),
+      ];
+      const testInflation = new Inflation({
+        averageAnnualReturnPercentage: 3,
+        standardDeviationPercentage: 0,
+      });
+
+      // Run simulation
+      const yearlyResults = new MonteCarloSimulation(
+        startingBalance,
+        monthlyExpenses,
+        jobs,
+        lifeEvents,
+        assetClasses,
+        testInflation,
+        endingYear
+      ).run();
+
+      expect(yearlyResults.length).toBe(100);
+
+      const year5 = yearlyResults[4]; // End of initial job
+      const year9 = yearlyResults[8]; // Year before house purchase
+      const year10 = yearlyResults[9]; // House purchase
+      const year20 = yearlyResults[19]; // Inheritance
+      const year30 = yearlyResults[29]; // Retirement
+      const year100 = yearlyResults[99]; // End of simulation
+
+      // Test balance progression
+      expect(year5.inflationAdjustedBalance).toBeGreaterThan(startingBalance);
+      expect(year9.inflationAdjustedBalance).toBeGreaterThan(
+        year5.inflationAdjustedBalance
+      );
+
+      // Test house purchase impact
+      const expectedYear10WithoutPurchase =
+        year9.inflationAdjustedBalance * (1 + 0.077) + 100000 - 24000; // Growth + income - expenses
+      expect(year10.inflationAdjustedBalance).toBeLessThan(
+        expectedYear10WithoutPurchase
+      );
+
+      // Test inheritance impact
+      expect(year20.inflationAdjustedBalance).toBeGreaterThan(
+        yearlyResults[18].inflationAdjustedBalance + 200000
+      );
+
+      // Should still have money at end due to investment returns
+      expect(year100.balance).toBeGreaterThan(0);
+      expect(year100.inflationAdjustedBalance).toBeLessThan(year100.balance);
+
+      // Test monthly expenses changes
+      expect(year10.inflationAdjustedMonthlyExpenses).toBeCloseTo(
+        monthlyExpenses - 1000
+      );
+      // Retirement increases monthly expenses by 1000
+      expect(year30.inflationAdjustedMonthlyExpenses).toBeCloseTo(
+        year20.inflationAdjustedMonthlyExpenses + 1000
+      );
+    });
   });
 });
 
