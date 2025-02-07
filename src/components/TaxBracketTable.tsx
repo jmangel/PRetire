@@ -100,115 +100,121 @@ const TaxBracketTable: React.FC<TaxBracketTableProps> = ({
 
   return (
     <div>
-      <Table striped bordered hover>
-        <thead>
-          <tr>
-            <th>Income Range Start</th>
-            <th>Income Range End</th>
-            <th>Tax Rate</th>
-            <th>Bracket Tax</th>
-            <th>Cumulative Tax</th>
-            <th>Take-Home Income</th>
-            <th>Effective Rate</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {bracketsWithCalculations.map((bracket, index) => {
-            const bracketStart =
-              index === 0
-                ? 0
-                : bracketsWithCalculations[index - 1].upperBound ?? 0;
+      <div
+        className="table-responsive"
+        style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}
+      >
+        <Table striped bordered hover>
+          <thead>
+            <tr>
+              <th>Income Range Start</th>
+              <th>Income Range End</th>
+              <th>Tax Rate</th>
+              <th>Bracket Tax</th>
+              <th>Cumulative Tax</th>
+              <th>Take-Home Income</th>
+              <th>Effective Rate</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bracketsWithCalculations.map((bracket, index) => {
+              const bracketStart =
+                index === 0
+                  ? 0
+                  : bracketsWithCalculations[index - 1].upperBound ?? 0;
 
-            const takeHomeIncome =
-              bracket.upperBound !== null
-                ? bracket.upperBound - (bracket.totalTax ?? 0)
-                : null;
+              const takeHomeIncome =
+                bracket.upperBound !== null
+                  ? bracket.upperBound - (bracket.totalTax ?? 0)
+                  : null;
 
-            const isEditingUpperBound =
-              activeEdit?.index === index && activeEdit.field === 'upperBound';
-            const isEditingRate =
-              activeEdit?.index === index && activeEdit.field === 'rate';
+              const isEditingUpperBound =
+                activeEdit?.index === index &&
+                activeEdit.field === 'upperBound';
+              const isEditingRate =
+                activeEdit?.index === index && activeEdit.field === 'rate';
 
-            return (
-              <tr key={index}>
-                <td>${bracketStart.toLocaleString()}</td>
-                <td>
-                  <Form.Control
-                    type="text"
-                    value={
-                      isEditingUpperBound
-                        ? activeEdit.value
-                        : bracket.upperBound?.toString() ?? 'null'
-                    }
-                    onChange={(e) => handleEditChange(e.target.value)}
-                    onFocus={() =>
-                      handleEditStart(
-                        index,
-                        'upperBound',
-                        bracket.upperBound?.toString() ?? 'null'
-                      )
-                    }
-                    onBlur={handleEditComplete}
-                    size="sm"
-                  />
-                </td>
-                <td>
-                  <Form.Control
-                    type="text"
-                    value={
-                      isEditingRate
-                        ? activeEdit.value
-                        : (bracket.rate * 100).toString()
-                    }
-                    onChange={(e) => handleEditChange(e.target.value)}
-                    onFocus={() =>
-                      handleEditStart(
-                        index,
-                        'rate',
-                        (bracket.rate * 100).toString()
-                      )
-                    }
-                    onBlur={handleEditComplete}
-                    size="sm"
-                  />
-                </td>
-                <td>
-                  {bracket.taxInBracket !== null
-                    ? `$${bracket.taxInBracket.toLocaleString()}`
-                    : '∞'}
-                </td>
-                <td>
-                  {bracket.totalTax !== null
-                    ? `$${bracket.totalTax.toLocaleString()}`
-                    : '∞'}
-                </td>
-                <td>
-                  {takeHomeIncome !== null
-                    ? `$${takeHomeIncome.toLocaleString()}`
-                    : '∞'}
-                </td>
-                <td>
-                  {bracket.effectiveRate !== null
-                    ? `${(bracket.effectiveRate * 100).toFixed(1)}%`
-                    : '∞'}
-                </td>
-                <td>
-                  {taxBracketSet.brackets.length > 1 && (
-                    <Button
-                      variant="danger"
+              return (
+                <tr key={index}>
+                  <td>${bracketStart.toLocaleString()}</td>
+                  <td>
+                    <Form.Control
+                      type="text"
+                      value={
+                        isEditingUpperBound
+                          ? activeEdit.value
+                          : bracket.upperBound?.toString() ?? 'null'
+                      }
+                      onChange={(e) => handleEditChange(e.target.value)}
+                      onFocus={() =>
+                        handleEditStart(
+                          index,
+                          'upperBound',
+                          bracket.upperBound?.toString() ?? 'null'
+                        )
+                      }
+                      onBlur={handleEditComplete}
                       size="sm"
-                      onClick={() => handleDeleteBracket(index)}
-                    >
-                      Delete
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </Table>
+                    />
+                  </td>
+                  <td>
+                    <Form.Control
+                      type="text"
+                      value={
+                        isEditingRate
+                          ? activeEdit.value
+                          : (bracket.rate * 100).toString()
+                      }
+                      onChange={(e) => handleEditChange(e.target.value)}
+                      onFocus={() =>
+                        handleEditStart(
+                          index,
+                          'rate',
+                          (bracket.rate * 100).toString()
+                        )
+                      }
+                      onBlur={handleEditComplete}
+                      size="sm"
+                    />
+                  </td>
+                  <td>
+                    {bracket.taxInBracket !== null
+                      ? `$${bracket.taxInBracket.toLocaleString()}`
+                      : '∞'}
+                  </td>
+                  <td>
+                    {bracket.totalTax !== null
+                      ? `$${bracket.totalTax.toLocaleString()}`
+                      : '∞'}
+                  </td>
+                  <td>
+                    {takeHomeIncome !== null
+                      ? `$${takeHomeIncome.toLocaleString()}`
+                      : '∞'}
+                  </td>
+                  <td>
+                    {bracket.effectiveRate !== null
+                      ? `${(bracket.effectiveRate * 100).toFixed(1)}%`
+                      : '∞'}
+                  </td>
+                  <td>
+                    {taxBracketSet.brackets.length > 1 && (
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => handleDeleteBracket(index)}
+                      >
+                        Delete
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
+      </div>
       <Button variant="primary" onClick={handleAddBracket}>
         Add Tax Bracket
       </Button>
