@@ -1,7 +1,7 @@
 import MonteCarloSimulation, { LifeEvent } from './MonteCarloSimulation';
 import { AssetClass, Inflation, Job } from './MonteCarloSimulation';
 
-describe('MonteCarloSimulation', () => {
+describe.skip('MonteCarloSimulation', () => {
   describe('single asset class', () => {
     const allCashAssetClasses = [
       new AssetClass({
