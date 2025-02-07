@@ -1,4 +1,3 @@
-import { start } from 'repl';
 import MonteCarloSimulation, { LifeEvent } from './MonteCarloSimulation';
 import { AssetClass, Inflation, Job } from './MonteCarloSimulation';
 
