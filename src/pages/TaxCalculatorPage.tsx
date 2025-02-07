@@ -5,6 +5,10 @@ import {
   parseTaxBracketsFromCSV,
   TaxBracket,
 } from '../calculators/TaxCalculator';
+import {
+  validateTaxBrackets,
+  formatValidationErrors,
+} from '../calculators/TaxBracketValidation';
 import TaxBracketTable from '../components/TaxBracketTable';
 import TaxCalculatorForm from '../components/TaxCalculatorForm';
 
@@ -39,32 +43,17 @@ const TaxCalculatorPage: React.FC = () => {
   const handleBracketsChange = (newBrackets: TaxBracket[]) => {
     if (!taxBracketSet) return;
 
-    // Validate brackets
-    try {
-      // Check that rates are between 0 and 1
-      if (newBrackets.some((b) => b.rate < 0 || b.rate > 1)) {
-        throw new Error('Tax rates must be between 0% and 100%');
-      }
-
-      // Check that upper bounds are increasing (except for null)
-      let lastBound = 0;
-      for (const bracket of newBrackets) {
-        if (bracket.upperBound !== null) {
-          if (bracket.upperBound <= lastBound) {
-            throw new Error('Upper bounds must be in increasing order');
-          }
-          lastBound = bracket.upperBound;
-        }
-      }
-
-      setTaxBracketSet({
-        ...taxBracketSet,
-        brackets: newBrackets,
-      });
-      setError('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid tax brackets');
+    const validationErrors = validateTaxBrackets(newBrackets);
+    if (validationErrors.length > 0) {
+      setError(formatValidationErrors(validationErrors));
+      return;
     }
+
+    setTaxBracketSet({
+      ...taxBracketSet,
+      brackets: newBrackets,
+    });
+    setError('');
   };
 
   return (

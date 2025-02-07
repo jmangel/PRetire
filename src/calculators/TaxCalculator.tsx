@@ -1,4 +1,5 @@
 import Papa from 'papaparse';
+import { validateTaxBrackets } from './TaxBracketValidation';
 
 export interface TaxBracket {
   upperBound: number | null; // null represents infinity
@@ -65,6 +66,11 @@ export function parseTaxBracketsFromCSV(csvContent: string): TaxBracketSet {
     upperBound: row.upperBound === 'null' ? null : parseFloat(row.upperBound),
     rate: parseFloat(row.rate) / 100, // Convert percentage to decimal
   }));
+
+  const validationErrors = validateTaxBrackets(brackets);
+  if (validationErrors.length > 0) {
+    throw new Error('Invalid tax brackets: ' + validationErrors[0].message);
+  }
 
   return {
     name: 'Imported Tax Brackets',

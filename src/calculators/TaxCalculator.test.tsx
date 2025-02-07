@@ -62,9 +62,39 @@ describe('TaxCalculator', () => {
       expect(result.brackets[2].upperBound).toBe(null);
     });
 
-    it('throws error for invalid CSV', () => {
+    it('throws error for invalid CSV format', () => {
       const invalidCSV = 'invalid,csv\ncontent';
-      expect(() => parseTaxBracketsFromCSV(invalidCSV)).toThrow();
+      expect(() => parseTaxBracketsFromCSV(invalidCSV)).toThrow(
+        'Failed to parse CSV'
+      );
+    });
+
+    it('throws error for invalid tax rates', () => {
+      const csvContent = 'upperBound,rate\n10000,-10\n50000,20\nnull,30';
+      expect(() => parseTaxBracketsFromCSV(csvContent)).toThrow(
+        'Tax rate must be between 0% and 100%'
+      );
+    });
+
+    it('throws error for non-increasing upper bounds', () => {
+      const csvContent = 'upperBound,rate\n50000,10\n10000,20\nnull,30';
+      expect(() => parseTaxBracketsFromCSV(csvContent)).toThrow(
+        'Upper bounds must be in increasing order'
+      );
+    });
+
+    it('throws error for multiple null upper bounds', () => {
+      const csvContent = 'upperBound,rate\nnull,10\nnull,20';
+      expect(() => parseTaxBracketsFromCSV(csvContent)).toThrow(
+        'Only the last bracket can have an infinite upper bound'
+      );
+    });
+
+    it('throws error for null upper bound not in last position', () => {
+      const csvContent = 'upperBound,rate\nnull,10\n50000,20';
+      expect(() => parseTaxBracketsFromCSV(csvContent)).toThrow(
+        'Only the last bracket can have an infinite upper bound'
+      );
     });
   });
 
