@@ -30,6 +30,14 @@ export default function Root() {
               <Nav.Link
                 as={Link}
                 className="me-2"
+                eventKey="/tax_calculator"
+                to="/tax_calculator"
+              >
+                Tax Calculator
+              </Nav.Link>
+              <Nav.Link
+                as={Link}
+                className="me-2"
                 to="mailto:songscaler+dev-feeback-pretire@gmail.com"
                 target="_blank"
               >
