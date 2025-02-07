@@ -1,6 +1,6 @@
-import { Container, Nav, Navbar } from "react-bootstrap";
-import { Link, Outlet, useLocation } from "react-router-dom";
-import LegalDisclaimer from "../components/LegalDisclaimer";
+import { Container, Nav, Navbar } from 'react-bootstrap';
+import { Link, Outlet, useLocation } from 'react-router-dom';
+import LegalDisclaimer from '../components/LegalDisclaimer';
 
 export default function Root() {
   const location = useLocation();
@@ -11,11 +11,38 @@ export default function Root() {
         <Container>
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
-            <Nav variant="underline" activeKey={location.pathname} className="me-auto">
-              <Nav.Link as={Link} className="me-2" eventKey="/" to="/">Home</Nav.Link>
-              <Nav.Link as={Link} className="me-2" eventKey="/monte_carlo" to="/monte_carlo">Monte Carlo</Nav.Link>
-              <Nav.Link as={Link} className="me-2" to="mailto:songscaler+dev-feeback-pretire@gmail.com" target="_blank">Feedback</Nav.Link>
-              <Nav.Link as={Link} className="me-2" to="https://venmo.com/u/JohnMangel" target="_blank">Tip The Dev (thanks! ＼(´∀｀)／)</Nav.Link>
+            <Nav
+              variant="underline"
+              activeKey={location.pathname}
+              className="me-auto"
+            >
+              <Nav.Link as={Link} className="me-2" eventKey="/" to="/">
+                Home
+              </Nav.Link>
+              <Nav.Link
+                as={Link}
+                className="me-2"
+                eventKey="/monte_carlo"
+                to="/monte_carlo"
+              >
+                Monte Carlo
+              </Nav.Link>
+              <Nav.Link
+                as={Link}
+                className="me-2"
+                to="mailto:songscaler+dev-feeback-pretire@gmail.com"
+                target="_blank"
+              >
+                Feedback
+              </Nav.Link>
+              <Nav.Link
+                as={Link}
+                className="me-2"
+                to="https://venmo.com/u/JohnMangel"
+                target="_blank"
+              >
+                Tip The Dev (thanks! ＼(´∀｀)／)
+              </Nav.Link>
             </Nav>
           </Navbar.Collapse>
         </Container>
