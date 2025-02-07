@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import TaxCalculatorForm from './TaxCalculatorForm';
-import { TaxBracketSet } from '../calculators/TaxCalculator';
+import { TaxBracketSet, findPreTaxIncome } from '../calculators/TaxCalculator';
 
 describe('TaxCalculatorForm', () => {
   const mockOnPreTaxIncomeChange = jest.fn();
@@ -11,9 +11,9 @@ describe('TaxCalculatorForm', () => {
     name: 'Test Brackets',
     year: 2024,
     brackets: [
-      { upperBound: 10000, rate: 0.1, cumulativeTaxAtStart: 0 },
-      { upperBound: 50000, rate: 0.2, cumulativeTaxAtStart: 1000 },
-      { upperBound: null, rate: 0.3, cumulativeTaxAtStart: 9000 },
+      { upperBound: 10000, rate: 0.1 },
+      { upperBound: 50000, rate: 0.2 },
+      { upperBound: null, rate: 0.3 },
     ],
   };
 
@@ -36,7 +36,9 @@ describe('TaxCalculatorForm', () => {
     expect(
       screen.getByLabelText(/Desired Post-tax Income/)
     ).toBeInTheDocument();
-    expect(screen.getByRole('button')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Calculate Required Pre-tax Income/ })
+    ).toBeInTheDocument();
   });
 
   it('handles pre-tax income changes', () => {
@@ -84,9 +86,9 @@ describe('TaxCalculatorForm', () => {
       />
     );
 
-    expect(screen.getByText(/Tax Amount:/)).toBeInTheDocument();
-    expect(screen.getByText(/Post-tax Income:/)).toBeInTheDocument();
-    expect(screen.getByText(/Effective Tax Rate:/)).toBeInTheDocument();
+    expect(screen.getByText(/Tax Amount: \$9,000/)).toBeInTheDocument();
+    expect(screen.getByText(/Post-tax Income: \$41,000/)).toBeInTheDocument();
+    expect(screen.getByText(/Effective Tax Rate: 18.00%/)).toBeInTheDocument();
   });
 
   it('handles invalid inputs gracefully', () => {
@@ -101,9 +103,9 @@ describe('TaxCalculatorForm', () => {
     );
 
     const input = screen.getByLabelText(/Pre-tax Income/);
-    fireEvent.change(input, { target: { value: 'invalid' } });
 
-    expect(mockOnPreTaxIncomeChange).toHaveBeenCalledWith(0);
+    fireEvent.change(input, { target: { value: 'invalid' } });
+    expect(mockOnPreTaxIncomeChange).not.toHaveBeenCalled();
   });
 
   it('calculates required pre-tax income when button is clicked', () => {
@@ -117,11 +119,19 @@ describe('TaxCalculatorForm', () => {
       />
     );
 
+    expect(mockOnPreTaxIncomeChange).not.toHaveBeenCalled();
+
     const button = screen.getByRole('button', {
       name: /Calculate Required Pre-tax Income/,
     });
     fireEvent.click(button);
 
-    expect(mockOnPreTaxIncomeChange).toHaveBeenCalled();
+    const expectedPreTaxIncome = findPreTaxIncome(
+      40000,
+      sampleTaxBracketSet.brackets
+    );
+    expect(expectedPreTaxIncome).toBeGreaterThan(40000);
+
+    expect(mockOnPreTaxIncomeChange).toHaveBeenCalledWith(expectedPreTaxIncome);
   });
 });

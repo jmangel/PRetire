@@ -3,6 +3,7 @@ import { Container, Form, Card, Alert } from 'react-bootstrap';
 import {
   TaxBracketSet,
   parseTaxBracketsFromCSV,
+  TaxBracket,
 } from '../calculators/TaxCalculator';
 import TaxBracketTable from '../components/TaxBracketTable';
 import TaxCalculatorForm from '../components/TaxCalculatorForm';
@@ -29,8 +30,41 @@ const TaxCalculatorPage: React.FC = () => {
       } catch (err) {
         setError('Failed to parse CSV file. Please check the format.');
       }
+      // Clear the input value so the same file can be selected again
+      event.target.value = '';
     };
     reader.readAsText(file);
+  };
+
+  const handleBracketsChange = (newBrackets: TaxBracket[]) => {
+    if (!taxBracketSet) return;
+
+    // Validate brackets
+    try {
+      // Check that rates are between 0 and 1
+      if (newBrackets.some((b) => b.rate < 0 || b.rate > 1)) {
+        throw new Error('Tax rates must be between 0% and 100%');
+      }
+
+      // Check that upper bounds are increasing (except for null)
+      let lastBound = 0;
+      for (const bracket of newBrackets) {
+        if (bracket.upperBound !== null) {
+          if (bracket.upperBound <= lastBound) {
+            throw new Error('Upper bounds must be in increasing order');
+          }
+          lastBound = bracket.upperBound;
+        }
+      }
+
+      setTaxBracketSet({
+        ...taxBracketSet,
+        brackets: newBrackets,
+      });
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid tax brackets');
+    }
   };
 
   return (
@@ -56,7 +90,12 @@ const TaxCalculatorPage: React.FC = () => {
             </Form.Text>
           </Form.Group>
 
-          {taxBracketSet && <TaxBracketTable taxBracketSet={taxBracketSet} />}
+          {taxBracketSet && (
+            <TaxBracketTable
+              taxBracketSet={taxBracketSet}
+              onBracketsChange={handleBracketsChange}
+            />
+          )}
         </Card.Body>
       </Card>
 

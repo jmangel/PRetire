@@ -58,8 +58,9 @@ const TaxCalculatorForm: React.FC<TaxCalculatorFormProps> = ({
   return (
     <>
       <Form.Group className="mb-3">
-        <Form.Label>Pre-tax Income</Form.Label>
+        <Form.Label htmlFor="preTaxIncome">Pre-tax Income</Form.Label>
         <Form.Control
+          id="preTaxIncome"
           type="number"
           min="0"
           step="1000"
@@ -80,8 +81,9 @@ const TaxCalculatorForm: React.FC<TaxCalculatorFormProps> = ({
       <hr className="my-4" />
 
       <Form.Group className="mb-3">
-        <Form.Label>Desired Post-tax Income</Form.Label>
+        <Form.Label htmlFor="postTaxIncome">Desired Post-tax Income</Form.Label>
         <Form.Control
+          id="postTaxIncome"
           type="number"
           min="0"
           step="1000"

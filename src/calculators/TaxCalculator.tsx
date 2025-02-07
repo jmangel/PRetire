@@ -3,7 +3,13 @@ import Papa from 'papaparse';
 export interface TaxBracket {
   upperBound: number | null; // null represents infinity
   rate: number; // as decimal (e.g., 0.25 for 25%)
-  cumulativeTaxAtStart: number; // Pre-calculated tax up to this bracket's start
+}
+
+export interface TaxBracketWithCalculations extends TaxBracket {
+  cumulativeTaxUpToBracket: number;
+  taxInBracket: number | null;
+  totalTax: number | null;
+  effectiveRate: number | null;
 }
 
 export interface TaxBracketSet {
@@ -12,8 +18,10 @@ export interface TaxBracketSet {
   year: number;
 }
 
-// Sort tax brackets by upper bound and pre-calculate cumulative tax
-export function prepareTaxBrackets(brackets: TaxBracket[]): TaxBracket[] {
+// Calculate derived values for a set of brackets
+export function calculateBracketValues(
+  brackets: TaxBracket[]
+): TaxBracketWithCalculations[] {
   const sortedBrackets = brackets.sort((a, b) => {
     if (a.upperBound === null) return 1;
     if (b.upperBound === null) return -1;
@@ -24,15 +32,25 @@ export function prepareTaxBrackets(brackets: TaxBracket[]): TaxBracket[] {
   let previousUpperBound = 0;
 
   return sortedBrackets.map((bracket) => {
-    const bracketStart = previousUpperBound;
+    const result: TaxBracketWithCalculations = {
+      ...bracket,
+      cumulativeTaxUpToBracket: cumulativeTax,
+      taxInBracket: null,
+      totalTax: null,
+      effectiveRate: null,
+    };
+
     if (bracket.upperBound !== null) {
-      cumulativeTax += (bracket.upperBound - bracketStart) * bracket.rate;
+      result.taxInBracket =
+        (bracket.upperBound - previousUpperBound) * bracket.rate;
+      result.totalTax = cumulativeTax + result.taxInBracket;
+      result.effectiveRate = result.totalTax / bracket.upperBound;
+
+      cumulativeTax = result.totalTax;
       previousUpperBound = bracket.upperBound;
     }
-    return {
-      ...bracket,
-      cumulativeTaxAtStart: cumulativeTax,
-    };
+
+    return result;
   });
 }
 
@@ -46,30 +64,45 @@ export function parseTaxBracketsFromCSV(csvContent: string): TaxBracketSet {
   const brackets: TaxBracket[] = results.data.map((row: any) => ({
     upperBound: row.upperBound === 'null' ? null : parseFloat(row.upperBound),
     rate: parseFloat(row.rate) / 100, // Convert percentage to decimal
-    cumulativeTaxAtStart: 0, // Will be calculated in prepareTaxBrackets
   }));
 
   return {
     name: 'Imported Tax Brackets',
-    brackets: prepareTaxBrackets(brackets),
+    brackets,
     year: new Date().getFullYear(),
   };
 }
 
 export function calculateTax(income: number, brackets: TaxBracket[]): number {
-  // Find the applicable bracket
-  const bracket = brackets.find(
-    (b) => b.upperBound === null || income <= b.upperBound
-  );
-  if (!bracket) return 0;
+  const sortedBrackets = brackets.sort((a, b) => {
+    if (a.upperBound === null) return 1;
+    if (b.upperBound === null) return -1;
+    return a.upperBound - b.upperBound;
+  });
 
-  // Get the previous bracket's upper bound (or 0 if it's the first bracket)
-  const bracketIndex = brackets.indexOf(bracket);
-  const bracketStart =
-    bracketIndex > 0 ? brackets[bracketIndex - 1].upperBound! : 0;
+  let totalTax = 0;
+  let remainingIncome = income;
+  let previousUpperBound = 0;
 
-  // Calculate tax using pre-calculated cumulative tax
-  return bracket.cumulativeTaxAtStart + (income - bracketStart) * bracket.rate;
+  for (const bracket of sortedBrackets) {
+    const bracketSize =
+      bracket.upperBound === null
+        ? remainingIncome
+        : Math.min(bracket.upperBound - previousUpperBound, remainingIncome);
+
+    if (bracketSize <= 0) break;
+
+    totalTax += bracketSize * bracket.rate;
+    remainingIncome -= bracketSize;
+
+    if (bracket.upperBound !== null) {
+      previousUpperBound = bracket.upperBound;
+    }
+
+    if (remainingIncome <= 0) break;
+  }
+
+  return totalTax;
 }
 
 export function calculateEffectiveTaxRate(
@@ -87,7 +120,7 @@ export function findPreTaxIncome(
   // binary search
   let low = targetPostTaxIncome;
   let high = targetPostTaxIncome * 2;
-  const tolerance = 0.01;
+  const tolerance = 0.005;
 
   while (high - low > tolerance) {
     const mid = (low + high) / 2;
