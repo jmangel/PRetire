@@ -5,6 +5,7 @@ import {
   calculateTax,
   calculateEffectiveTaxRate,
   findPreTaxIncome,
+  exportTaxBracketsToCSV,
 } from './TaxCalculator';
 
 describe('TaxCalculator', () => {
@@ -161,6 +162,27 @@ describe('TaxCalculator', () => {
       const actualPostTaxLarge =
         preTaxLarge - calculateTax(preTaxLarge, sampleBrackets);
       expect(actualPostTaxLarge).toBeCloseTo(largePostTax, 2);
+    });
+  });
+
+  describe('exportTaxBracketsToCSV', () => {
+    it('exports tax brackets to CSV format', () => {
+      const brackets: TaxBracket[] = [
+        { upperBound: 10000, rate: 0.1 },
+        { upperBound: 50000, rate: 0.2 },
+        { upperBound: null, rate: 0.3 },
+      ];
+
+      const csvContent = exportTaxBracketsToCSV(brackets);
+      const expectedCSV = 'upperBound,rate\n10000,10\n50000,20\nnull,30';
+
+      expect(csvContent).toBe(expectedCSV);
+    });
+
+    it('handles empty brackets array', () => {
+      const brackets: TaxBracket[] = [];
+      const csvContent = exportTaxBracketsToCSV(brackets);
+      expect(csvContent).toBe('upperBound,rate');
     });
   });
 });

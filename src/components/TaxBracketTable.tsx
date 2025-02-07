@@ -4,6 +4,7 @@ import {
   TaxBracketSet,
   calculateBracketValues,
   TaxBracket,
+  exportTaxBracketsToCSV,
 } from '../calculators/TaxCalculator';
 
 interface TaxBracketTableProps {
@@ -96,6 +97,14 @@ const TaxBracketTable: React.FC<TaxBracketTableProps> = ({
     const newBrackets = [...taxBracketSet.brackets];
     newBrackets.splice(index, 1);
     onBracketsChange(newBrackets);
+  };
+
+  const handleExportCSV = () => {
+    const csvContent = exportTaxBracketsToCSV(taxBracketSet.brackets);
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
+    a.download = `tax_brackets_${taxBracketSet.year}.csv`;
+    a.click();
   };
 
   return (
@@ -215,9 +224,14 @@ const TaxBracketTable: React.FC<TaxBracketTableProps> = ({
           </tbody>
         </Table>
       </div>
-      <Button variant="primary" onClick={handleAddBracket}>
-        Add Tax Bracket
-      </Button>
+      <div className="d-flex gap-2">
+        <Button variant="primary" onClick={handleAddBracket}>
+          Add Tax Bracket
+        </Button>
+        <Button variant="secondary" onClick={handleExportCSV}>
+          Export CSV
+        </Button>
+      </div>
     </div>
   );
 };

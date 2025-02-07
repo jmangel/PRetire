@@ -145,3 +145,16 @@ export function findPreTaxIncome(
 
   return (low + high) / 2;
 }
+
+export function exportTaxBracketsToCSV(brackets: TaxBracket[]): string {
+  const csvRows = ['upperBound,rate'];
+
+  brackets.forEach((bracket) => {
+    const upperBound =
+      bracket.upperBound === null ? 'null' : bracket.upperBound.toString();
+    const rate = (bracket.rate * 100).toString(); // Convert decimal to percentage
+    csvRows.push(`${upperBound},${rate}`);
+  });
+
+  return csvRows.join('\n');
+}
