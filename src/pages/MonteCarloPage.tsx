@@ -14,10 +14,11 @@ const MonteCarloPage = () => {
   const fetcher = useFetcher();
 
   return (
-    <fetcher.Form method="POST" noValidate>
+    <fetcher.Form id="monte-carlo-form" method="POST" noValidate>
       <div className="text-center m-2">
         <h1>PREtirement Planning - Monte Carlo Projections</h1>
         <p><em>Your data stays with you. All computation is done on your browser and your data never leaves your device.</em></p>
+        <p><em>Export or import settings locally from a JSON file so you can save your scenarios privately.</em></p>
         <h4>Fully configure your Monte Carlo simulations</h4>
         <Accordion>
           <Accordion.Item eventKey="income">

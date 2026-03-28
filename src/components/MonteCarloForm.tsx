@@ -1,9 +1,39 @@
-import { useState } from 'react';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { Button, Card, Col, Form, InputGroup, Nav, Row } from 'react-bootstrap';
 import { FetcherWithComponents } from 'react-router-dom';
 import HasManyRows from './HasManyRows';
 
 const NUM_SETTINGS_TABS = 4;
+
+type MonteCarloSettings = {
+  startingBalance: string;
+  monthlyExpenses: string;
+  endYear: string;
+  jobs: Array<{
+    name: string;
+    postTaxAnnualIncome: string;
+    adjustForInflation: boolean;
+    yearlyRaisePercentage: string;
+    startDate: string;
+    endDate: string;
+  }>;
+  life_events: Array<{
+    name: string;
+    date: string;
+    balanceChange: string;
+    monthlyExpensesChange: string;
+  }>;
+  inflation: {
+    averageAnnualReturnPercentage: string;
+    standardDeviationPercentage: string;
+  };
+  asset_classes: Array<{
+    name: string;
+    allocationPercentage: string;
+    averageAnnualReturnPercentage: string;
+    standardDeviationPercentage: string;
+  }>;
+};
 
 export const dollarFormatter = (val: number) =>
   val.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -119,8 +149,371 @@ const MonteCarloForm = ({
   const [numJobs, setNumJobs] = useState(1);
   const [numLifeEvents, setNumLifeEvents] = useState(1);
   const [numAssetClasses, setNumAssetClasses] = useState(2);
-
   const [activeSettingsTab, setActiveSettingsTab] = useState(0);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const queuedImportSettings = useRef<MonteCarloSettings | null>(null);
+
+  const collectRepeatedGroup = (
+    groupName: string,
+    fields: string[]
+  ): Array<Record<string, string | boolean>> => {
+    const valuesByField = fields.map((field) => {
+      const elements = Array.from(
+        document.querySelectorAll<HTMLInputElement>(
+          `[name="${groupName}[][${field}]"]`
+        )
+      );
+      return elements.map((element) =>
+        element.type === 'checkbox' ? element.checked : element.value
+      );
+    });
+
+    const rowCount = Math.max(...valuesByField.map((arr) => arr.length), 0);
+    return Array.from({ length: rowCount }, (_, rowIndex) => {
+      const row: Record<string, string | boolean> = {};
+      fields.forEach((field, fieldIndex) => {
+        row[field] = valuesByField[fieldIndex][rowIndex] ?? '';
+      });
+      return row;
+    });
+  };
+
+  const getSettingValue = (name: string) => {
+    const element = document.querySelector<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >(`[name="${name}"]`);
+    if (!element) {
+      return '';
+    }
+    if (element instanceof HTMLInputElement && element.type === 'checkbox') {
+      return element.checked ? 'on' : 'off';
+    }
+    return element.value;
+  };
+
+  const buildSettings = (): MonteCarloSettings | null => {
+    const form = document.getElementById('monte-carlo-form') as HTMLFormElement | null;
+    if (!form) {
+      return null;
+    }
+
+    return {
+      startingBalance: getSettingValue('startingBalance'),
+      monthlyExpenses: getSettingValue('monthlyExpenses'),
+      endYear: getSettingValue('endYear'),
+      jobs: collectRepeatedGroup('jobs', [
+        'name',
+        'postTaxAnnualIncome',
+        'adjustForInflation',
+        'yearlyRaisePercentage',
+        'startDate',
+        'endDate',
+      ]).map((row) => ({
+        name: String(row.name),
+        postTaxAnnualIncome: String(row.postTaxAnnualIncome),
+        adjustForInflation: Boolean(row.adjustForInflation),
+        yearlyRaisePercentage: String(row.yearlyRaisePercentage),
+        startDate: String(row.startDate),
+        endDate: String(row.endDate),
+      })),
+      life_events: collectRepeatedGroup('life_events', [
+        'name',
+        'date',
+        'balanceChange',
+        'monthlyExpensesChange',
+      ]).map((row) => ({
+        name: String(row.name),
+        date: String(row.date),
+        balanceChange: String(row.balanceChange),
+        monthlyExpensesChange: String(row.monthlyExpensesChange),
+      })),
+      inflation: {
+        averageAnnualReturnPercentage: getSettingValue(
+          'inflation[averageAnnualReturnPercentage]'
+        ),
+        standardDeviationPercentage: getSettingValue(
+          'inflation[standardDeviationPercentage]'
+        ),
+      },
+      asset_classes: collectRepeatedGroup('asset_classes', [
+        'name',
+        'allocationPercentage',
+        'averageAnnualReturnPercentage',
+        'standardDeviationPercentage',
+      ]).map((row) => ({
+        name: String(row.name),
+        allocationPercentage: String(row.allocationPercentage),
+        averageAnnualReturnPercentage: String(
+          row.averageAnnualReturnPercentage
+        ),
+        standardDeviationPercentage: String(row.standardDeviationPercentage),
+      })),
+    };
+  };
+
+  const setFieldValue = (
+    form: HTMLFormElement,
+    name: string,
+    value: string | boolean
+  ) => {
+    const elements = Array.from(
+      form.querySelectorAll<
+        HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+      >(`[name="${name}"]`)
+    );
+    elements.forEach((element) => {
+      if (element instanceof HTMLInputElement && element.type === 'checkbox') {
+        element.checked = Boolean(value);
+      } else {
+        element.value = String(value ?? '');
+      }
+    });
+  };
+
+  const setRepeatedGroup = (
+    form: HTMLFormElement,
+    groupName: string,
+    fields: string[],
+    values: Array<Record<string, string | boolean>>
+  ) => {
+    fields.forEach((field) => {
+      const elements = Array.from(
+        form.querySelectorAll<HTMLInputElement>(
+          `[name="${groupName}[][${field}]"]`
+        )
+      );
+      elements.forEach((element, index) => {
+        const value = values[index]?.[field] ?? '';
+        if (element.type === 'checkbox') {
+          element.checked = Boolean(value);
+        } else {
+          element.value = String(value ?? '');
+        }
+      });
+    });
+  };
+
+  const validateSettings = (settings: unknown): settings is MonteCarloSettings => {
+    if (!settings || typeof settings !== 'object') return false;
+    const candidate = settings as MonteCarloSettings;
+    const hasArray = (value: unknown): value is unknown[] =>
+      Array.isArray(value);
+    if (!hasArray(candidate.jobs) || !hasArray(candidate.life_events)) return false;
+    if (!hasArray(candidate.asset_classes)) return false;
+    if (
+      !candidate.inflation ||
+      typeof candidate.inflation !== 'object' ||
+      typeof candidate.inflation.averageAnnualReturnPercentage !== 'string' ||
+      typeof candidate.inflation.standardDeviationPercentage !== 'string'
+    ) {
+      return false;
+    }
+    return true;
+  };
+
+  const applySettings = (settings: MonteCarloSettings) => {
+    const targetJobs = Math.max(settings.jobs.length, 1);
+    const targetLifeEvents = Math.max(settings.life_events.length, 1);
+    const targetAssetClasses = Math.max(settings.asset_classes.length, 1);
+    const needsRowUpdate =
+      targetJobs !== numJobs ||
+      targetLifeEvents !== numLifeEvents ||
+      targetAssetClasses !== numAssetClasses;
+
+    queuedImportSettings.current = settings;
+    setNumJobs(targetJobs);
+    setNumLifeEvents(targetLifeEvents);
+    setNumAssetClasses(targetAssetClasses);
+
+    if (!needsRowUpdate) {
+      const form = document.getElementById('monte-carlo-form') as HTMLFormElement | null;
+      if (form) {
+        setRepeatedGroup(form, 'jobs', [
+          'name',
+          'postTaxAnnualIncome',
+          'adjustForInflation',
+          'yearlyRaisePercentage',
+          'startDate',
+          'endDate',
+        ],
+        settings.jobs.map((job) => ({
+          ...job,
+          adjustForInflation: job.adjustForInflation,
+        })));
+
+        setRepeatedGroup(form, 'life_events', [
+          'name',
+          'date',
+          'balanceChange',
+          'monthlyExpensesChange',
+        ],
+        settings.life_events);
+
+        setRepeatedGroup(form, 'asset_classes', [
+          'name',
+          'allocationPercentage',
+          'averageAnnualReturnPercentage',
+          'standardDeviationPercentage',
+        ],
+        settings.asset_classes);
+
+        setFieldValue(
+          form,
+          'startingBalance',
+          settings.startingBalance
+        );
+        setFieldValue(
+          form,
+          'monthlyExpenses',
+          settings.monthlyExpenses
+        );
+        setFieldValue(form, 'endYear', settings.endYear);
+        setFieldValue(
+          form,
+          'inflation[averageAnnualReturnPercentage]',
+          settings.inflation.averageAnnualReturnPercentage
+        );
+        setFieldValue(
+          form,
+          'inflation[standardDeviationPercentage]',
+          settings.inflation.standardDeviationPercentage
+        );
+      }
+      queuedImportSettings.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (!queuedImportSettings.current) {
+      return;
+    }
+
+    const form = document.getElementById('monte-carlo-form') as HTMLFormElement | null;
+    if (!form) {
+      return;
+    }
+
+    const settings = queuedImportSettings.current;
+    setRepeatedGroup(form, 'jobs', [
+      'name',
+      'postTaxAnnualIncome',
+      'adjustForInflation',
+      'yearlyRaisePercentage',
+      'startDate',
+      'endDate',
+    ],
+    settings.jobs.map((job) => ({
+      ...job,
+      adjustForInflation: job.adjustForInflation,
+    })));
+
+    setRepeatedGroup(form, 'life_events', [
+      'name',
+      'date',
+      'balanceChange',
+      'monthlyExpensesChange',
+    ],
+    settings.life_events);
+
+    setRepeatedGroup(form, 'asset_classes', [
+      'name',
+      'allocationPercentage',
+      'averageAnnualReturnPercentage',
+      'standardDeviationPercentage',
+    ],
+    settings.asset_classes);
+
+    setFieldValue(
+      form,
+      'startingBalance',
+      settings.startingBalance
+    );
+    setFieldValue(
+      form,
+      'monthlyExpenses',
+      settings.monthlyExpenses
+    );
+    setFieldValue(form, 'endYear', settings.endYear);
+    setFieldValue(
+      form,
+      'inflation[averageAnnualReturnPercentage]',
+      settings.inflation.averageAnnualReturnPercentage
+    );
+    setFieldValue(
+      form,
+      'inflation[standardDeviationPercentage]',
+      settings.inflation.standardDeviationPercentage
+    );
+    queuedImportSettings.current = null;
+  }, [numJobs, numLifeEvents, numAssetClasses]);
+
+  const handleExportSettings = () => {
+    const form = document.getElementById('monte-carlo-form') as HTMLFormElement | null;
+    const settings = form ? buildSettings() : null;
+    if (!settings) {
+      setImportMessage(null);
+      setImportError('Cannot export settings: form not available.');
+      return;
+    }
+
+    const blob = new Blob([JSON.stringify(settings, null, 2)], {
+      type: 'application/json;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'pretire-montecarlo-settings.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setImportError(null);
+    setImportMessage('Simulation settings exported locally.');
+  };
+
+  const handleImportClick = () => {
+    setImportError(null);
+    setImportMessage(null);
+    importInputRef.current?.click();
+  };
+
+  const handleImportFile = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const content = reader.result;
+        const parsed = JSON.parse(String(content));
+        if (!validateSettings(parsed)) {
+          throw new Error('Invalid simulation settings file.');
+        }
+        applySettings(parsed);
+        setImportMessage('Simulation settings imported successfully.');
+        setImportError(null);
+      } catch (error) {
+        console.error(error);
+        setImportError(
+          'Unable to import settings. Please select a valid PREtire JSON file.'
+        );
+        setImportMessage(null);
+      }
+    };
+    reader.onerror = () => {
+      setImportError('Unable to read the selected file.');
+      setImportMessage(null);
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  };
 
   return (
     <>
@@ -417,6 +810,48 @@ const MonteCarloForm = ({
           </div>
         </Card.Body>
       </Card>
+
+      <input
+        ref={importInputRef}
+        type="file"
+        accept="application/json,.json"
+        style={{ display: 'none' }}
+        onChange={handleImportFile}
+      />
+
+      <Row className="m-2 gy-2 align-items-center">
+        <Col xs={12} md="auto">
+          <Button variant="secondary" onClick={handleExportSettings}>
+            Export settings
+          </Button>
+        </Col>
+        <Col xs={12} md="auto">
+          <Button variant="secondary" onClick={handleImportClick}>
+            Import settings
+          </Button>
+        </Col>
+        <Col xs={12} md="auto">
+          <Form.Text className="text-muted">
+            Save or restore your simulation fields locally. No settings are
+            stored in the cloud.
+          </Form.Text>
+        </Col>
+      </Row>
+
+      {importMessage && (
+        <Row className="m-2">
+          <Col>
+            <div className="text-success">{importMessage}</div>
+          </Col>
+        </Row>
+      )}
+      {importError && (
+        <Row className="m-2">
+          <Col>
+            <div className="text-danger">{importError}</div>
+          </Col>
+        </Row>
+      )}
 
       <Row className="m-2">
         {activeSettingsTab < NUM_SETTINGS_TABS - 1 && (
