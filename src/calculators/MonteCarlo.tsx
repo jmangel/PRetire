@@ -97,7 +97,7 @@ const run = async (formData: FormData) => {
     },
   ])[0]);
 
-  const results = [...Array(1000)].map((i) =>
+  const results = [...Array(10000)].map((i) =>
     new MonteCarloSimulation(
       startingBalance,
       monthlyExpenses,
