@@ -859,7 +859,7 @@ const MonteCarloForm = ({
             <Button
               variant="outline-primary"
               onClick={() =>
-                setActiveSettingsTab((prev) => prev + (1 % NUM_SETTINGS_TABS))
+                setActiveSettingsTab((prev) => (prev + 1) % NUM_SETTINGS_TABS)
               }
             >
               {'Next Settings'}
