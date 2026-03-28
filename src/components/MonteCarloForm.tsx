@@ -150,6 +150,7 @@ const MonteCarloForm = ({
   const [numLifeEvents, setNumLifeEvents] = useState(1);
   const [numAssetClasses, setNumAssetClasses] = useState(2);
   const [activeSettingsTab, setActiveSettingsTab] = useState(0);
+  const [exportFileName, setExportFileName] = useState('pretire-montecarlo-settings');
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -449,6 +450,18 @@ const MonteCarloForm = ({
     queuedImportSettings.current = null;
   }, [numJobs, numLifeEvents, numAssetClasses]);
 
+  const getExportFileName = () => {
+    const normalized = exportFileName
+      .trim()
+      .replace(/[/\\?%*:|"<>]/g, '-')
+      .replace(/\s+/g, '-');
+
+    const baseName = normalized || 'pretire-montecarlo-settings';
+    return baseName.toLowerCase().endsWith('.json')
+      ? baseName
+      : `${baseName}.json`;
+  };
+
   const handleExportSettings = () => {
     const form = document.getElementById('monte-carlo-form') as HTMLFormElement | null;
     const settings = form ? buildSettings() : null;
@@ -464,14 +477,14 @@ const MonteCarloForm = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'pretire-montecarlo-settings.json';
+    a.download = getExportFileName();
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
     setImportError(null);
-    setImportMessage('Simulation settings exported locally.');
+    setImportMessage(`Simulation settings exported locally as ${a.download}.`);
   };
 
   const handleImportClick = () => {
@@ -820,6 +833,21 @@ const MonteCarloForm = ({
       />
 
       <Row className="m-2 gy-2 align-items-center">
+        <Col xs={12} md={4}>
+          <Form.Group>
+            <Form.Label>Export filename</Form.Label>
+            <Form.Control
+              type="text"
+              value={exportFileName}
+              placeholder="pretire-montecarlo-settings"
+              onChange={(event) => setExportFileName(event.target.value)}
+            />
+            <Form.Text className="text-muted">
+              The downloaded file name will be saved locally with a .json
+              extension.
+            </Form.Text>
+          </Form.Group>
+        </Col>
         <Col xs={12} md="auto">
           <Button variant="secondary" onClick={handleExportSettings}>
             Export settings
