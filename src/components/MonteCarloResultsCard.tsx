@@ -5,24 +5,34 @@ import MonteCarloGraph from "./MonteCarloGraph";
 import SpinnerOverlay from "./SpinnerOverlay";
 import { FetcherWithComponents } from "react-router-dom";
 
+type MonteCarloResponse = {
+  results: MonteCarloResult[];
+  deterministicResult: MonteCarloResult;
+};
+
 const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) => {
-  const results = fetcher.data as MonteCarloResult[];
+  const response = (fetcher.data as MonteCarloResponse) || null;
+  const results = response?.results ?? [];
+  const deterministicResult = response?.deterministicResult;
   const loading = fetcher.state === 'submitting';
 
   const [inflationAdjusted, setInflationAdjusted] = useState(true);
   const [onlyShowPercentiles, setOnlyShowPercentiles] = useState(true);
   const [excludeMinMax, setExcludeMinMax] = useState(false);
+  const [onlyShowDeterministicLine, setOnlyShowDeterministicLine] = useState(false);
 
   const graph = useMemo(() => (
     <MonteCarloGraph
       results={results}
+      deterministicResult={deterministicResult}
       inflationAdjusted={inflationAdjusted}
       onlyShowPercentiles={onlyShowPercentiles}
       excludeMinMax={excludeMinMax}
+      onlyShowDeterministicLine={onlyShowDeterministicLine}
     />
-  ), [results, inflationAdjusted, onlyShowPercentiles, excludeMinMax]);
+  ), [results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine]);
 
-  if (!results) return null;
+  if (!response || results.length === 0) return null;
 
   const successes = !!results && results.filter((result) => result.every(({ balance }) => balance >= 0));
 
@@ -57,6 +67,7 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
                 id="only_show_percentiles"
                 checked={onlyShowPercentiles}
                 onChange={(e) => setOnlyShowPercentiles(e.target.checked)}
+                disabled={onlyShowDeterministicLine}
               />
               <Form.Text>(This will speed up and simplify the graph)</Form.Text>
             </Form.Group>
@@ -69,9 +80,24 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
                 id="exclude_min_max"
                 checked={excludeMinMax}
                 onChange={(e) => setExcludeMinMax(e.target.checked)}
-                disabled={!onlyShowPercentiles}
+                disabled={!onlyShowPercentiles || onlyShowDeterministicLine}
               />
               <Form.Text>(Still shows the other percentile lines)</Form.Text>
+            </Form.Group>
+          </Col>
+          <Col xs="auto">
+            <Form.Group>
+              <Form.Check
+                type="switch"
+                label="Only show deterministic average trajectory"
+                id="only_show_deterministic_line"
+                checked={onlyShowDeterministicLine}
+                onChange={(e) => setOnlyShowDeterministicLine(e.target.checked)}
+                disabled={!deterministicResult}
+              />
+              <Form.Text>
+                (Hides other lines so you can compare the Monte Carlo envelope against an isolated average path.)
+              </Form.Text>
             </Form.Group>
           </Col>
         </Row>

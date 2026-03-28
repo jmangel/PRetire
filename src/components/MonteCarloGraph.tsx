@@ -25,19 +25,22 @@ type Percentiles = {
   min: number,
 };
 
-type PercentilesChartData = Percentiles & { year: number };
+type PercentilesChartData = Percentiles & { year: number; deterministic?: number };
 
-type TooltipData = Record<string, Percentiles>;
+type TooltipData = Record<string, PercentilesChartData | Percentiles>;
 
 const CustomTooltip = (props: { label?: string, tooltipData: TooltipData }) => {
   const { tooltipData, label } = props;
 
-  const tooltipYearData = label ? tooltipData[label] : null;
+  const tooltipYearData = label ? (tooltipData[label] as PercentilesChartData) : null;
   if (!tooltipYearData) return null;
 
   return (
     <div className="bg-light">
       <p><strong>Year: {label}</strong></p>
+      {tooltipYearData.deterministic !== undefined && (
+        <p>Average path: {dollarFormatter(tooltipYearData.deterministic)}</p>
+      )}
       <p>Max: {dollarFormatter(tooltipYearData.max)}</p>
       <p>90% Percentile: {dollarFormatter(tooltipYearData.p90)}</p>
       <p>80% Percentile: {dollarFormatter(tooltipYearData.p80)}</p>
@@ -53,8 +56,8 @@ const CustomTooltip = (props: { label?: string, tooltipData: TooltipData }) => {
   );
 };
 
-const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted: boolean, onlyShowPercentiles: boolean, excludeMinMax: boolean }) => {
-  const { results, inflationAdjusted, onlyShowPercentiles, excludeMinMax } = props;
+const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResult?: MonteCarloResult, inflationAdjusted: boolean, onlyShowPercentiles: boolean, excludeMinMax: boolean, onlyShowDeterministicLine: boolean }) => {
+  const { results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine } = props;
 
   const chartData = useMemo(() => {
     let data: Array<Record<string, number>> = [];
@@ -73,15 +76,33 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted
       });
     });
 
+    if (deterministicResult) {
+      deterministicResult.forEach((yearBalance) => {
+        const existingEntry = data.find((entry) => entry.year === yearBalance.year);
+        if (existingEntry) {
+          existingEntry.deterministic = yearBalance[dataKey];
+        } else {
+          data.push({
+            year: yearBalance.year,
+            deterministic: yearBalance[dataKey],
+          });
+        }
+      });
+    }
+
     if (onlyShowPercentiles) {
       data = data.map((entry) => {
         const { year, ...yearSeries } = entry;
+        const deterministicValue = (entry as any).deterministic;
 
         const newEntry = {
           year: entry.year,
         } as PercentilesChartData;
 
-        const yearBalances = Object.values(yearSeries).sort((a, b) => a - b);
+        const yearBalances = Object.entries(yearSeries)
+          .filter(([key]) => key !== 'deterministic')
+          .map(([, value]) => value)
+          .sort((a, b) => a - b);
         if (yearBalances.length > 0) {
           newEntry.max = yearBalances[yearBalances.length - 1];
           newEntry.p90 = yearBalances[Math.floor(yearBalances.length * .9)];
@@ -96,6 +117,10 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted
           newEntry.min = yearBalances[0];
         }
 
+        if (deterministicValue !== undefined) {
+          newEntry.deterministic = deterministicValue;
+        }
+
         return newEntry;
       }) as PercentilesChartData[]
     }
@@ -108,7 +133,11 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted
       if (onlyShowPercentiles) {
         data[year] = yearSeries as PercentilesChartData;
       } else {
-        const yearBalances = Object.values(yearSeries).sort((a, b) => a - b);
+        const deterministicValue = (yearSeries as any).deterministic;
+        const yearBalances = Object.entries(yearSeries)
+          .filter(([key]) => key !== 'deterministic')
+          .map(([, value]) => value)
+          .sort((a, b) => a - b);
 
         if (yearBalances.length === 0) return data;
 
@@ -124,6 +153,7 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted
           p20: yearBalances[Math.floor(yearBalances.length * .2)],
           p10: yearBalances[Math.floor(yearBalances.length * .1)],
           min: yearBalances[0],
+          ...(deterministicValue !== undefined ? { deterministic: deterministicValue } : {}),
         };
       }
       return data;
@@ -135,18 +165,23 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted
   const tooltip = useMemo(() => <CustomTooltip tooltipData={tooltipData} />, [tooltipData])
 
   const visibleYValues = useMemo(() => {
-    if (onlyShowPercentiles) {
-      return chartData.flatMap((entry) =>
-        Object.entries(entry)
-          .filter(([key]) => key !== 'year' && (!excludeMinMax || (key !== 'min' && key !== 'max')))
-          .map(([, value]) => value)
-      );
+    if (onlyShowDeterministicLine) {
+      return chartData
+        .map((entry) => entry.deterministic)
+        .filter((value): value is number => value !== undefined);
     }
 
-    return results.flatMap((result) =>
-      result.map((yearBalance) => yearBalance[inflationAdjusted ? 'inflationAdjustedBalance' : 'balance'])
+    return chartData.flatMap((entry) =>
+      Object.entries(entry)
+        .filter(([key]) =>
+          key !== 'year' &&
+          key !== 'deterministic' &&
+          (!excludeMinMax || (key !== 'min' && key !== 'max'))
+        )
+        .map(([, value]) => value)
+        .concat(entry.deterministic !== undefined ? entry.deterministic : [])
     );
-  }, [chartData, results, inflationAdjusted, onlyShowPercentiles, excludeMinMax]);
+  }, [chartData, excludeMinMax, onlyShowDeterministicLine]);
 
   const [customYTicks, customDomain] = useNiceRechartsTicks(
     visibleYValues,
@@ -179,12 +214,17 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted
         />
         <Tooltip content={tooltip} />
         {Object.entries(yearsSeries)
-          .filter(([key]) => !excludeMinMax || (key !== 'max' && key !== 'min'))
+          .filter(([key]) => {
+            if (onlyShowDeterministicLine) return key === 'deterministic';
+            return !excludeMinMax || (key !== 'max' && key !== 'min');
+          })
           .map(([key, _], index) => (
             <Line
               type="monotone"
               dataKey={key}
-              stroke={generateContrastingHexCode()}
+              stroke={key === 'deterministic' ? '#0d6efd' : generateContrastingHexCode()}
+              strokeDasharray={key === 'deterministic' ? '6 4' : undefined}
+              strokeWidth={key === 'deterministic' ? 2 : 1}
               key={index}
               isAnimationActive={false}
               dot={false}

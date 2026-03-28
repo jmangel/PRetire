@@ -1,7 +1,11 @@
-import MonteCarloSimulation from "./MonteCarloSimulation";
-import { AssetClass, Inflation, Job, LifeEvent } from "./MonteCarloSimulation";
+import MonteCarloSimulation, { AssetClass, Inflation, Job, LifeEvent, MonteCarloResult } from "./MonteCarloSimulation";
 
-const run = async (formData: FormData) => {
+type MonteCarloResponse = {
+  results: MonteCarloResult[];
+  deterministicResult: MonteCarloResult;
+};
+
+const run = async (formData: FormData): Promise<MonteCarloResponse> => {
   const startingBalance = parseFloat(formData.get('startingBalance') as string) || 0;
 
   const monthlyExpenses = parseFloat(formData.get('monthlyExpenses') as string) || 0;
@@ -97,7 +101,17 @@ const run = async (formData: FormData) => {
     },
   ])[0]);
 
-  const results = [...Array(10000)].map((i) =>
+  const deterministicResult = new MonteCarloSimulation(
+    startingBalance,
+    monthlyExpenses,
+    jobs,
+    lifeEvents,
+    assetClasses,
+    inflation,
+    endYear,
+  ).runDeterministic();
+
+  const results = [...Array(10000)].map(() =>
     new MonteCarloSimulation(
       startingBalance,
       monthlyExpenses,
@@ -109,7 +123,10 @@ const run = async (formData: FormData) => {
     ).run()
   );
 
-  return results;
+  return {
+    results,
+    deterministicResult,
+  };
 };
 
 export default run;

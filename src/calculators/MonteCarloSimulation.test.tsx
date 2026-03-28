@@ -267,6 +267,41 @@ describe('MonteCarloSimulation', () => {
               deflate(expectedBalance, 100)
             );
           });
+
+          test('runDeterministic follows average return and inflation rates', () => {
+            const startingBalance = 100;
+            const monthlyExpenses = 0;
+            const jobs: any[] = [];
+            const lifeEvents: any[] = [];
+            const assetClasses = [
+              new AssetClass({
+                name: 'Stocks',
+                standardDeviationPercentage: 20,
+                averageAnnualReturnPercentage: 10,
+                allocationPercentage: 100,
+              }),
+            ];
+            const inflation = new Inflation({
+              averageAnnualReturnPercentage: 3,
+              standardDeviationPercentage: 5,
+            });
+
+            const yearlyResults = new MonteCarloSimulation(
+              startingBalance,
+              monthlyExpenses,
+              jobs,
+              lifeEvents,
+              assetClasses,
+              inflation,
+              new Date().getFullYear() + 2
+            ).runDeterministic();
+
+            expect(yearlyResults.length).toBe(2);
+            expect(yearlyResults[0].balance).toBeCloseTo(110);
+            expect(yearlyResults[0].inflation).toBeCloseTo(0.03);
+            expect(yearlyResults[0].inflationAdjustedBalance).toBeCloseTo(110 / 1.03);
+            expect(yearlyResults[1].balance).toBeCloseTo(121);
+          });
         });
 
         describe('life events', () => {

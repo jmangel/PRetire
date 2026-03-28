@@ -150,7 +150,7 @@ class MonteCarloSimulation {
     this.cumulativeInflationMultiplier = 1;
   }
 
-  run() {
+  run(deterministic = false) {
     const yearResults = [];
 
     for (
@@ -158,8 +158,8 @@ class MonteCarloSimulation {
       year <= this.endYear;
       year++
     ) {
-      this.applyPreInflationBalanceChanges(year);
-      const inflation = this.applyInflation();
+      this.applyPreInflationBalanceChanges(year, deterministic);
+      const inflation = this.applyInflation(deterministic);
       this.applyPostInflationChanges(year);
 
       yearResults.push({
@@ -177,19 +177,21 @@ class MonteCarloSimulation {
     return yearResults;
   }
 
-  applyPreInflationBalanceChanges(year: number) {
-    this.runningBalance += this.investmentGain();
+  applyPreInflationBalanceChanges(year: number, deterministic: boolean) {
+    this.runningBalance += this.investmentGain(deterministic);
 
     this.runningBalance += this.runningMonthlyExpenses * 12;
 
     this.runningBalance += this.jobsIncome(year);
   }
 
-  applyInflation() {
-    const inflationRate = sampleRandomNormal(
-      this.inflation.averageAnnualReturn,
-      this.inflation.standardDeviation
-    );
+  applyInflation(deterministic: boolean) {
+    const inflationRate = deterministic
+      ? this.inflation.averageAnnualReturn
+      : sampleRandomNormal(
+          this.inflation.averageAnnualReturn,
+          this.inflation.standardDeviation
+        );
 
     this.cumulativeInflationMultiplier *= 1 + inflationRate;
 
@@ -207,30 +209,36 @@ class MonteCarloSimulation {
       this.lifeEventsBalanceChange(year) * this.cumulativeInflationMultiplier;
   }
 
-  investmentGain() {
-    return this.runningBalance * this.totalWeightedInvestmentReturnRate();
+  investmentGain(deterministic: boolean) {
+    return this.runningBalance * this.totalWeightedInvestmentReturnRate(deterministic);
   }
 
-  totalWeightedInvestmentReturnRate() {
+  totalWeightedInvestmentReturnRate(deterministic: boolean) {
     return this.assetClasses.reduce((acc, assetClass) => {
       return (
         acc +
         assetClass.allocation *
-          sampleRandomNormal(
-            assetClass.averageAnnualReturn,
-            assetClass.standardDeviation
-          )
+          (deterministic
+            ? assetClass.averageAnnualReturn
+            : sampleRandomNormal(
+                assetClass.averageAnnualReturn,
+                assetClass.standardDeviation
+              ))
       );
     }, 0);
   }
 
-  jobsIncome(year: number) {
+  runDeterministic() {
+    return this.run(true);
+  }
+
+  jobsIncome(year: number, cumulativeInflationMultiplier = this.cumulativeInflationMultiplier) {
     return this.jobs.reduce((acc, job) => {
       if (job.startDate && job.startDate.getFullYear() > year) return acc;
       if (job.endDate && job.endDate.getFullYear() < year) return acc;
 
       let income = job.postTaxAnnualIncome;
-      if (job.adjustForInflation) income *= this.cumulativeInflationMultiplier;
+      if (job.adjustForInflation) income *= cumulativeInflationMultiplier;
 
       return acc + income;
     }, 0);
