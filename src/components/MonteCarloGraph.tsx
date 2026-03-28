@@ -254,6 +254,7 @@ const useNiceRechartsTicks = (
   const [ticks, domain] = useMemo(() => {
     let minValue = getMin(values);
     if (isNaN(minValue)) minValue = 0;
+    minValue = Math.max(minValue, 0);
     let maxValue = getMax(values);
     if (isNaN(maxValue)) maxValue = 1000;
 
