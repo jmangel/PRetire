@@ -10,7 +10,7 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
   const loading = fetcher.state === 'submitting';
 
   const [inflationAdjusted, setInflationAdjusted] = useState(true);
-  const [onlyShowPercentiles, setOnlyShowPercentiles] = useState(false);
+  const [onlyShowPercentiles, setOnlyShowPercentiles] = useState(true);
 
   const graph = useMemo(() => (
     <MonteCarloGraph
