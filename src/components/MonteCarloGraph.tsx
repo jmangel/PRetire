@@ -53,8 +53,8 @@ const CustomTooltip = (props: { label?: string, tooltipData: TooltipData }) => {
   );
 };
 
-const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted: boolean, onlyShowPercentiles: boolean }) => {
-  const { results, inflationAdjusted, onlyShowPercentiles } = props;
+const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted: boolean, onlyShowPercentiles: boolean, excludeMinMax: boolean }) => {
+  const { results, inflationAdjusted, onlyShowPercentiles, excludeMinMax } = props;
 
   const chartData = useMemo(() => {
     let data: Array<Record<string, number>> = [];
@@ -165,16 +165,18 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted
           allowDataOverflow={true}
         />
         <Tooltip content={tooltip} />
-        {Object.entries(yearsSeries).map(([key, _], index) => (
-          <Line
-            type="monotone"
-            dataKey={key}
-            stroke={generateContrastingHexCode()}
-            key={index}
-            isAnimationActive={false}
-            dot={false}
-          />
-        ))}
+        {Object.entries(yearsSeries)
+          .filter(([key]) => !excludeMinMax || (key !== 'max' && key !== 'min'))
+          .map(([key, _], index) => (
+            <Line
+              type="monotone"
+              dataKey={key}
+              stroke={generateContrastingHexCode()}
+              key={index}
+              isAnimationActive={false}
+              dot={false}
+            />
+          ))}
       </LineChart>
     </ResponsiveContainer>
   )

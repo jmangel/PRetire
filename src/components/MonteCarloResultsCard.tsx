@@ -11,14 +11,16 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
 
   const [inflationAdjusted, setInflationAdjusted] = useState(true);
   const [onlyShowPercentiles, setOnlyShowPercentiles] = useState(true);
+  const [excludeMinMax, setExcludeMinMax] = useState(false);
 
   const graph = useMemo(() => (
     <MonteCarloGraph
       results={results}
       inflationAdjusted={inflationAdjusted}
       onlyShowPercentiles={onlyShowPercentiles}
+      excludeMinMax={excludeMinMax}
     />
-  ), [results, inflationAdjusted, onlyShowPercentiles]);
+  ), [results, inflationAdjusted, onlyShowPercentiles, excludeMinMax]);
 
   if (!results) return null;
 
@@ -52,11 +54,24 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
               <Form.Check
                 type="switch"
                 label="Only show percentiles?"
-                id="inflation_adjusted"
+                id="only_show_percentiles"
                 checked={onlyShowPercentiles}
                 onChange={(e) => setOnlyShowPercentiles(e.target.checked)}
               />
               <Form.Text>(This will speed up and simplify the graph)</Form.Text>
+            </Form.Group>
+          </Col>
+          <Col xs="auto">
+            <Form.Group>
+              <Form.Check
+                type="switch"
+                label="Exclude min/max from graph?"
+                id="exclude_min_max"
+                checked={excludeMinMax}
+                onChange={(e) => setExcludeMinMax(e.target.checked)}
+                disabled={!onlyShowPercentiles}
+              />
+              <Form.Text>(Still shows the other percentile lines)</Form.Text>
             </Form.Group>
           </Col>
         </Row>
