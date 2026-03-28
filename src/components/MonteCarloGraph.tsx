@@ -134,9 +134,22 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], inflationAdjusted
 
   const tooltip = useMemo(() => <CustomTooltip tooltipData={tooltipData} />, [tooltipData])
 
-  const allYValues = useMemo(() => results.flatMap((result) => result.map((yearBalance) => yearBalance[inflationAdjusted ? 'inflationAdjustedBalance' : 'balance'])), [results, inflationAdjusted])
+  const visibleYValues = useMemo(() => {
+    if (onlyShowPercentiles) {
+      return chartData.flatMap((entry) =>
+        Object.entries(entry)
+          .filter(([key]) => key !== 'year' && (!excludeMinMax || (key !== 'min' && key !== 'max')))
+          .map(([, value]) => value)
+      );
+    }
+
+    return results.flatMap((result) =>
+      result.map((yearBalance) => yearBalance[inflationAdjusted ? 'inflationAdjustedBalance' : 'balance'])
+    );
+  }, [chartData, results, inflationAdjusted, onlyShowPercentiles, excludeMinMax]);
+
   const [customYTicks, customDomain] = useNiceRechartsTicks(
-    allYValues,
+    visibleYValues,
     5,
     {
       requiredPaddingRate: 0,
