@@ -510,7 +510,13 @@ const MonteCarloForm = ({
           throw new Error('Invalid simulation settings file.');
         }
         applySettings(parsed);
-        setImportMessage('Simulation settings imported successfully.');
+
+        const importedFileName = file.name.replace(/\.[^.]+$/, '');
+        setExportFileName(importedFileName || 'pretire-montecarlo-settings');
+
+        setImportMessage(
+          `Simulation settings imported successfully from ${file.name}.`
+        );
         setImportError(null);
       } catch (error) {
         console.error(error);
