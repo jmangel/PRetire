@@ -534,6 +534,12 @@ describe('MonteCarloSimulation.jobsIncome', () => {
 
     expect(sim.jobsIncome(2046, 1.5)).toBeCloseTo(120000 * (182 / 365) * 1.5, 6);
   });
+
+  test('a job with an unparseable date is skipped instead of producing NaN', () => {
+    const sim = simulation([job('100000', '', 'not-a-date'), job('50000', '', '')]);
+
+    expect(sim.jobsIncome(2030)).toBe(50000);
+  });
 });
 
 // TODO:

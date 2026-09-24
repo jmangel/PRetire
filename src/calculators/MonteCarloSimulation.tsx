@@ -258,7 +258,8 @@ class MonteCarloSimulation {
   jobsIncome(year: number, cumulativeInflationMultiplier = this.cumulativeInflationMultiplier) {
     return this.jobs.reduce((acc, job) => {
       const fraction = fractionOfYearActive(year, job.startDate, job.endDate);
-      if (fraction <= 0) return acc;
+      // NaN (from an unparseable date) would otherwise poison every later year.
+      if (!Number.isFinite(fraction) || fraction <= 0) return acc;
 
       let income = job.postTaxAnnualIncome * fraction;
       if (job.adjustForInflation) income *= cumulativeInflationMultiplier;
