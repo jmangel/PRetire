@@ -542,6 +542,37 @@ describe('MonteCarloSimulation.jobsIncome', () => {
   });
 });
 
+describe('MonteCarloSimulation life event year', () => {
+  // Dates from <input type="date"> parse as UTC midnight, so a local-time year
+  // check shifts boundary dates into the wrong year west or east of UTC.
+  const lifeEvent = (date: string) =>
+    new LifeEvent({
+      name: '',
+      balanceChange: '1000',
+      monthlyExpensesChange: '10',
+      date,
+    });
+  const simulation = (lifeEvents: LifeEvent[]) =>
+    new MonteCarloSimulation(
+      0,
+      0,
+      [],
+      lifeEvents,
+      [],
+      new Inflation({ averageAnnualReturnPercentage: 0, standardDeviationPercentage: 0 }),
+      2100
+    );
+
+  test.each(['2030-01-01', '2030-12-31'])('%s applies in 2030 in any time zone', (date) => {
+    const sim = simulation([lifeEvent(date)]);
+
+    expect(sim.lifeEventsBalanceChange(2029)).toBe(0);
+    expect(sim.lifeEventsBalanceChange(2030)).toBe(1000);
+    expect(sim.lifeEventsBalanceChange(2031)).toBe(0);
+    expect(sim.lifeEventsMonthlyExpensesChange(2030)).toBe(10);
+  });
+});
+
 // TODO:
 // life event
 // multiple life events
