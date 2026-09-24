@@ -472,6 +472,12 @@ describe('fractionOfYearActive', () => {
     expect(before).toBeCloseTo(60 / 365, 10); // Jan 1 - Mar 1
     expect(before + after).toBeCloseTo(1, 10);
   });
+
+  test('leap years divide by 366 days', () => {
+    const before = fractionOfYearActive(2032, undefined, new Date('2032-03-02'));
+
+    expect(before).toBeCloseTo(61 / 366, 10); // Jan 1 - Mar 1, including Feb 29
+  });
 });
 
 describe('MonteCarloSimulation.jobsIncome', () => {
@@ -487,11 +493,16 @@ describe('MonteCarloSimulation.jobsIncome', () => {
     averageAnnualReturnPercentage: 0,
     standardDeviationPercentage: 0,
   });
-  const job = (postTaxAnnualIncome: string, startDate: string, endDate: string) =>
+  const job = (
+    postTaxAnnualIncome: string,
+    startDate: string,
+    endDate: string,
+    adjustForInflation = ''
+  ) =>
     new Job({
       name: '',
       postTaxAnnualIncome,
-      adjustForInflation: '',
+      adjustForInflation,
       yearlyRaisePercentage: '0',
       startDate,
       endDate,
@@ -516,6 +527,12 @@ describe('MonteCarloSimulation.jobsIncome', () => {
 
     expect(sim.jobsIncome(2046)).toBeCloseTo(120000 * (182 / 365), 6);
     expect(sim.jobsIncome(2047)).toBe(0);
+  });
+
+  test('inflation adjustment applies to the prorated income', () => {
+    const sim = simulation([job('120000', '', '2046-07-02', 'on')]);
+
+    expect(sim.jobsIncome(2046, 1.5)).toBeCloseTo(120000 * (182 / 365) * 1.5, 6);
   });
 });
 
