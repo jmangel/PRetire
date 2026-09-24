@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git show:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git remote:*)",
+      "Bash(git fetch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git branch:*)",
+      "Bash(git -C:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh run list:*)",
+      "Bash(npm ci:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm test:*)",
+      "Bash(CI=true npx react-scripts test:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(claude plugin list:*)",
+      "Bash(mkdir -p /tmp/compound-engineering/**)",
+      "Read(/tmp/compound-engineering/**)",
+      "Edit(/tmp/compound-engineering/**)",
+      "Write(/tmp/compound-engineering/**)",
+      "Grep(/tmp/compound-engineering/**)",
+      "Glob(/tmp/compound-engineering/**)",
+      "Skill(compound-engineering:ce-code-review)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:patch-diff.githubusercontent.com)"
+    ]
+  },
+  "enabledPlugins": {
+    "compound-engineering@compound-engineering-plugin": true
+  }
+}

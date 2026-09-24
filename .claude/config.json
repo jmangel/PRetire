@@ -1,0 +1,14 @@
+{
+  "marketplaces": [
+    {
+      "name": "compound-engineering-plugin",
+      "source": "EveryInc/compound-engineering-plugin"
+    }
+  ],
+  "plugins": [
+    {
+      "name": "compound-engineering",
+      "marketplace": "compound-engineering-plugin"
+    }
+  ]
+}
