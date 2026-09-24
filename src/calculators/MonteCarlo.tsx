@@ -1,8 +1,11 @@
 import MonteCarloSimulation, { AssetClass, Inflation, Job, LifeEvent, MonteCarloResult } from "./MonteCarloSimulation";
+import { ReadyLineData, computeReadyLine } from "./ReadyLine";
 
-type MonteCarloResponse = {
+export type MonteCarloResponse = {
   results: MonteCarloResult[];
   deterministicResult: MonteCarloResult;
+  /** Undefined when nothing stops at retirement (already retired). */
+  readyLine?: ReadyLineData;
 };
 
 const run = async (formData: FormData): Promise<MonteCarloResponse> => {
@@ -92,9 +95,20 @@ const run = async (formData: FormData): Promise<MonteCarloResponse> => {
     ).run()
   );
 
+  const readyLine = computeReadyLine({
+    startingBalance,
+    monthlyExpenses,
+    jobs,
+    lifeEvents,
+    assetClasses,
+    inflation,
+    endYear,
+  });
+
   return {
     results,
     deterministicResult,
+    readyLine,
   };
 };
 
