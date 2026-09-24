@@ -707,7 +707,8 @@ const MonteCarloForm = ({
                         <Form.Control type="date" name="jobs[][endDate]" />
                       </InputGroup>
                       <Form.Text className="text-muted">
-                        (leave empty if you'll work to the grave)
+                        (leave empty if you'll work to the grave; income is prorated, so
+                        this is your first day not working)
                       </Form.Text>
                     </Form.Group>
                   </Col>

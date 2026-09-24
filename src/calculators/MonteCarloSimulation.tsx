@@ -98,6 +98,29 @@ export class LifeEvent {
 
 const convertPercentageToDecimal = (percent: number) => percent / 100;
 
+/**
+ * Fraction (0 to 1) of the given calendar year during which a date range is
+ * active. The start date is inclusive and the end date is exclusive, so a job
+ * ending on 2030-03-02 and another starting on 2030-03-02 split 2030 between
+ * them instead of both paying a full year. Missing dates are open-ended.
+ *
+ * Dates from <input type="date"> are parsed as UTC midnight, so the year
+ * boundaries are computed in UTC as well.
+ */
+export const fractionOfYearActive = (
+  year: number,
+  startDate?: Date,
+  endDate?: Date
+) => {
+  const yearStart = Date.UTC(year, 0, 1);
+  const yearEnd = Date.UTC(year + 1, 0, 1);
+
+  const activeStart = Math.max(startDate ? startDate.getTime() : -Infinity, yearStart);
+  const activeEnd = Math.min(endDate ? endDate.getTime() : Infinity, yearEnd);
+
+  return Math.max(0, activeEnd - activeStart) / (yearEnd - yearStart);
+};
+
 const boxMuller = () => {
   let u = 0;
   let v = 0;
@@ -234,10 +257,10 @@ class MonteCarloSimulation {
 
   jobsIncome(year: number, cumulativeInflationMultiplier = this.cumulativeInflationMultiplier) {
     return this.jobs.reduce((acc, job) => {
-      if (job.startDate && job.startDate.getFullYear() > year) return acc;
-      if (job.endDate && job.endDate.getFullYear() < year) return acc;
+      const fraction = fractionOfYearActive(year, job.startDate, job.endDate);
+      if (fraction <= 0) return acc;
 
-      let income = job.postTaxAnnualIncome;
+      let income = job.postTaxAnnualIncome * fraction;
       if (job.adjustForInflation) income *= cumulativeInflationMultiplier;
 
       return acc + income;
