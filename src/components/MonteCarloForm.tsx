@@ -2,6 +2,7 @@ import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { Button, Card, Col, Form, InputGroup, Nav, Row } from 'react-bootstrap';
 import { FetcherWithComponents } from 'react-router-dom';
 import HasManyRows from './HasManyRows';
+import { parseAtRetirement } from '../calculators/MonteCarloSimulation';
 
 const NUM_SETTINGS_TABS = 4;
 
@@ -16,6 +17,8 @@ type MonteCarloSettings = {
     yearlyRaisePercentage: string;
     startDate: string;
     endDate: string;
+    // Missing in settings files saved before this option existed.
+    atRetirement?: string;
   }>;
   life_events: Array<{
     name: string;
@@ -211,6 +214,7 @@ const MonteCarloForm = ({
         'yearlyRaisePercentage',
         'startDate',
         'endDate',
+        'atRetirement',
       ]).map((row) => ({
         name: String(row.name),
         postTaxAnnualIncome: String(row.postTaxAnnualIncome),
@@ -218,6 +222,7 @@ const MonteCarloForm = ({
         yearlyRaisePercentage: String(row.yearlyRaisePercentage),
         startDate: String(row.startDate),
         endDate: String(row.endDate),
+        atRetirement: parseAtRetirement(String(row.atRetirement)),
       })),
       life_events: collectRepeatedGroup('life_events', [
         'name',
@@ -338,10 +343,12 @@ const MonteCarloForm = ({
           'yearlyRaisePercentage',
           'startDate',
           'endDate',
+          'atRetirement',
         ],
         settings.jobs.map((job) => ({
           ...job,
           adjustForInflation: job.adjustForInflation,
+          atRetirement: parseAtRetirement(job.atRetirement),
         })));
 
         setRepeatedGroup(form, 'life_events', [
@@ -404,10 +411,12 @@ const MonteCarloForm = ({
       'yearlyRaisePercentage',
       'startDate',
       'endDate',
+      'atRetirement',
     ],
     settings.jobs.map((job) => ({
       ...job,
       adjustForInflation: job.adjustForInflation,
+      atRetirement: parseAtRetirement(job.atRetirement),
     })));
 
     setRepeatedGroup(form, 'life_events', [
@@ -713,6 +722,19 @@ const MonteCarloForm = ({
                       <Form.Text className="text-muted">
                         (leave empty if you'll work to the grave; income is prorated, so
                         this is your first day not working)
+                      </Form.Text>
+                    </Form.Group>
+                  </Col>
+                  <Col xs={12} sm={6} md={3} lg={2} className="flex-grow-1">
+                    <Form.Group>
+                      <Form.Label>At retirement, this income</Form.Label>
+                      <Form.Select name="jobs[][atRetirement]" defaultValue="stops">
+                        <option value="stops">Stops</option>
+                        <option value="unaffected">Keeps its own dates</option>
+                      </Form.Select>
+                      <Form.Text className="text-muted">
+                        Use "Keeps its own dates" for Social Security,
+                        pensions, or rental income
                       </Form.Text>
                     </Form.Group>
                   </Col>

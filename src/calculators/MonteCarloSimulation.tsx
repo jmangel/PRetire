@@ -40,6 +40,17 @@ export class AssetClass extends Inflation {
   }
 }
 
+/**
+ * What happens to an income source when you retire.
+ * - 'stops': work income (salary, wages). It ends at retirement.
+ * - 'unaffected': income on its own schedule (Social Security at a chosen
+ *   claiming age, a pension starting at 65, rental income).
+ */
+export type AtRetirement = 'stops' | 'unaffected';
+
+export const parseAtRetirement = (value?: string): AtRetirement =>
+  value === 'unaffected' ? 'unaffected' : 'stops';
+
 export class Job {
   name: string;
   postTaxAnnualIncome: number;
@@ -47,6 +58,7 @@ export class Job {
   yearlyRaisePercentage: number;
   startDate?: Date;
   endDate?: Date;
+  atRetirement: AtRetirement;
 
   constructor({
     name,
@@ -55,6 +67,7 @@ export class Job {
     yearlyRaisePercentage,
     startDate,
     endDate,
+    atRetirement,
   }: {
     name: string;
     postTaxAnnualIncome: string;
@@ -62,6 +75,7 @@ export class Job {
     yearlyRaisePercentage: string;
     startDate: string;
     endDate: string;
+    atRetirement?: string;
   }) {
     this.name = name;
     this.postTaxAnnualIncome = parseFloat(postTaxAnnualIncome);
@@ -69,8 +83,31 @@ export class Job {
     this.yearlyRaisePercentage = parseFloat(yearlyRaisePercentage);
     this.startDate = startDate.length > 0 ? new Date(startDate) : undefined;
     this.endDate = endDate.length > 0 ? new Date(endDate) : undefined;
+    this.atRetirement = parseAtRetirement(atRetirement);
   }
 }
+
+/** Income sources that end when you retire, ignoring blank or $0 rows. */
+export const incomeThatStopsAtRetirement = (jobs: Job[]) =>
+  jobs.filter(
+    (job) => job.atRetirement === 'stops' && (job.postTaxAnnualIncome || 0) !== 0
+  );
+
+/**
+ * The planned retirement date implied by the income sources: when the last
+ * income that stops at retirement ends. Earlier end dates (like a job change)
+ * don't count, because another job is still paying after them.
+ *
+ * Returns undefined when there is no planned date: either nothing stops at
+ * retirement (already retired), or some work income has no end date.
+ */
+export const plannedRetirementDate = (jobs: Job[]): Date | undefined => {
+  const stopping = incomeThatStopsAtRetirement(jobs);
+  if (stopping.length === 0) return undefined;
+  if (stopping.some((job) => !job.endDate)) return undefined;
+
+  return new Date(Math.max(...stopping.map((job) => job.endDate!.getTime())));
+};
 
 export class LifeEvent {
   name: string;

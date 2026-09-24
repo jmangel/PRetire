@@ -134,6 +134,11 @@ export const parseJobs = (formData: FormData): Job[] => {
       resultsKey: 'endDate',
       isNum: false,
     },
+    {
+      formDataKey: 'jobs[][atRetirement]',
+      resultsKey: 'atRetirement',
+      isNum: false,
+    },
   ]).map((job: any, index) =>
     new Job({
       ...job,
