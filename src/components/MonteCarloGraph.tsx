@@ -6,6 +6,7 @@ import {
   YAxis,
   Tooltip,
   Line,
+  ReferenceLine,
 } from "recharts";
 import { MonteCarloResult } from "../calculators/MonteCarloSimulation";
 import { useMemo } from "react";
@@ -41,19 +42,59 @@ export type ReadyLineSeries = {
 // Keys in the chart data that aren't simulated balances.
 const NON_BALANCE_KEYS = ['year', 'deterministic', 'readyLine'];
 
+/**
+ * Add the ready line to the chart data: crop to chartLastYear if set, and
+ * attach each year's ready-line value up to lastYear. Values that aren't
+ * finite (possible with extreme volatility inputs) are left out so they
+ * can't break the y-axis. Balances are never cut off by lastYear.
+ */
+export const mergeReadyLine = <T extends { year: number }>(
+  data: T[],
+  readyLine?: ReadyLineSeries
+): Array<T & { readyLine?: number }> => {
+  if (!readyLine) return data;
+
+  const { chartLastYear, lastYear, startYear, values } = readyLine;
+  const visible = chartLastYear === undefined
+    ? data
+    : data.filter((entry) => entry.year <= chartLastYear);
+
+  return visible.map((entry) => {
+    const value = values[entry.year - startYear];
+    const show =
+      value !== undefined &&
+      Number.isFinite(value) &&
+      (lastYear === undefined || entry.year <= lastYear);
+    return show ? { ...entry, readyLine: value } : entry;
+  });
+};
+
 type TooltipData = Record<string, PercentilesChartData | Percentiles>;
 
-const CustomTooltip = (props: { label?: string, tooltipData: TooltipData, readyLineLabel?: string }) => {
-  const { tooltipData, label, readyLineLabel } = props;
+const CustomTooltip = (props: {
+  label?: string,
+  tooltipData: TooltipData,
+  readyLineLabel?: string,
+  readyLineLastYear?: number,
+}) => {
+  const { tooltipData, label, readyLineLabel, readyLineLastYear } = props;
 
   const tooltipYearData = label ? (tooltipData[label] as PercentilesChartData) : null;
   if (!tooltipYearData) return null;
+
+  const pastReadyLine =
+    readyLineLabel !== undefined &&
+    readyLineLastYear !== undefined &&
+    Number(label) > readyLineLastYear;
 
   return (
     <div className="bg-light">
       <p><strong>Year: {label}</strong></p>
       {tooltipYearData.readyLine !== undefined && (
         <p>{readyLineLabel}: {dollarFormatter(tooltipYearData.readyLine)}</p>
+      )}
+      {pastReadyLine && (
+        <p className="text-muted">Ready line: not shown after planned retirement</p>
       )}
       {tooltipYearData.deterministic !== undefined && (
         <p>Average path: {dollarFormatter(tooltipYearData.deterministic)}</p>
@@ -73,8 +114,8 @@ const CustomTooltip = (props: { label?: string, tooltipData: TooltipData, readyL
   );
 };
 
-const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResult?: MonteCarloResult, inflationAdjusted: boolean, onlyShowPercentiles: boolean, excludeMinMax: boolean, onlyShowDeterministicLine: boolean, readyLine?: ReadyLineSeries }) => {
-  const { results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLine } = props;
+const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResult?: MonteCarloResult, inflationAdjusted: boolean, onlyShowPercentiles: boolean, excludeMinMax: boolean, onlyShowDeterministicLine: boolean, readyLine?: ReadyLineSeries, plannedRetirementYear?: number }) => {
+  const { results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLine, plannedRetirementYear } = props;
 
   const balanceChartData = useMemo(() => {
     let data: Array<Record<string, number>> = [];
@@ -145,31 +186,20 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
     return data;
   }, [results, deterministicResult, inflationAdjusted, onlyShowPercentiles]);
 
-  // Kept separate so dragging the confidence slider doesn't recompute percentiles.
-  const chartData = useMemo(() => {
-    if (!readyLine) return balanceChartData;
+  // Everything expensive is computed from balanceChartData, which doesn't
+  // depend on the ready line, so dragging the confidence slider only does
+  // cheap per-year work below.
+  const chartData = useMemo(
+    () => mergeReadyLine(balanceChartData as PercentilesChartData[], readyLine),
+    [balanceChartData, readyLine]
+  );
 
-    const { chartLastYear } = readyLine;
-    const visible = chartLastYear === undefined
-      ? balanceChartData
-      : balanceChartData.filter((entry) => entry.year <= chartLastYear);
-
-    return visible.map((entry) => {
-      const value = readyLine.values[entry.year - readyLine.startYear];
-      const inRange =
-        value !== undefined &&
-        (readyLine.lastYear === undefined || entry.year <= readyLine.lastYear);
-      return inRange ? { ...entry, readyLine: value } : entry;
-    });
-  }, [balanceChartData, readyLine]);
-
-  const tooltipData = useMemo(() => {
-    return chartData.reduce((data, { year, ...yearSeries }) => {
+  const baseTooltipData = useMemo(() => {
+    return balanceChartData.reduce((data, { year, ...yearSeries }) => {
       if (onlyShowPercentiles) {
-        data[year] = yearSeries as PercentilesChartData;
+        data[year] = yearSeries as unknown as PercentilesChartData;
       } else {
         const deterministicValue = (yearSeries as any).deterministic;
-        const readyLineValue = (yearSeries as any).readyLine;
         const yearBalances = Object.entries(yearSeries)
           .filter(([key]) => !NON_BALANCE_KEYS.includes(key))
           .map(([, value]) => value)
@@ -190,15 +220,24 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
           p10: yearBalances[Math.floor(yearBalances.length * .1)],
           min: yearBalances[0],
           ...(deterministicValue !== undefined ? { deterministic: deterministicValue } : {}),
-          ...(readyLineValue !== undefined ? { readyLine: readyLineValue } : {}),
-        };
+        } as PercentilesChartData;
       }
       return data;
-    }, {} as Record<string, Percentiles>)
-  }, [chartData, onlyShowPercentiles]);
+    }, {} as Record<string, PercentilesChartData>)
+  }, [balanceChartData, onlyShowPercentiles]);
+
+  const tooltipData = useMemo(() => {
+    const data: TooltipData = {};
+    chartData.forEach((entry) => {
+      const base = baseTooltipData[entry.year];
+      if (!base) return;
+      data[entry.year] = entry.readyLine === undefined ? base : { ...base, readyLine: entry.readyLine };
+    });
+    return data;
+  }, [baseTooltipData, chartData]);
 
   const { year: _, readyLine: __, ...yearsSeries } = chartData.length > 0 ? chartData[0] : { year: null, readyLine: undefined };
-  const hasReadyLine = chartData.some((entry) => entry.readyLine !== undefined);
+  const readyLinePoints = chartData.filter((entry) => entry.readyLine !== undefined).length;
 
   // Pick each line's random color once per set of results, so re-renders
   // (like dragging the confidence slider) don't change every line's color.
@@ -211,32 +250,52 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
   }, [balanceChartData]);
 
   const tooltip = useMemo(
-    () => <CustomTooltip tooltipData={tooltipData} readyLineLabel={readyLine?.label} />,
-    [tooltipData, readyLine?.label]
+    () => (
+      <CustomTooltip
+        tooltipData={tooltipData}
+        readyLineLabel={readyLine?.label}
+        readyLineLastYear={readyLine?.lastYear}
+      />
+    ),
+    [tooltipData, readyLine?.label, readyLine?.lastYear]
   );
 
-  const visibleYValues = useMemo(() => {
-    const readyLineValues = chartData
-      .map((entry) => entry.readyLine)
-      .filter((value): value is number => value !== undefined);
+  // The y-axis only needs the lowest and highest visible values, so find each
+  // year's once per set of results rather than scanning every line on each
+  // slider move.
+  const yearExtents = useMemo(() => {
+    const extents: Record<number, [number, number]> = {};
+    balanceChartData.forEach((entry) => {
+      let values: number[];
+      if (onlyShowDeterministicLine) {
+        values = entry.deterministic !== undefined ? [entry.deterministic] : [];
+      } else {
+        values = Object.entries(entry)
+          .filter(([key]) =>
+            !NON_BALANCE_KEYS.includes(key) &&
+            (!excludeMinMax || (key !== 'min' && key !== 'max'))
+          )
+          .map(([, value]) => value)
+          .concat(entry.deterministic !== undefined ? entry.deterministic : []);
+      }
+      const finite = values.filter((value) => Number.isFinite(value));
+      if (finite.length > 0) extents[entry.year] = [getMin(finite), getMax(finite)];
+    });
+    return extents;
+  }, [balanceChartData, excludeMinMax, onlyShowDeterministicLine]);
 
-    if (onlyShowDeterministicLine) {
-      return chartData
-        .map((entry) => entry.deterministic)
-        .filter((value): value is number => value !== undefined)
-        .concat(readyLineValues);
-    }
+  const visibleYValues = useMemo(
+    () =>
+      chartData.flatMap((entry) => [
+        ...(yearExtents[entry.year] ?? []),
+        ...(entry.readyLine !== undefined ? [entry.readyLine] : []),
+      ]),
+    [chartData, yearExtents]
+  );
 
-    return chartData.flatMap((entry) =>
-      Object.entries(entry)
-        .filter(([key]) =>
-          !NON_BALANCE_KEYS.includes(key) &&
-          (!excludeMinMax || (key !== 'min' && key !== 'max'))
-        )
-        .map(([, value]) => value)
-        .concat(entry.deterministic !== undefined ? entry.deterministic : [])
-    ).concat(readyLineValues);
-  }, [chartData, excludeMinMax, onlyShowDeterministicLine]);
+  const showPlannedRetirement =
+    plannedRetirementYear !== undefined &&
+    chartData.some((entry) => entry.year === plannedRetirementYear);
 
   const [customYTicks, customDomain] = useNiceRechartsTicks(
     visibleYValues,
@@ -285,7 +344,15 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
               dot={false}
             />
           ))}
-        {hasReadyLine && (
+        {showPlannedRetirement && (
+          <ReferenceLine
+            x={plannedRetirementYear}
+            stroke="#6c757d"
+            strokeDasharray="4 4"
+            label={{ value: 'Planned retirement', position: 'insideTopLeft', fill: '#6c757d' }}
+          />
+        )}
+        {readyLinePoints > 0 && (
           <Line
             type="monotone"
             dataKey="readyLine"
@@ -294,7 +361,9 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
             strokeWidth={3}
             key="readyLine"
             isAnimationActive={false}
-            dot={false}
+            // A line needs two points; with only one visible (retiring next
+            // year), draw a dot so it doesn't silently disappear.
+            dot={readyLinePoints === 1 ? { r: 5, fill: '#198754', stroke: '#198754' } : false}
           />
         )}
       </LineChart>

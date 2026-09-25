@@ -9,9 +9,12 @@ describe('readySentences', () => {
     });
   });
 
-  test('says when some futures are never ready', () => {
+  test('says how many futures are never ready', () => {
     expect(readySentences({ p25: 2050, median: 2060, p75: 2080, neverReady: 0.15 }, 2100).text).toContain(
-      "1 in 10 isn't ready before 2100."
+      "About 15% of these futures aren't ready before 2100."
+    );
+    expect(readySentences({ p25: 2050, median: 2070, neverReady: 0.4 }, 2100).text).toContain(
+      "About 40% of these futures aren't ready before 2100."
     );
   });
 
@@ -41,6 +44,20 @@ describe('ReadyLineSummary', () => {
 
     fireEvent.change(screen.getByLabelText(/Confidence you won't run out: 90%/), { target: { value: '80' } });
     expect(setConfidence).toHaveBeenCalledWith(80);
+  });
+
+  test('leaves out the plan-date sentence when there is no planned retirement', () => {
+    render(
+      <ReadyLineSummary
+        summary={{ p25: 2037, median: 2041, p75: 2045, p90: 2050, neverReady: 0 }}
+        endYear={2100}
+        confidence={90}
+        setConfidence={jest.fn()}
+      />
+    );
+
+    expect(screen.queryByText(/assumes you retire on/)).not.toBeInTheDocument();
+    expect(screen.getByText('2041')).toBeInTheDocument();
   });
 
   test('formats dates without shifting a day in US time zones', () => {
