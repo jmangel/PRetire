@@ -4,7 +4,12 @@ import { ReadyLineData, computeReadyLine } from "./ReadyLine";
 export type MonteCarloResponse = {
   results: MonteCarloResult[];
   deterministicResult: MonteCarloResult;
-  /** Undefined when nothing stops at retirement (already retired). */
+  /**
+   * Undefined when there's no retirement year to find: already retired
+   * (nothing stops at retirement, or the planned retirement is on or before
+   * the first simulated year), or no year left to retire in before the end
+   * year.
+   */
   readyLine?: ReadyLineData;
 };
 

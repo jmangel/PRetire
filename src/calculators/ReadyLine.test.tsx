@@ -1,4 +1,4 @@
-import MonteCarloSimulation, { AssetClass, Inflation, Job, LifeEvent } from './MonteCarloSimulation';
+import MonteCarloSimulation, { AssetClass, Inflation, Job, LifeEvent, sampleRandomNormal } from './MonteCarloSimulation';
 import {
   ReadyLineData,
   computeReadyLine,
@@ -129,6 +129,53 @@ describe('requiredBalancesByYear', () => {
     expect(retire(needed - 100).some(({ balance }) => balance < 0)).toBe(true);
   });
 
+  test('stays close to its confidence for a fixed pension with random inflation', () => {
+    // The one approximate case: a pension's real value depends on the
+    // inflation each future has already had, but every future shares one
+    // line. Retire from the line with a random inflation history and check
+    // it still succeeds about as often as promised.
+    const assetClasses = assets(9.9, 19.7028);
+    const marketInflation = inflation(2.9, 3);
+    const pension = job('24000', { startDate: '2045-01-01', atRetirement: 'unaffected', adjustForInflation: false });
+    const startYear = 2027;
+    const retireAtEndOf = 2040;
+    const data = {
+      requiredBalances: requiredBalancesByYear({
+        monthlyExpenses: -4000,
+        jobs: [job('95000'), pension],
+        lifeEvents: [],
+        assetClasses,
+        inflation: marketInflation,
+        startYear,
+        endYear: 2090,
+        sequences: 5000,
+      }),
+    } as ReadyLineData;
+
+    const successRateFrom = (realBalance: number, runs = 4000) => {
+      let successes = 0;
+      for (let i = 0; i < runs; i++) {
+        let multiplier = 1;
+        for (let year = startYear; year <= retireAtEndOf; year++) {
+          multiplier *= 1 + sampleRandomNormal(marketInflation.averageAnnualReturn, marketInflation.standardDeviation);
+        }
+        const sim = new MonteCarloSimulation(
+          realBalance * multiplier, -4000 * multiplier, [pension], [], assetClasses,
+          marketInflation, 2090, retireAtEndOf + 1
+        );
+        sim.cumulativeInflationMultiplier = multiplier;
+        if (sim.run().every(({ balance }) => balance >= 0)) successes++;
+      }
+      return successes / runs;
+    };
+
+    // Measured while writing this: within about 1 point of the target.
+    for (const confidence of [0.5, 0.9]) {
+      const balance = readyLineAt(data, confidence)[retireAtEndOf - startYear];
+      expect(Math.abs(successRateFrom(balance) - confidence)).toBeLessThan(0.04);
+    }
+  });
+
   test('matches brute-force simulation of retiring from the ready line', () => {
     const assetClasses = assets(9.9, 19.7028);
     const marketInflation = inflation(2.9, 1.1343);
@@ -231,6 +278,28 @@ describe('computeReadyLine', () => {
     expect(computeReadyLine({ ...inputs, jobs: [job('95000', { endDate: '2030-01-01' })] })).toBeUndefined();
     // Retiring during the first simulated year still gets a ready line.
     expect(computeReadyLine({ ...inputs, jobs: [job('95000', { endDate: '2030-07-01' })] })).toBeDefined();
+  });
+
+  test('is undefined when there is no year left to retire in', () => {
+    const inputs = {
+      startingBalance: 1000000,
+      monthlyExpenses: -4000,
+      jobs: [job('95000', { endDate: '2040-07-01' })],
+      lifeEvents: [],
+      assetClasses: assets(5, 10),
+      inflation: inflation(3, 1),
+      startYear: 2030,
+      futures: 2,
+      sequences: 2,
+    };
+
+    expect(computeReadyLine({ ...inputs, endYear: 2030 })).toBeUndefined();
+    expect(computeReadyLine({ ...inputs, endYear: 2029 })).toBeUndefined();
+
+    // One year of room: the only choice is retiring at the end of 2030.
+    const oneYear = computeReadyLine({ ...inputs, endYear: 2031 })!;
+    expect(oneYear.requiredBalances).toHaveLength(1);
+    expect(readyLineAt(oneYear, 0.9)).toHaveLength(1);
   });
 
   test('is undefined when nothing stops at retirement', () => {

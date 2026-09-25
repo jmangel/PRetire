@@ -157,6 +157,7 @@ export const requiredBalancesByYear = ({
   const required = Array.from({ length: numYears - 1 }, () => new Float64Array(sequences));
   const returns = new Float64Array(numYears);
   const inflationRates = new Float64Array(numYears);
+  const multiplierBefore = new Float64Array(numYears);
 
   for (let s = 0; s < sequences; s++) {
     for (let t = 0; t < numYears; t++) {
@@ -169,7 +170,6 @@ export const requiredBalancesByYear = ({
 
     // Cumulative inflation before each year, for income not adjusted for it.
     let multiplier = 1;
-    const multiplierBefore = new Float64Array(numYears);
     for (let t = 0; t < numYears; t++) {
       multiplierBefore[t] = multiplier;
       multiplier *= 1 + inflationRates[t];
@@ -200,7 +200,12 @@ export const requiredBalancesByYear = ({
   return required;
 };
 
-/** Run everything the ready line needs. Returns undefined if nothing stops at retirement. */
+/**
+ * Run everything the ready line needs. Returns undefined when there's no
+ * retirement year to find: already retired (nothing stops at retirement, or
+ * the planned retirement is on or before the first simulated year), or no
+ * year left to retire in before the end year.
+ */
 export const computeReadyLine = (inputs: ReadyLineInputs): ReadyLineData | undefined => {
   const {
     startingBalance,
@@ -219,6 +224,9 @@ export const computeReadyLine = (inputs: ReadyLineInputs): ReadyLineData | undef
   // retirement year to find.
   if (incomeThatStopsAtRetirement(jobs).length === 0) return undefined;
   if (retiresBeforeStart(jobs, startYear)) return undefined;
+  // Retiring at the end of the end year leaves nothing to simulate, so the
+  // last possible retirement is the end of the year before it.
+  if (endYear <= startYear) return undefined;
 
   const workingJobs = keepWorkingJobs(jobs, startYear);
   const simulate = () =>
