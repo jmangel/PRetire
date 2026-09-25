@@ -74,13 +74,30 @@ type ReadyLineInputs = {
 };
 
 /**
+ * Whether the planned retirement date is before the first simulated year, so
+ * the user has effectively already retired as far as the simulation is
+ * concerned. This happens when someone re-runs a saved plan after retiring
+ * (their last job's end date is now in the past), or when retirement is later
+ * this year (the simulation starts next year).
+ */
+export const retiresBeforeStart = (jobs: Job[], startYear: number) => {
+  const planned = plannedRetirementDate(jobs);
+  return !!planned && planned.getTime() <= Date.UTC(startYear, 0, 1);
+};
+
+/**
  * The income sources for futures that keep working until they're ready:
  * work income that ends on the planned retirement date keeps going instead.
- * Other end dates (like a job change) stay as entered.
+ * Other end dates (like a job change) stay as entered. A plan that retires
+ * before the first simulated year is left alone, so an already-ended job
+ * isn't brought back.
  */
-export const keepWorkingJobs = (jobs: Job[]): Job[] => {
+export const keepWorkingJobs = (
+  jobs: Job[],
+  startYear: number = new Date().getFullYear() + 1
+): Job[] => {
   const planned = plannedRetirementDate(jobs);
-  if (!planned) return jobs;
+  if (!planned || retiresBeforeStart(jobs, startYear)) return jobs;
 
   return jobs.map((job) => {
     const endsAtRetirement =
@@ -194,13 +211,16 @@ export const computeReadyLine = (inputs: ReadyLineInputs): ReadyLineData | undef
     inflation,
     endYear,
     startYear = new Date().getFullYear() + 1,
-    futures = 10000,
+    futures = 5000,
   } = inputs;
 
-  // Already retired: there's no retirement year to find.
+  // Already retired, either because nothing stops at retirement or because
+  // the planned retirement is before the first simulated year: there's no
+  // retirement year to find.
   if (incomeThatStopsAtRetirement(jobs).length === 0) return undefined;
+  if (retiresBeforeStart(jobs, startYear)) return undefined;
 
-  const workingJobs = keepWorkingJobs(jobs);
+  const workingJobs = keepWorkingJobs(jobs, startYear);
   const simulate = () =>
     new MonteCarloSimulation(
       startingBalance, monthlyExpenses, workingJobs, lifeEvents,

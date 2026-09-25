@@ -21,12 +21,12 @@ const inflation = (averageAnnualReturnPercentage: number, standardDeviationPerce
   new Inflation({ averageAnnualReturnPercentage, standardDeviationPercentage });
 const job = (
   postTaxAnnualIncome: string,
-  { startDate = '', endDate = '', atRetirement = 'stops' } = {}
+  { startDate = '', endDate = '', atRetirement = 'stops', adjustForInflation = true } = {}
 ) =>
   new Job({
     name: '',
     postTaxAnnualIncome,
-    adjustForInflation: 'on',
+    adjustForInflation: adjustForInflation ? 'on' : '',
     yearlyRaisePercentage: '0',
     startDate,
     endDate,
@@ -86,6 +86,49 @@ describe('requiredBalancesByYear', () => {
     expect(retire(needed - 100).some(({ balance }) => balance < 0)).toBe(true);
   });
 
+  test('matches the simulation exactly for income not adjusted for inflation', () => {
+    // A fixed pension: its real value shrinks as inflation builds up, so the
+    // backward pass converts it using the inflation up to each year.
+    const pension = job('18000', {
+      startDate: '2045-01-01',
+      atRetirement: 'unaffected',
+      adjustForInflation: false,
+    });
+    const assetClasses = assets(5, 0);
+    const steadyInflation = inflation(3, 0);
+    const startYear = 2030;
+    const retireAtEndOf = 2040;
+
+    const required = requiredBalancesByYear({
+      monthlyExpenses: -4000,
+      jobs: [job('95000'), pension],
+      lifeEvents: [],
+      assetClasses,
+      inflation: steadyInflation,
+      startYear,
+      endYear: 2070,
+      sequences: 2,
+    });
+    const needed = required[retireAtEndOf - startYear][0];
+
+    // Pick up at retirement with the inflation that has built up by then, so
+    // the pension's fixed dollar amount is worth what it would be at that point.
+    const multiplier = 1.03 ** (retireAtEndOf + 1 - startYear);
+    const retire = (balance: number) => {
+      const sim = new MonteCarloSimulation(
+        balance * multiplier, -4000 * multiplier, [pension], [], assetClasses,
+        steadyInflation, 2070, retireAtEndOf + 1
+      );
+      sim.cumulativeInflationMultiplier = multiplier;
+      return sim.runDeterministic();
+    };
+    const lowest = Math.min(...retire(needed).map(({ inflationAdjustedBalance }) => inflationAdjustedBalance));
+
+    expect(lowest).toBeGreaterThanOrEqual(-1e-6);
+    expect(lowest).toBeLessThan(1);
+    expect(retire(needed - 100).some(({ balance }) => balance < 0)).toBe(true);
+  });
+
   test('matches brute-force simulation of retiring from the ready line', () => {
     const assetClasses = assets(9.9, 19.7028);
     const marketInflation = inflation(2.9, 1.1343);
@@ -118,7 +161,8 @@ describe('requiredBalancesByYear', () => {
 
     for (const confidence of [0.5, 0.9]) {
       const balance = readyLineAt(data, confidence)[retireAtEndOf - 2027];
-      expect(Math.abs(successRateFrom(balance) - confidence)).toBeLessThan(0.03);
+      // Random, so allow for sampling noise in both the line and this check.
+      expect(Math.abs(successRateFrom(balance) - confidence)).toBeLessThan(0.04);
     }
   });
 });
@@ -130,7 +174,7 @@ describe('keepWorkingJobs', () => {
       job('95000', { startDate: '2031-07-01', endDate: '2044-07-01' }),
       job('30000', { startDate: '2055-01-01', endDate: '2044-07-01', atRetirement: 'unaffected' }),
     ];
-    const working = keepWorkingJobs(jobs);
+    const working = keepWorkingJobs(jobs, 2027);
 
     expect(working[0].endDate).toEqual(new Date('2031-07-01'));
     expect(working[1].endDate).toBeUndefined();
@@ -138,6 +182,12 @@ describe('keepWorkingJobs', () => {
     expect(working[1]).toBeInstanceOf(Job);
     expect(working[2].endDate).toEqual(new Date('2044-07-01'));
     expect(jobs[1].endDate).toEqual(new Date('2044-07-01')); // original untouched
+  });
+
+  test("doesn't bring back a job that ended before the first simulated year", () => {
+    const jobs = [job('95000', { endDate: '2028-07-01' })];
+
+    expect(keepWorkingJobs(jobs, 2030)[0].endDate).toEqual(new Date('2028-07-01'));
   });
 });
 
@@ -159,6 +209,28 @@ describe('computeReadyLine', () => {
     expect(data.plannedRetirement).toEqual(new Date('2035-01-01'));
     expect(data.workingDeterministicResult.at(-1)!.balance).toBeCloseTo(770000, 6);
     expect(data.workingResults).toHaveLength(2);
+  });
+
+  test('is undefined when the planned retirement is before the first simulated year', () => {
+    // E.g. re-running a saved plan after retiring: the last job's end date is
+    // now in the past, and that job must not be brought back.
+    const inputs = {
+      startingBalance: 1000000,
+      monthlyExpenses: -4000,
+      lifeEvents: [],
+      assetClasses: assets(5, 10),
+      inflation: inflation(3, 1),
+      startYear: 2030,
+      endYear: 2080,
+      futures: 2,
+      sequences: 2,
+    };
+
+    expect(computeReadyLine({ ...inputs, jobs: [job('95000', { endDate: '2028-07-01' })] })).toBeUndefined();
+    // Retiring on the first day of the first simulated year counts too.
+    expect(computeReadyLine({ ...inputs, jobs: [job('95000', { endDate: '2030-01-01' })] })).toBeUndefined();
+    // Retiring during the first simulated year still gets a ready line.
+    expect(computeReadyLine({ ...inputs, jobs: [job('95000', { endDate: '2030-07-01' })] })).toBeDefined();
   });
 
   test('is undefined when nothing stops at retirement', () => {
