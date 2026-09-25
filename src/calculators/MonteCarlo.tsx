@@ -100,6 +100,25 @@ const run = async (formData: FormData): Promise<MonteCarloResponse> => {
 
 export default run;
 
+/**
+ * Every field of an income source, in one place. The form's settings export
+ * and import and parseJobs all read this list, so adding a field here is what
+ * makes it saved, restored, and submitted. (Before, each of those had its own
+ * copy, and missing one silently dropped the field.)
+ */
+export const JOB_FIELDS = [
+  'name',
+  'postTaxAnnualIncome',
+  'adjustForInflation',
+  'yearlyRaisePercentage',
+  'startDate',
+  'endDate',
+  'atRetirement',
+] as const;
+
+/** Job fields submitted as numbers. */
+export const JOB_NUMBER_FIELDS: ReadonlyArray<string> = ['postTaxAnnualIncome', 'yearlyRaisePercentage'];
+
 export const parseJobs = (formData: FormData): Job[] => {
   // Checkboxes only appear in FormData when checked, so their values can't be
   // zipped by position like the other fields. Each toggle submits its row
@@ -108,38 +127,16 @@ export const parseJobs = (formData: FormData): Job[] => {
     formData.getAll('jobs[][adjustForInflation]').map(String)
   );
 
-  return zipFormDataArrays(formData, [
-    {
-      formDataKey: 'jobs[][name]',
-      resultsKey: 'name',
-      isNum: false,
-    },
-    {
-      formDataKey: 'jobs[][postTaxAnnualIncome]',
-      resultsKey: 'postTaxAnnualIncome',
-      isNum: true,
-    },
-    {
-      formDataKey: 'jobs[][yearlyRaisePercentage]',
-      resultsKey: 'yearlyRaisePercentage',
-      isNum: true,
-    },
-    {
-      formDataKey: 'jobs[][startDate]',
-      resultsKey: 'startDate',
-      isNum: false,
-    },
-    {
-      formDataKey: 'jobs[][endDate]',
-      resultsKey: 'endDate',
-      isNum: false,
-    },
-    {
-      formDataKey: 'jobs[][atRetirement]',
-      resultsKey: 'atRetirement',
-      isNum: false,
-    },
-  ]).map((job: any, index) =>
+  return zipFormDataArrays<Record<string, any>>(
+    formData,
+    JOB_FIELDS
+      .filter((field) => field !== 'adjustForInflation')
+      .map((field) => ({
+        formDataKey: `jobs[][${field}]`,
+        resultsKey: field,
+        isNum: JOB_NUMBER_FIELDS.includes(field),
+      }))
+  ).map((job: any, index) =>
     new Job({
       ...job,
       adjustForInflation: inflationAdjustedRows.has(String(index)) ? 'on' : '',
