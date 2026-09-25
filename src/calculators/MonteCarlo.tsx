@@ -1,8 +1,16 @@
 import MonteCarloSimulation, { AssetClass, Inflation, Job, LifeEvent, MonteCarloResult } from "./MonteCarloSimulation";
+import { ReadyLineData, computeReadyLine } from "./ReadyLine";
 
-type MonteCarloResponse = {
+export type MonteCarloResponse = {
   results: MonteCarloResult[];
   deterministicResult: MonteCarloResult;
+  /**
+   * Undefined when there's no retirement year to find: already retired
+   * (nothing stops at retirement, or the planned retirement is on or before
+   * the first simulated year), or no year left to retire in before the end
+   * year.
+   */
+  readyLine?: ReadyLineData;
 };
 
 const run = async (formData: FormData): Promise<MonteCarloResponse> => {
@@ -92,9 +100,20 @@ const run = async (formData: FormData): Promise<MonteCarloResponse> => {
     ).run()
   );
 
+  const readyLine = computeReadyLine({
+    startingBalance,
+    monthlyExpenses,
+    jobs,
+    lifeEvents,
+    assetClasses,
+    inflation,
+    endYear,
+  });
+
   return {
     results,
     deterministicResult,
+    readyLine,
   };
 };
 

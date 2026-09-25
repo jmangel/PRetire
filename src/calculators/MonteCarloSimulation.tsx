@@ -167,7 +167,7 @@ const boxMuller = () => {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 };
 
-const sampleRandomNormal = (mean: number, standardDeviation: number) => {
+export const sampleRandomNormal = (mean: number, standardDeviation: number) => {
   return mean + standardDeviation * boxMuller();
 };
 
@@ -189,6 +189,7 @@ class MonteCarloSimulation {
   inflation: Inflation;
   cumulativeInflationMultiplier: number;
   endYear: number;
+  startYear: number;
 
   constructor(
     startingBalance: number,
@@ -197,7 +198,9 @@ class MonteCarloSimulation {
     lifeEvents: LifeEvent[],
     assetClasses: AssetClass[],
     inflation: Inflation,
-    endYear: number
+    endYear: number,
+    // First simulated year. Defaults to next year; mostly useful for tests.
+    startYear: number = new Date().getFullYear() + 1
   ) {
     this.runningBalance = startingBalance;
     this.runningMonthlyExpenses = monthlyExpenses;
@@ -206,6 +209,7 @@ class MonteCarloSimulation {
     this.assetClasses = assetClasses;
     this.inflation = inflation;
     this.endYear = endYear;
+    this.startYear = startYear;
 
     this.cumulativeInflationMultiplier = 1;
   }
@@ -214,7 +218,7 @@ class MonteCarloSimulation {
     const yearResults = [];
 
     for (
-      let year = new Date().getFullYear() + 1;
+      let year = this.startYear;
       year <= this.endYear;
       year++
     ) {
