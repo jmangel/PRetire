@@ -307,7 +307,7 @@ class MonteCarloSimulation {
 
   lifeEventsMonthlyExpensesChange(year: number) {
     return this.lifeEvents.reduce((acc, lifeEvent) => {
-      if (!lifeEvent.date || lifeEvent.date.getFullYear() !== year) return acc;
+      if (!lifeEvent.date || lifeEvent.date.getUTCFullYear() !== year) return acc;
 
       return acc + lifeEvent.monthlyExpensesChange;
     }, 0);
@@ -315,7 +315,7 @@ class MonteCarloSimulation {
 
   lifeEventsBalanceChange(year: number) {
     return this.lifeEvents.reduce((acc, lifeEvent) => {
-      if (!lifeEvent.date || lifeEvent.date.getFullYear() !== year) return acc;
+      if (!lifeEvent.date || lifeEvent.date.getUTCFullYear() !== year) return acc;
 
       return acc + lifeEvent.balanceChange;
     }, 0);
