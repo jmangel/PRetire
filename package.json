@@ -48,5 +48,8 @@
   },
   "devDependencies": {
     "jest-watch-typeahead": "^0.6.5"
+  },
+  "jest": {
+    "globalSetup": "<rootDir>/src/jestGlobalSetup.js"
   }
 }
