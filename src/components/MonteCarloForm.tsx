@@ -655,6 +655,10 @@ const MonteCarloForm = ({
                       <Form.Check
                         type="switch"
                         name="jobs[][adjustForInflation]"
+                        // Unchecked boxes are left out of FormData entirely,
+                        // so the row index is submitted as the value to keep
+                        // each toggle attached to the right job.
+                        value={String(index)}
                         defaultChecked
                         label="Adjust for inflation"
                       />

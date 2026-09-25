@@ -12,38 +12,7 @@ const run = async (formData: FormData): Promise<MonteCarloResponse> => {
 
   const endYear = parseInt(formData.get('endYear') as string) || 2100;
 
-  const jobs = zipFormDataArrays(formData, [
-    {
-      formDataKey: 'jobs[][name]',
-      resultsKey: 'name',
-      isNum: false,
-    },
-    {
-      formDataKey: 'jobs[][postTaxAnnualIncome]',
-      resultsKey: 'postTaxAnnualIncome',
-      isNum: true,
-    },
-    {
-      formDataKey: 'jobs[][adjustForInflation]',
-      resultsKey: 'adjustForInflation',
-      isNum: false,
-    },
-    {
-      formDataKey: 'jobs[][yearlyRaisePercentage]',
-      resultsKey: 'yearlyRaisePercentage',
-      isNum: true,
-    },
-    {
-      formDataKey: 'jobs[][startDate]',
-      resultsKey: 'startDate',
-      isNum: false,
-    },
-    {
-      formDataKey: 'jobs[][endDate]',
-      resultsKey: 'endDate',
-      isNum: false,
-    },
-  ]).map((job) => new Job(job));
+  const jobs = parseJobs(formData);
   const lifeEvents = zipFormDataArrays(formData, [
     {
       formDataKey: 'life_events[][name]',
@@ -130,6 +99,48 @@ const run = async (formData: FormData): Promise<MonteCarloResponse> => {
 };
 
 export default run;
+
+export const parseJobs = (formData: FormData): Job[] => {
+  // Checkboxes only appear in FormData when checked, so their values can't be
+  // zipped by position like the other fields. Each toggle submits its row
+  // index instead (see MonteCarloForm).
+  const inflationAdjustedRows = new Set(
+    formData.getAll('jobs[][adjustForInflation]').map(String)
+  );
+
+  return zipFormDataArrays(formData, [
+    {
+      formDataKey: 'jobs[][name]',
+      resultsKey: 'name',
+      isNum: false,
+    },
+    {
+      formDataKey: 'jobs[][postTaxAnnualIncome]',
+      resultsKey: 'postTaxAnnualIncome',
+      isNum: true,
+    },
+    {
+      formDataKey: 'jobs[][yearlyRaisePercentage]',
+      resultsKey: 'yearlyRaisePercentage',
+      isNum: true,
+    },
+    {
+      formDataKey: 'jobs[][startDate]',
+      resultsKey: 'startDate',
+      isNum: false,
+    },
+    {
+      formDataKey: 'jobs[][endDate]',
+      resultsKey: 'endDate',
+      isNum: false,
+    },
+  ]).map((job: any, index) =>
+    new Job({
+      ...job,
+      adjustForInflation: inflationAdjustedRows.has(String(index)) ? 'on' : '',
+    })
+  );
+};
 
 const zipFormDataArrays = <T extends {}>(
   formData: FormData,
