@@ -14,7 +14,7 @@ export const readySentences = (
   summary: ReadyYearSummary,
   endYear: number
 ): { typical?: number; text: string[] } => {
-  const { p25, median, p75, p90 } = summary;
+  const { p25, median, p75, p90, neverReady } = summary;
 
   if (median === undefined) {
     return {
@@ -32,7 +32,9 @@ export const readySentences = (
   text.push(
     p90 !== undefined
       ? `9 in 10 are ready by ${p90}.`
-      : `1 in 10 isn't ready before ${endYear}.`
+      : // More than 1 in 10 never reach the line; say how many, so the page
+        // doesn't understate the risk.
+        `About ${Math.round(neverReady * 100)}% of these futures aren't ready before ${endYear}.`
   );
 
   return { typical: median, text };

@@ -20,15 +20,17 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
   const [showKeepWorking, setShowKeepWorking] = useState(false);
 
   // With no planned retirement date, the plan already keeps working, so
-  // there's nothing different to switch to.
+  // there's nothing different to switch to. The view exists to show where
+  // futures cross the ready line, which is in today's dollars, so it needs
+  // the inflation-adjusted view.
   const canShowKeepWorking = !!readyLineData?.plannedRetirement;
-  const keepWorking = showKeepWorking && canShowKeepWorking;
+  const keepWorking = showKeepWorking && canShowKeepWorking && inflationAdjusted;
   const results = useMemo(
-    () => (keepWorking ? readyLineData!.workingResults : response?.results) ?? [],
+    () => (keepWorking && readyLineData ? readyLineData.workingResults : response?.results) ?? [],
     [keepWorking, readyLineData, response]
   );
-  const deterministicResult = keepWorking
-    ? readyLineData!.workingDeterministicResult
+  const deterministicResult = keepWorking && readyLineData
+    ? readyLineData.workingDeterministicResult
     : response?.deterministicResult;
 
   // Changing the confidence only re-reads sorted data; nothing is re-simulated.
@@ -73,8 +75,9 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
       excludeMinMax={excludeMinMax}
       onlyShowDeterministicLine={onlyShowDeterministicLine}
       readyLine={readyLineSeries}
+      plannedRetirementYear={readyLineData?.plannedRetirement?.getUTCFullYear()}
     />
-  ), [results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLineSeries]);
+  ), [results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLineSeries, readyLineData]);
 
   if (!response || response.results.length === 0) return null;
 
@@ -125,12 +128,14 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
                   type="switch"
                   label="Keep working until ready"
                   id="show_keep_working"
-                  checked={showKeepWorking}
+                  checked={keepWorking}
+                  disabled={!inflationAdjusted}
                   onChange={(e) => setShowKeepWorking(e.target.checked)}
                 />
                 <Form.Text>
-                  (Shows futures that keep working past your planned retirement,
-                  zoomed in to when they reach the ready line)
+                  {inflationAdjusted
+                    ? '(Shows futures that keep working past your planned retirement, zoomed in to when they reach the ready line)'
+                    : '(Needs "Adjust for inflation?" on, since the ready line is in today\'s dollars)'}
                 </Form.Text>
               </Form.Group>
             </Col>
