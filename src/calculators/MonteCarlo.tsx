@@ -119,6 +119,35 @@ const run = async (formData: FormData): Promise<MonteCarloResponse> => {
 
 export default run;
 
+type JobInit = ConstructorParameters<typeof Job>[0];
+
+/**
+ * Every field of an income source, in one place, with how each is stored:
+ * 'number' fields are parsed as numbers on submit, 'boolean' fields are
+ * switches, and 'string' fields are kept as text. The form's settings export
+ * and import and parseJobs all read this list, so adding a field here is what
+ * makes it saved, restored, and submitted. (Before, each of those had its own
+ * copy, and missing one silently dropped the field.) `satisfies` keeps the
+ * list in step with the fields Job accepts.
+ */
+export const JOB_FIELDS = {
+  name: 'string',
+  postTaxAnnualIncome: 'number',
+  adjustForInflation: 'boolean',
+  yearlyRaisePercentage: 'number',
+  startDate: 'string',
+  endDate: 'string',
+  atRetirement: 'string',
+} as const satisfies Record<keyof JobInit, 'string' | 'number' | 'boolean'>;
+
+export type JobField = keyof typeof JOB_FIELDS;
+
+/** Job field names, in form order. */
+export const JOB_FIELD_NAMES = Object.keys(JOB_FIELDS) as JobField[];
+
+// adjustForInflation is read separately below, by row index.
+type SubmittedJobField = Exclude<JobField, 'adjustForInflation'>;
+
 export const parseJobs = (formData: FormData): Job[] => {
   // Checkboxes only appear in FormData when checked, so their values can't be
   // zipped by position like the other fields. Each toggle submits its row
@@ -127,40 +156,22 @@ export const parseJobs = (formData: FormData): Job[] => {
     formData.getAll('jobs[][adjustForInflation]').map(String)
   );
 
-  return zipFormDataArrays(formData, [
-    {
-      formDataKey: 'jobs[][name]',
-      resultsKey: 'name',
-      isNum: false,
-    },
-    {
-      formDataKey: 'jobs[][postTaxAnnualIncome]',
-      resultsKey: 'postTaxAnnualIncome',
-      isNum: true,
-    },
-    {
-      formDataKey: 'jobs[][yearlyRaisePercentage]',
-      resultsKey: 'yearlyRaisePercentage',
-      isNum: true,
-    },
-    {
-      formDataKey: 'jobs[][startDate]',
-      resultsKey: 'startDate',
-      isNum: false,
-    },
-    {
-      formDataKey: 'jobs[][endDate]',
-      resultsKey: 'endDate',
-      isNum: false,
-    },
-    {
-      formDataKey: 'jobs[][atRetirement]',
-      resultsKey: 'atRetirement',
-      isNum: false,
-    },
-  ]).map((job: any, index) =>
+  const submittedFields = JOB_FIELD_NAMES.filter(
+    (field): field is SubmittedJobField => field !== 'adjustForInflation'
+  );
+
+  return zipFormDataArrays<Record<SubmittedJobField, FormDataEntryValue | number>>(
+    formData,
+    submittedFields.map((field) => ({
+      formDataKey: `jobs[][${field}]`,
+      resultsKey: field,
+      isNum: JOB_FIELDS[field] === 'number',
+    }))
+  ).map((job, index) =>
     new Job({
-      ...job,
+      // Job parses its number fields itself, so already-parsed numbers pass
+      // through unchanged.
+      ...(job as Omit<JobInit, 'adjustForInflation'>),
       adjustForInflation: inflationAdjustedRows.has(String(index)) ? 'on' : '',
     })
   );
