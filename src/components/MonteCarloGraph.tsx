@@ -224,35 +224,30 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
   const { results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLine, plannedRetirementYear } = props;
 
   const balanceChartData = useMemo(() => {
-    let data: Array<Record<string, number>> = [];
     const dataKey = inflationAdjusted ? 'inflationAdjustedBalance' : 'balance';
+    // One entry per year, looked up by year instead of scanning the list for
+    // every future's every year. A Map keeps the years in first-seen order.
+    const entriesByYear = new Map<number, Record<string, number>>();
+    const entryFor = (year: number) => {
+      let entry = entriesByYear.get(year);
+      if (!entry) {
+        entry = { year };
+        entriesByYear.set(year, entry);
+      }
+      return entry;
+    };
+
     results.forEach((result, index) => {
       result.forEach((yearBalance) => {
-        const existingEntry = data.find((entry) => entry.year === yearBalance.year);
-        if (existingEntry) {
-          existingEntry[`series${index + 1}`] = yearBalance[dataKey];
-        } else {
-          data.push({
-            year: yearBalance.year,
-            [`series${index + 1}`]: yearBalance[dataKey],
-          });
-        }
+        entryFor(yearBalance.year)[`series${index + 1}`] = yearBalance[dataKey];
       });
     });
 
-    if (deterministicResult) {
-      deterministicResult.forEach((yearBalance) => {
-        const existingEntry = data.find((entry) => entry.year === yearBalance.year);
-        if (existingEntry) {
-          existingEntry.deterministic = yearBalance[dataKey];
-        } else {
-          data.push({
-            year: yearBalance.year,
-            deterministic: yearBalance[dataKey],
-          });
-        }
-      });
-    }
+    deterministicResult?.forEach((yearBalance) => {
+      entryFor(yearBalance.year).deterministic = yearBalance[dataKey];
+    });
+
+    let data = Array.from(entriesByYear.values());
 
     if (onlyShowPercentiles) {
       data = data.map((entry) => {
