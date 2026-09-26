@@ -71,7 +71,113 @@ export const mergeReadyLine = <T extends { year: number }>(
 
 type TooltipData = Record<string, PercentilesChartData | Percentiles>;
 
-const CustomTooltip = (props: {
+/** One year's percentiles from every simulated balance in that year's entry. */
+const percentilesOf = (series: Record<string, number>): Percentiles | undefined => {
+  const yearBalances = Object.entries(series)
+    .filter(([key]) => !NON_BALANCE_KEYS.includes(key))
+    .map(([, value]) => value)
+    .sort((a, b) => a - b);
+  if (yearBalances.length === 0) return undefined;
+
+  return {
+    max: yearBalances[yearBalances.length - 1],
+    p90: yearBalances[Math.floor(yearBalances.length * .9)],
+    p80: yearBalances[Math.floor(yearBalances.length * .8)],
+    p70: yearBalances[Math.floor(yearBalances.length * .7)],
+    p60: yearBalances[Math.floor(yearBalances.length * .6)],
+    median: yearBalances[Math.floor(yearBalances.length * .5)],
+    p40: yearBalances[Math.floor(yearBalances.length * .4)],
+    p30: yearBalances[Math.floor(yearBalances.length * .3)],
+    p20: yearBalances[Math.floor(yearBalances.length * .2)],
+    p10: yearBalances[Math.floor(yearBalances.length * .1)],
+    min: yearBalances[0],
+  };
+};
+
+/**
+ * Tooltip data for each year, without the ready line. It doesn't depend on
+ * the confidence slider, so it's computed once per set of results.
+ */
+export const computeBaseTooltipData = (
+  balanceChartData: Array<Record<string, number>>,
+  onlyShowPercentiles: boolean
+): Record<number, PercentilesChartData> => {
+  const data: Record<number, PercentilesChartData> = {};
+
+  if (onlyShowPercentiles) {
+    // Each entry already holds that year's percentiles.
+    (balanceChartData as PercentilesChartData[]).forEach((entry) => {
+      data[entry.year] = entry;
+    });
+    return data;
+  }
+
+  balanceChartData.forEach(({ year, ...series }) => {
+    const percentiles = percentilesOf(series);
+    if (!percentiles) return;
+    data[year] = {
+      year,
+      ...percentiles,
+      ...(series.deterministic !== undefined ? { deterministic: series.deterministic } : {}),
+    };
+  });
+  return data;
+};
+
+/** Add each visible year's ready-line value to the base tooltip data. */
+export const mergeTooltipReadyLine = (
+  baseTooltipData: Record<number, PercentilesChartData>,
+  chartData: Array<{ year: number; readyLine?: number }>
+): TooltipData => {
+  const data: TooltipData = {};
+  chartData.forEach((entry) => {
+    const base = baseTooltipData[entry.year];
+    if (!base) return;
+    data[entry.year] = entry.readyLine === undefined ? base : { ...base, readyLine: entry.readyLine };
+  });
+  return data;
+};
+
+/**
+ * Each year's lowest and highest plotted value, for the y-axis. Doesn't
+ * depend on the confidence slider, so it's computed once per set of results.
+ */
+export const computeYearExtents = (
+  balanceChartData: Array<Record<string, number>>,
+  options: { excludeMinMax: boolean; onlyShowDeterministicLine: boolean }
+): Record<number, [number, number]> => {
+  const { excludeMinMax, onlyShowDeterministicLine } = options;
+  const extents: Record<number, [number, number]> = {};
+  balanceChartData.forEach((entry) => {
+    let values: number[];
+    if (onlyShowDeterministicLine) {
+      values = entry.deterministic !== undefined ? [entry.deterministic] : [];
+    } else {
+      values = Object.entries(entry)
+        .filter(([key]) =>
+          !NON_BALANCE_KEYS.includes(key) &&
+          (!excludeMinMax || (key !== 'min' && key !== 'max'))
+        )
+        .map(([, value]) => value)
+        .concat(entry.deterministic !== undefined ? entry.deterministic : []);
+    }
+    const finite = values.filter((value) => Number.isFinite(value));
+    if (finite.length > 0) extents[entry.year] = [getMin(finite), getMax(finite)];
+  });
+  return extents;
+};
+
+/** The y values the axis must fit: each visible year's extents plus its ready-line value. */
+export const visibleYValuesFor = (
+  chartData: Array<{ year: number; readyLine?: number }>,
+  yearExtents: Record<number, [number, number]>
+): number[] =>
+  chartData.flatMap((entry) => [
+    ...(yearExtents[entry.year] ?? []),
+    ...(entry.readyLine !== undefined ? [entry.readyLine] : []),
+  ]);
+
+export const CustomTooltip = (props: {
   label?: string,
   tooltipData: TooltipData,
   readyLineLabel?: string,
@@ -194,47 +300,15 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
     [balanceChartData, readyLine]
   );
 
-  const baseTooltipData = useMemo(() => {
-    return balanceChartData.reduce((data, { year, ...yearSeries }) => {
-      if (onlyShowPercentiles) {
-        data[year] = yearSeries as unknown as PercentilesChartData;
-      } else {
-        const deterministicValue = (yearSeries as any).deterministic;
-        const yearBalances = Object.entries(yearSeries)
-          .filter(([key]) => !NON_BALANCE_KEYS.includes(key))
-          .map(([, value]) => value)
-          .sort((a, b) => a - b);
+  const baseTooltipData = useMemo(
+    () => computeBaseTooltipData(balanceChartData, onlyShowPercentiles),
+    [balanceChartData, onlyShowPercentiles]
+  );
 
-        if (yearBalances.length === 0) return data;
-
-        data[year] = {
-          max: yearBalances[yearBalances.length - 1],
-          p90: yearBalances[Math.floor(yearBalances.length * .9)],
-          p80: yearBalances[Math.floor(yearBalances.length * .8)],
-          p70: yearBalances[Math.floor(yearBalances.length * .7)],
-          p60: yearBalances[Math.floor(yearBalances.length * .6)],
-          median: yearBalances[Math.floor(yearBalances.length * .5)],
-          p40: yearBalances[Math.floor(yearBalances.length * .4)],
-          p30: yearBalances[Math.floor(yearBalances.length * .3)],
-          p20: yearBalances[Math.floor(yearBalances.length * .2)],
-          p10: yearBalances[Math.floor(yearBalances.length * .1)],
-          min: yearBalances[0],
-          ...(deterministicValue !== undefined ? { deterministic: deterministicValue } : {}),
-        } as PercentilesChartData;
-      }
-      return data;
-    }, {} as Record<string, PercentilesChartData>)
-  }, [balanceChartData, onlyShowPercentiles]);
-
-  const tooltipData = useMemo(() => {
-    const data: TooltipData = {};
-    chartData.forEach((entry) => {
-      const base = baseTooltipData[entry.year];
-      if (!base) return;
-      data[entry.year] = entry.readyLine === undefined ? base : { ...base, readyLine: entry.readyLine };
-    });
-    return data;
-  }, [baseTooltipData, chartData]);
+  const tooltipData = useMemo(
+    () => mergeTooltipReadyLine(baseTooltipData, chartData),
+    [baseTooltipData, chartData]
+  );
 
   const { year: _, readyLine: __, ...yearsSeries } = chartData.length > 0 ? chartData[0] : { year: null, readyLine: undefined };
   const readyLinePoints = chartData.filter((entry) => entry.readyLine !== undefined).length;
@@ -263,33 +337,13 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
   // The y-axis only needs the lowest and highest visible values, so find each
   // year's once per set of results rather than scanning every line on each
   // slider move.
-  const yearExtents = useMemo(() => {
-    const extents: Record<number, [number, number]> = {};
-    balanceChartData.forEach((entry) => {
-      let values: number[];
-      if (onlyShowDeterministicLine) {
-        values = entry.deterministic !== undefined ? [entry.deterministic] : [];
-      } else {
-        values = Object.entries(entry)
-          .filter(([key]) =>
-            !NON_BALANCE_KEYS.includes(key) &&
-            (!excludeMinMax || (key !== 'min' && key !== 'max'))
-          )
-          .map(([, value]) => value)
-          .concat(entry.deterministic !== undefined ? entry.deterministic : []);
-      }
-      const finite = values.filter((value) => Number.isFinite(value));
-      if (finite.length > 0) extents[entry.year] = [getMin(finite), getMax(finite)];
-    });
-    return extents;
-  }, [balanceChartData, excludeMinMax, onlyShowDeterministicLine]);
+  const yearExtents = useMemo(
+    () => computeYearExtents(balanceChartData, { excludeMinMax, onlyShowDeterministicLine }),
+    [balanceChartData, excludeMinMax, onlyShowDeterministicLine]
+  );
 
   const visibleYValues = useMemo(
-    () =>
-      chartData.flatMap((entry) => [
-        ...(yearExtents[entry.year] ?? []),
-        ...(entry.readyLine !== undefined ? [entry.readyLine] : []),
-      ]),
+    () => visibleYValuesFor(chartData, yearExtents),
     [chartData, yearExtents]
   );
 
