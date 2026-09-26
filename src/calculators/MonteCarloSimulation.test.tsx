@@ -306,11 +306,10 @@ describe('MonteCarloSimulation', () => {
 
         describe('life events', () => {
           test('balance decrease', () => {
-            const startingDate = new Date();
-            const startingYear = startingDate.getFullYear();
-
-            const halfwayDate = new Date(startingDate);
-            halfwayDate.setFullYear(startingYear + 50);
+            const startingYear = new Date().getFullYear();
+            // A date-input-shaped string, so the event's year is the same in
+            // UTC at any time zone or time of day.
+            const halfwayDate = `${startingYear + 50}-06-15`;
 
             const startingBalance = 100000;
 
@@ -323,7 +322,7 @@ describe('MonteCarloSimulation', () => {
                   name: 'Lose It All In Hustlers Casino',
                   monthlyExpensesChange: '0',
                   balanceChange: (-startingBalance).toString(),
-                  date: halfwayDate.toString(),
+                  date: halfwayDate,
                 }),
               ],
               assetClasses,
