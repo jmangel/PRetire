@@ -4,7 +4,7 @@
    fields by name rather than by label or role. */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import MonteCarloForm from './MonteCarloForm';
-import { parseJobs } from '../calculators/MonteCarlo';
+import { JOB_FIELD_NAMES, parseJobs } from '../calculators/MonteCarlo';
 
 // The page wraps the form in <fetcher.Form id="monte-carlo-form">; a plain
 // form with that id is enough for these tests.
@@ -63,6 +63,14 @@ describe('MonteCarloForm and parseJobs', () => {
 });
 
 describe('MonteCarloForm settings export and import', () => {
+  test('export saves every job field', async () => {
+    const readExport = captureExport();
+    renderForm();
+    fireEvent.click(screen.getByText('Export settings'));
+    const settings = await readExport();
+    expect(Object.keys(settings.jobs[0]).sort()).toEqual([...JOB_FIELD_NAMES].sort());
+  });
+
   test('"At retirement" survives exporting and importing', async () => {
     const readExport = captureExport();
     const { form, all } = renderForm();

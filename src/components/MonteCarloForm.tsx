@@ -3,24 +3,24 @@ import { Button, Card, Col, Form, InputGroup, Nav, Row } from 'react-bootstrap';
 import { FetcherWithComponents } from 'react-router-dom';
 import HasManyRows from './HasManyRows';
 import { parseAtRetirement } from '../calculators/MonteCarloSimulation';
-import { JOB_FIELDS } from '../calculators/MonteCarlo';
+import { JOB_FIELD_NAMES, JOB_FIELDS, JobField } from '../calculators/MonteCarlo';
 
 const NUM_SETTINGS_TABS = 4;
+
+// One exported income source: switches are saved as booleans, every other
+// field as text.
+type JobSettings = {
+  [K in Exclude<JobField, 'atRetirement'>]: typeof JOB_FIELDS[K] extends 'boolean' ? boolean : string;
+} & {
+  // Missing in settings files saved before this option existed.
+  atRetirement?: string;
+};
 
 type MonteCarloSettings = {
   startingBalance: string;
   monthlyExpenses: string;
   endYear: string;
-  jobs: Array<{
-    name: string;
-    postTaxAnnualIncome: string;
-    adjustForInflation: boolean;
-    yearlyRaisePercentage: string;
-    startDate: string;
-    endDate: string;
-    // Missing in settings files saved before this option existed.
-    atRetirement?: string;
-  }>;
+  jobs: JobSettings[];
   life_events: Array<{
     name: string;
     date: string;
@@ -208,13 +208,13 @@ const MonteCarloForm = ({
       startingBalance: getSettingValue('startingBalance'),
       monthlyExpenses: getSettingValue('monthlyExpenses'),
       endYear: getSettingValue('endYear'),
-      jobs: collectRepeatedGroup('jobs', [...JOB_FIELDS]).map((row) => ({
-        name: String(row.name),
-        postTaxAnnualIncome: String(row.postTaxAnnualIncome),
-        adjustForInflation: Boolean(row.adjustForInflation),
-        yearlyRaisePercentage: String(row.yearlyRaisePercentage),
-        startDate: String(row.startDate),
-        endDate: String(row.endDate),
+      jobs: collectRepeatedGroup('jobs', JOB_FIELD_NAMES).map((row) => ({
+        ...(Object.fromEntries(
+          JOB_FIELD_NAMES.map((field) => [
+            field,
+            JOB_FIELDS[field] === 'boolean' ? Boolean(row[field]) : String(row[field]),
+          ])
+        ) as JobSettings),
         atRetirement: parseAtRetirement(String(row.atRetirement)),
       })),
       life_events: collectRepeatedGroup('life_events', [
@@ -315,7 +315,7 @@ const MonteCarloForm = ({
   // Fill every form field from imported settings. Used both when the row
   // counts already match and after new rows render.
   const fillForm = (form: HTMLFormElement, settings: MonteCarloSettings) => {
-    setRepeatedGroup(form, 'jobs', [...JOB_FIELDS],
+    setRepeatedGroup(form, 'jobs', JOB_FIELD_NAMES,
       settings.jobs.map((job) => ({
         ...job,
         atRetirement: parseAtRetirement(job.atRetirement),
