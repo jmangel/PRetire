@@ -46,6 +46,8 @@ type Props = {
   plannedRetirement?: Date;
   confidence: number;
   setConfidence: (confidence: number) => void;
+  /** The chart redraws only once the slider stops (every future is drawn). */
+  chartWaitsForSlider?: boolean;
 };
 
 const ReadyLineSummary = ({
@@ -54,6 +56,7 @@ const ReadyLineSummary = ({
   plannedRetirement,
   confidence,
   setConfidence,
+  chartWaitsForSlider = false,
 }: Props) => {
   const { typical, text } = readySentences(summary, endYear);
 
@@ -90,6 +93,8 @@ const ReadyLineSummary = ({
         <Form.Text className="text-muted">
           The ready line is the balance, in today's dollars, that gives this
           chance of never running out if you retire that year.
+          {chartWaitsForSlider &&
+            ' With every future drawn, the chart updates once you stop moving the slider.'}
         </Form.Text>
       </Form.Group>
     </div>

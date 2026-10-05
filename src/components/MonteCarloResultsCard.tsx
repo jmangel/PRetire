@@ -1,11 +1,40 @@
 import { Card, Col, Form, Row } from "react-bootstrap";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import MonteCarloGraph, { ReadyLineSeries } from "./MonteCarloGraph";
 import SpinnerOverlay from "./SpinnerOverlay";
 import ReadyLineSummary from "./ReadyLineSummary";
 import { FetcherWithComponents } from "react-router-dom";
 import { MonteCarloResponse } from "../calculators/MonteCarlo";
 import { readyLineAt, readyYears, summarizeReadyYears } from "../calculators/ReadyLine";
+
+/** How long the slider must be still before a slow chart redraws. */
+export const SLIDER_SETTLE_MS = 300;
+
+/**
+ * The value once it has stopped changing for delayMs. Covers mouse, touch,
+ * and keyboard alike: arrow-key presses keep resetting the wait, just like
+ * dragging does.
+ */
+export const useSettledValue = <T,>(value: T, delayMs: number): T => {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+  return settled;
+};
+
+/**
+ * Last year to show in the keep-working view. Those futures grow huge by the
+ * end year, which flattens the ready line, so zoom in to a few years past
+ * when 9 in 10 are ready (or the planned retirement, if that's later). If
+ * more than 1 in 10 are never ready, show everything up to the end year.
+ */
+export const keepWorkingChartLastYear = (
+  endYear: number,
+  p90?: number,
+  plannedRetirementYear?: number
+) => Math.min(endYear, Math.max(p90 ?? endYear, plannedRetirementYear ?? 0) + 5);
 
 const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) => {
   const response = (fetcher.data as MonteCarloResponse) || null;
@@ -17,6 +46,8 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
   const [excludeMinMax, setExcludeMinMax] = useState(false);
   const [onlyShowDeterministicLine, setOnlyShowDeterministicLine] = useState(false);
   const [confidence, setConfidence] = useState(90);
+  // Kept while the switch is disabled (with "Adjust for inflation" off) on
+  // purpose: turning inflation back on returns to the view you had.
   const [showKeepWorking, setShowKeepWorking] = useState(false);
 
   // With no planned retirement date, the plan already keeps working, so
@@ -34,6 +65,7 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
     : response?.deterministicResult;
 
   // Changing the confidence only re-reads sorted data; nothing is re-simulated.
+  // The summary and the slider's label always follow the slider live.
   const readyLine = useMemo(
     () => (readyLineData ? readyLineAt(readyLineData, confidence / 100) : undefined),
     [readyLineData, confidence]
@@ -42,29 +74,36 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
     () => (readyLineData && readyLine ? summarizeReadyYears(readyYears(readyLineData, readyLine)) : undefined),
     [readyLineData, readyLine]
   );
+
+  // The chart's ready line uses its own confidence. In the default percentiles
+  // view a redraw takes tens of milliseconds, so it follows the slider live.
+  // With every future drawn, each redraw takes about 25 seconds, so the chart
+  // waits until the slider has been still for SLIDER_SETTLE_MS. Everything
+  // that feeds the chart reads only chartConfidence; reading the live value
+  // anywhere below would make it redraw on every step again.
+  const settledConfidence = useSettledValue(confidence, SLIDER_SETTLE_MS);
+  const chartConfidence = onlyShowPercentiles ? confidence : settledConfidence;
   const readyLineSeries = useMemo((): ReadyLineSeries | undefined => {
     // The line is in today's dollars, so it only lines up with adjusted balances.
-    if (!readyLineData || !readyLine || !inflationAdjusted) return undefined;
+    if (!readyLineData || !inflationAdjusted) return undefined;
+    const values = readyLineAt(readyLineData, chartConfidence / 100);
+    const plannedYear = readyLineData.plannedRetirement?.getUTCFullYear();
     return {
-      values: readyLine,
+      values,
       startYear: readyLineData.startYear,
       // Futures that retire as planned are retired after that year, so the
       // line stops there unless the keep-working futures are shown.
-      lastYear: keepWorking ? undefined : readyLineData.plannedRetirement?.getUTCFullYear(),
-      // Futures that keep working grow huge by the end year, which flattens
-      // the ready line. Zoom in to a few years past when 9 in 10 are ready.
+      lastYear: keepWorking ? undefined : plannedYear,
       chartLastYear: keepWorking
-        ? Math.min(
+        ? keepWorkingChartLastYear(
             readyLineData.endYear,
-            Math.max(
-              readySummary?.p90 ?? readyLineData.endYear,
-              readyLineData.plannedRetirement?.getUTCFullYear() ?? 0
-            ) + 5
+            summarizeReadyYears(readyYears(readyLineData, values)).p90,
+            plannedYear
           )
         : undefined,
-      label: `Ready line (${confidence}%)`,
+      label: `Ready line (${chartConfidence}%)`,
     };
-  }, [readyLineData, readyLine, readySummary, inflationAdjusted, keepWorking, confidence]);
+  }, [readyLineData, inflationAdjusted, keepWorking, chartConfidence]);
 
   const graph = useMemo(() => (
     <MonteCarloGraph
@@ -97,6 +136,7 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
             plannedRetirement={readyLineData.plannedRetirement}
             confidence={confidence}
             setConfidence={setConfidence}
+            chartWaitsForSlider={!onlyShowPercentiles}
           />
         )}
         {

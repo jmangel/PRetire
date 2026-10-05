@@ -26,7 +26,7 @@ type Percentiles = {
   min: number,
 };
 
-type PercentilesChartData = Percentiles & { year: number; deterministic?: number; readyLine?: number };
+export type PercentilesChartData = Percentiles & { year: number; deterministic?: number; readyLine?: number };
 
 /** A ready line to draw on the chart: values[k] is for year startYear + k. */
 export type ReadyLineSeries = {
@@ -99,20 +99,20 @@ const percentilesOf = (series: Record<string, number>): Percentiles | undefined 
  * the confidence slider, so it's computed once per set of results.
  */
 export const computeBaseTooltipData = (
-  balanceChartData: Array<Record<string, number>>,
-  onlyShowPercentiles: boolean
+  source: { percentiles: PercentilesChartData[] } | { series: Array<Record<string, number>> }
 ): Record<number, PercentilesChartData> => {
   const data: Record<number, PercentilesChartData> = {};
 
-  if (onlyShowPercentiles) {
-    // Each entry already holds that year's percentiles.
-    (balanceChartData as PercentilesChartData[]).forEach((entry) => {
+  if ('percentiles' in source) {
+    // Each entry already holds that year's percentiles. Typed all the way
+    // from where they're computed, so renaming a field is a type error.
+    source.percentiles.forEach((entry) => {
       data[entry.year] = entry;
     });
     return data;
   }
 
-  balanceChartData.forEach(({ year, ...series }) => {
+  source.series.forEach(({ year, ...series }) => {
     const percentiles = percentilesOf(series);
     if (!percentiles) return;
     data[year] = {
@@ -220,72 +220,81 @@ export const CustomTooltip = (props: {
   );
 };
 
+/**
+ * One entry per year with every future's balance (series1, series2, ...)
+ * and the average path's (deterministic). Years keep the order they're first
+ * seen in: the futures' years, then any only the average path has. Looked up
+ * by year in a Map rather than by scanning the list for every value.
+ */
+export const collectBalancesByYear = (
+  results: MonteCarloResult[],
+  deterministicResult: MonteCarloResult | undefined,
+  dataKey: 'balance' | 'inflationAdjustedBalance'
+): Array<Record<string, number>> => {
+  const entriesByYear = new Map<number, Record<string, number>>();
+  const entryFor = (year: number) => {
+    let entry = entriesByYear.get(year);
+    if (!entry) {
+      entry = { year };
+      entriesByYear.set(year, entry);
+    }
+    return entry;
+  };
+
+  results.forEach((result, index) => {
+    result.forEach((yearBalance) => {
+      entryFor(yearBalance.year)[`series${index + 1}`] = yearBalance[dataKey];
+    });
+  });
+
+  deterministicResult?.forEach((yearBalance) => {
+    entryFor(yearBalance.year).deterministic = yearBalance[dataKey];
+  });
+
+  return Array.from(entriesByYear.values());
+};
+
+/** One year's percentiles across the futures, plus the average path. */
+export const toPercentilesEntry = (entry: Record<string, number>): PercentilesChartData => {
+  const { year, deterministic, ...series } = entry;
+
+  // A year only the average path has gets no percentiles, just its value.
+  const newEntry = { year } as PercentilesChartData;
+
+  const yearBalances = Object.values(series).sort((a, b) => a - b);
+  if (yearBalances.length > 0) {
+    newEntry.max = yearBalances[yearBalances.length - 1];
+    newEntry.p90 = yearBalances[Math.floor(yearBalances.length * .9)];
+    newEntry.p80 = yearBalances[Math.floor(yearBalances.length * .8)];
+    newEntry.p70 = yearBalances[Math.floor(yearBalances.length * .7)];
+    newEntry.p60 = yearBalances[Math.floor(yearBalances.length * .6)];
+    newEntry.median = yearBalances[Math.floor(yearBalances.length * .5)];
+    newEntry.p40 = yearBalances[Math.floor(yearBalances.length * .4)];
+    newEntry.p30 = yearBalances[Math.floor(yearBalances.length * .3)];
+    newEntry.p20 = yearBalances[Math.floor(yearBalances.length * .2)];
+    newEntry.p10 = yearBalances[Math.floor(yearBalances.length * .1)];
+    newEntry.min = yearBalances[0];
+  }
+
+  if (deterministic !== undefined) {
+    newEntry.deterministic = deterministic;
+  }
+
+  return newEntry;
+};
+
 const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResult?: MonteCarloResult, inflationAdjusted: boolean, onlyShowPercentiles: boolean, excludeMinMax: boolean, onlyShowDeterministicLine: boolean, readyLine?: ReadyLineSeries, plannedRetirementYear?: number }) => {
   const { results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLine, plannedRetirementYear } = props;
 
-  const balanceChartData = useMemo(() => {
-    const dataKey = inflationAdjusted ? 'inflationAdjustedBalance' : 'balance';
-    // One entry per year, looked up by year instead of scanning the list for
-    // every future's every year. A Map keeps the years in first-seen order.
-    const entriesByYear = new Map<number, Record<string, number>>();
-    const entryFor = (year: number) => {
-      let entry = entriesByYear.get(year);
-      if (!entry) {
-        entry = { year };
-        entriesByYear.set(year, entry);
-      }
-      return entry;
-    };
-
-    results.forEach((result, index) => {
-      result.forEach((yearBalance) => {
-        entryFor(yearBalance.year)[`series${index + 1}`] = yearBalance[dataKey];
-      });
-    });
-
-    deterministicResult?.forEach((yearBalance) => {
-      entryFor(yearBalance.year).deterministic = yearBalance[dataKey];
-    });
-
-    let data = Array.from(entriesByYear.values());
-
-    if (onlyShowPercentiles) {
-      data = data.map((entry) => {
-        const { year, ...yearSeries } = entry;
-        const deterministicValue = (entry as any).deterministic;
-
-        const newEntry = {
-          year: entry.year,
-        } as PercentilesChartData;
-
-        const yearBalances = Object.entries(yearSeries)
-          .filter(([key]) => key !== 'deterministic')
-          .map(([, value]) => value)
-          .sort((a, b) => a - b);
-        if (yearBalances.length > 0) {
-          newEntry.max = yearBalances[yearBalances.length - 1];
-          newEntry.p90 = yearBalances[Math.floor(yearBalances.length * .9)];
-          newEntry.p80 = yearBalances[Math.floor(yearBalances.length * .8)];
-          newEntry.p70 = yearBalances[Math.floor(yearBalances.length * .7)];
-          newEntry.p60 = yearBalances[Math.floor(yearBalances.length * .6)];
-          newEntry.median = yearBalances[Math.floor(yearBalances.length * .5)];
-          newEntry.p40 = yearBalances[Math.floor(yearBalances.length * .4)];
-          newEntry.p30 = yearBalances[Math.floor(yearBalances.length * .3)];
-          newEntry.p20 = yearBalances[Math.floor(yearBalances.length * .2)];
-          newEntry.p10 = yearBalances[Math.floor(yearBalances.length * .1)];
-          newEntry.min = yearBalances[0];
-        }
-
-        if (deterministicValue !== undefined) {
-          newEntry.deterministic = deterministicValue;
-        }
-
-        return newEntry;
-      }) as PercentilesChartData[]
-    }
-
-    return data;
-  }, [results, deterministicResult, inflationAdjusted, onlyShowPercentiles]);
+  const yearEntries = useMemo(
+    () => collectBalancesByYear(results, deterministicResult, inflationAdjusted ? 'inflationAdjustedBalance' : 'balance'),
+    [results, deterministicResult, inflationAdjusted]
+  );
+  const percentileChartData = useMemo(
+    () => (onlyShowPercentiles ? yearEntries.map(toPercentilesEntry) : undefined),
+    [yearEntries, onlyShowPercentiles]
+  );
+  const balanceChartData: Array<Record<string, number>> = percentileChartData ?? yearEntries;
 
   // Everything expensive is computed from balanceChartData, which doesn't
   // depend on the ready line, so dragging the confidence slider only does
@@ -296,8 +305,10 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
   );
 
   const baseTooltipData = useMemo(
-    () => computeBaseTooltipData(balanceChartData, onlyShowPercentiles),
-    [balanceChartData, onlyShowPercentiles]
+    () => computeBaseTooltipData(
+      percentileChartData ? { percentiles: percentileChartData } : { series: yearEntries }
+    ),
+    [percentileChartData, yearEntries]
   );
 
   const tooltipData = useMemo(

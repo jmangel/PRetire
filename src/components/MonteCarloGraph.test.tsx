@@ -1,12 +1,14 @@
 import { ReactElement } from 'react';
 import { render, screen } from '@testing-library/react';
 import MonteCarloGraph, {
+  collectBalancesByYear,
   computeBaseTooltipData,
   computeYearExtents,
   CustomTooltip,
   mergeReadyLine,
   mergeTooltipReadyLine,
   ReadyLineSeries,
+  toPercentilesEntry,
   visibleYValuesFor,
 } from './MonteCarloGraph';
 import { MonteCarloResult } from '../calculators/MonteCarloSimulation';
@@ -74,19 +76,19 @@ const percentileData = rawData.map(({ year, deterministic }) => ({
 
 describe('computeBaseTooltipData', () => {
   test('computes percentiles from raw futures, leaving out the average path', () => {
-    const data = computeBaseTooltipData(rawData, false);
+    const data = computeBaseTooltipData({ series: rawData });
 
     expect(data[2031]).toMatchObject({ year: 2031, min: 15, max: 45, median: 45, deterministic: 25 });
   });
 
   test('uses the precomputed percentiles as they are', () => {
-    expect(computeBaseTooltipData(percentileData, true)[2031]).toBe(percentileData[1]);
+    expect(computeBaseTooltipData({ percentiles: percentileData })[2031]).toBe(percentileData[1]);
   });
 });
 
 describe('mergeTooltipReadyLine', () => {
   test("adds each shown year's ready-line value and drops years cropped from the chart", () => {
-    const base = computeBaseTooltipData(rawData, false);
+    const base = computeBaseTooltipData({ series: rawData });
     const chartData = mergeReadyLine(rawData, line({ values: [100, 101, 102], chartLastYear: 2031, lastYear: 2030 }));
 
     const data = mergeTooltipReadyLine(base, chartData);
@@ -146,7 +148,10 @@ describe('MonteCarloGraph', () => {
         plannedRetirementYear={plannedRetirementYear}
       />
     );
+  // The chart's SVG parts have no roles or labels to query by, so these
+  // tests find them by Recharts' class names and the ready line's color.
   const readyLineDots = (container: HTMLElement) =>
+    // eslint-disable-next-line testing-library/no-node-access
     container.querySelectorAll('.recharts-line-dot[fill="#198754"]');
 
   test('draws a single visible ready-line point as a dot, with the retirement marker', () => {
@@ -160,6 +165,7 @@ describe('MonteCarloGraph', () => {
     const { container } = renderGraph(line({ values: [120, 220, 320, 420], lastYear: 2031 }), 2031);
 
     expect(readyLineDots(container)).toHaveLength(0);
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     expect(container.querySelector('.recharts-line-curve[stroke="#198754"]')).toBeInTheDocument();
   });
 
@@ -171,7 +177,7 @@ describe('MonteCarloGraph', () => {
 });
 
 describe('CustomTooltip', () => {
-  const tooltipData = computeBaseTooltipData(rawData, false);
+  const tooltipData = computeBaseTooltipData({ series: rawData });
 
   test('notes that the ready line is not shown after the planned retirement year', () => {
     render(<CustomTooltip label="2032" tooltipData={tooltipData} readyLineLabel="Ready line (90%)" readyLineLastYear={2031} />);
@@ -189,7 +195,57 @@ describe('CustomTooltip', () => {
       />
     );
 
-    expect(screen.getByText(/Ready line \(90%\):/)).toBeInTheDocument();
+    expect(screen.getByText('Ready line (90%): $1,000.00')).toBeInTheDocument();
     expect(screen.queryByText('Ready line: not shown after planned retirement')).not.toBeInTheDocument();
+  });
+});
+
+describe('collectBalancesByYear', () => {
+  const result = (years: number[], base: number): MonteCarloResult =>
+    years.map((year) => ({
+      year,
+      balance: base + year,
+      inflationAdjustedBalance: base + year + 0.5,
+      inflation: 0,
+      monthlyExpenses: 0,
+      inflationAdjustedMonthlyExpenses: 0,
+    }));
+
+  test('gives one entry per year, in first-seen order, with every value', () => {
+    const entries = collectBalancesByYear(
+      // Futures covering different years, and an average path with a year
+      // (2033) that no future has.
+      [result([2030, 2031], 1000), result([2031, 2032], 2000)],
+      result([2030, 2031, 2032, 2033], 3000),
+      'balance'
+    );
+
+    expect(entries).toEqual([
+      { year: 2030, series1: 3030, deterministic: 5030 },
+      { year: 2031, series1: 3031, series2: 4031, deterministic: 5031 },
+      { year: 2032, series2: 4032, deterministic: 5032 },
+      { year: 2033, deterministic: 5033 },
+    ]);
+  });
+
+  test('reads the requested balance and works without an average path', () => {
+    expect(collectBalancesByYear([result([2030], 1000)], undefined, 'inflationAdjustedBalance')).toEqual([
+      { year: 2030, series1: 3030.5 },
+    ]);
+  });
+});
+
+describe('toPercentilesEntry', () => {
+  test('a year only the average path has keeps just its value', () => {
+    expect(toPercentilesEntry({ year: 2033, deterministic: 5033 })).toEqual({ year: 2033, deterministic: 5033 });
+  });
+
+  test("summarizes the futures' balances and leaves the average path out of them", () => {
+    const entry = toPercentilesEntry({ year: 2031, series1: 10, series2: 30, series3: 20, deterministic: 999 });
+
+    expect(entry.min).toBe(10);
+    expect(entry.median).toBe(20);
+    expect(entry.max).toBe(30);
+    expect(entry.deterministic).toBe(999);
   });
 });
