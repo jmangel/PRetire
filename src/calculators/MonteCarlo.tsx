@@ -148,6 +148,11 @@ export const JOB_FIELD_NAMES = Object.keys(JOB_FIELDS) as JobField[];
 // adjustForInflation is read separately below, by row index.
 type SubmittedJobField = Exclude<JobField, 'adjustForInflation'>;
 
+// One zipped form row: 'number' fields arrive parsed, the rest as text.
+type SubmittedJobRow = {
+  [K in SubmittedJobField]: typeof JOB_FIELDS[K] extends 'number' ? number : string;
+};
+
 export const parseJobs = (formData: FormData): Job[] => {
   // Checkboxes only appear in FormData when checked, so their values can't be
   // zipped by position like the other fields. Each toggle submits its row
@@ -160,7 +165,7 @@ export const parseJobs = (formData: FormData): Job[] => {
     (field): field is SubmittedJobField => field !== 'adjustForInflation'
   );
 
-  return zipFormDataArrays<Record<SubmittedJobField, FormDataEntryValue | number>>(
+  return zipFormDataArrays<SubmittedJobRow>(
     formData,
     submittedFields.map((field) => ({
       formDataKey: `jobs[][${field}]`,
@@ -169,9 +174,7 @@ export const parseJobs = (formData: FormData): Job[] => {
     }))
   ).map((job, index) =>
     new Job({
-      // Job parses its number fields itself, so already-parsed numbers pass
-      // through unchanged.
-      ...(job as Omit<JobInit, 'adjustForInflation'>),
+      ...job,
       adjustForInflation: inflationAdjustedRows.has(String(index)) ? 'on' : '',
     })
   );

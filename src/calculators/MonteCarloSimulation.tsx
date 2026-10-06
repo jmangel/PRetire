@@ -70,17 +70,18 @@ export class Job {
     atRetirement,
   }: {
     name: string;
-    postTaxAnnualIncome: string;
+    // Numbers when parsed from the form (see parseJobs), strings elsewhere.
+    postTaxAnnualIncome: string | number;
     adjustForInflation: string;
-    yearlyRaisePercentage: string;
+    yearlyRaisePercentage: string | number;
     startDate: string;
     endDate: string;
     atRetirement?: string;
   }) {
     this.name = name;
-    this.postTaxAnnualIncome = parseFloat(postTaxAnnualIncome);
+    this.postTaxAnnualIncome = parseFloat(String(postTaxAnnualIncome));
     this.adjustForInflation = adjustForInflation === 'on';
-    this.yearlyRaisePercentage = parseFloat(yearlyRaisePercentage);
+    this.yearlyRaisePercentage = parseFloat(String(yearlyRaisePercentage));
     this.startDate = startDate.length > 0 ? new Date(startDate) : undefined;
     this.endDate = endDate.length > 0 ? new Date(endDate) : undefined;
     this.atRetirement = parseAtRetirement(atRetirement);

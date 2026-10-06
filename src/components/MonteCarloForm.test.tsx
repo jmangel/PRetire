@@ -71,6 +71,26 @@ describe('MonteCarloForm settings export and import', () => {
     expect(Object.keys(settings.jobs[0]).sort()).toEqual([...JOB_FIELD_NAMES].sort());
   });
 
+  test('inflation switches export as true/false and import back to their own jobs', async () => {
+    const readExport = captureExport();
+    const { form, all } = renderForm();
+    fireEvent.click(screen.getByText('Add an income source'));
+    await waitFor(() => expect(all('adjustForInflation')).toHaveLength(2));
+    fireEvent.click(all('adjustForInflation')[0]);
+
+    fireEvent.click(screen.getByText('Export settings'));
+    const settings = await readExport();
+    expect(settings.jobs.map((job: any) => job.adjustForInflation)).toEqual([false, true]);
+
+    // Flip both switches, then import: each should go back to its saved state.
+    fireEvent.click(all('adjustForInflation')[0]);
+    fireEvent.click(all('adjustForInflation')[1]);
+    importSettings(form, settings);
+    await waitFor(() =>
+      expect(all('adjustForInflation').map((input) => input.checked)).toEqual([false, true])
+    );
+  });
+
   test('"At retirement" survives exporting and importing', async () => {
     const readExport = captureExport();
     const { form, all } = renderForm();
