@@ -611,30 +611,6 @@ const MonteCarloForm = ({
                     </Form.Group>
                   </Col>
 
-                  {/* <Col xs={6} sm={6} md={3} lg={2} className="flex-grow-1">
-                  <Form.Group>
-                    <Form.Label>Yearly Raise Percentage</Form.Label>
-                    <InputGroup>
-                    <Form.Control
-                        type="number"
-                        step="any"
-                        name="jobs[][yearlyRaisePercentage]"
-                        disabled
-                      />
-                      <InputGroup.Text>%</InputGroup.Text>
-                    </InputGroup>
-                    <Form.Text className="text-muted">
-                    Increase income <strong>in addition to inflation</strong>{' '}
-                    by this percentage each year, <strong>starting after the job starts</strong>
-                      <br />
-                      <em>
-                        <strong>Note:</strong>{' '}
-                        If you want to include inflation/cost-of-living increases in{' '}
-                        these yearly raises, uncheck the previous option
-                      </em>
-                    </Form.Text>
-                  </Form.Group>
-                </Col> */}
                   <Col xs={12} sm={6} md={3} lg={2} className="flex-grow-1">
                     <Form.Group>
                       <Form.Label>Start Date</Form.Label>

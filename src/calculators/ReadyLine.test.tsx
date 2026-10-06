@@ -27,7 +27,6 @@ const job = (
     name: '',
     postTaxAnnualIncome,
     adjustForInflation: adjustForInflation ? 'on' : '',
-    yearlyRaisePercentage: '0',
     startDate,
     endDate,
     atRetirement,
