@@ -3,23 +3,24 @@ import { Button, Card, Col, Form, InputGroup, Nav, Row } from 'react-bootstrap';
 import { FetcherWithComponents } from 'react-router-dom';
 import HasManyRows from './HasManyRows';
 import { parseAtRetirement } from '../calculators/MonteCarloSimulation';
+import { JOB_FIELD_NAMES, JOB_FIELDS, JobField } from '../calculators/MonteCarlo';
 
 const NUM_SETTINGS_TABS = 4;
+
+// One exported income source: switches are saved as booleans, every other
+// field as text.
+type JobSettings = {
+  [K in Exclude<JobField, 'atRetirement'>]: typeof JOB_FIELDS[K] extends 'boolean' ? boolean : string;
+} & {
+  // Missing in settings files saved before this option existed.
+  atRetirement?: string;
+};
 
 type MonteCarloSettings = {
   startingBalance: string;
   monthlyExpenses: string;
   endYear: string;
-  jobs: Array<{
-    name: string;
-    postTaxAnnualIncome: string;
-    adjustForInflation: boolean;
-    yearlyRaisePercentage: string;
-    startDate: string;
-    endDate: string;
-    // Missing in settings files saved before this option existed.
-    atRetirement?: string;
-  }>;
+  jobs: JobSettings[];
   life_events: Array<{
     name: string;
     date: string;
@@ -207,21 +208,13 @@ const MonteCarloForm = ({
       startingBalance: getSettingValue('startingBalance'),
       monthlyExpenses: getSettingValue('monthlyExpenses'),
       endYear: getSettingValue('endYear'),
-      jobs: collectRepeatedGroup('jobs', [
-        'name',
-        'postTaxAnnualIncome',
-        'adjustForInflation',
-        'yearlyRaisePercentage',
-        'startDate',
-        'endDate',
-        'atRetirement',
-      ]).map((row) => ({
-        name: String(row.name),
-        postTaxAnnualIncome: String(row.postTaxAnnualIncome),
-        adjustForInflation: Boolean(row.adjustForInflation),
-        yearlyRaisePercentage: String(row.yearlyRaisePercentage),
-        startDate: String(row.startDate),
-        endDate: String(row.endDate),
+      jobs: collectRepeatedGroup('jobs', JOB_FIELD_NAMES).map((row) => ({
+        ...(Object.fromEntries(
+          JOB_FIELD_NAMES.map((field) => [
+            field,
+            JOB_FIELDS[field] === 'boolean' ? Boolean(row[field]) : String(row[field]),
+          ])
+        ) as JobSettings),
         atRetirement: parseAtRetirement(String(row.atRetirement)),
       })),
       life_events: collectRepeatedGroup('life_events', [
@@ -319,105 +312,14 @@ const MonteCarloForm = ({
     return true;
   };
 
-  const applySettings = (settings: MonteCarloSettings) => {
-    const targetJobs = Math.max(settings.jobs.length, 1);
-    const targetLifeEvents = Math.max(settings.life_events.length, 1);
-    const targetAssetClasses = Math.max(settings.asset_classes.length, 1);
-    const needsRowUpdate =
-      targetJobs !== numJobs ||
-      targetLifeEvents !== numLifeEvents ||
-      targetAssetClasses !== numAssetClasses;
-
-    queuedImportSettings.current = settings;
-    setNumJobs(targetJobs);
-    setNumLifeEvents(targetLifeEvents);
-    setNumAssetClasses(targetAssetClasses);
-
-    if (!needsRowUpdate) {
-      const form = document.getElementById('monte-carlo-form') as HTMLFormElement | null;
-      if (form) {
-        setRepeatedGroup(form, 'jobs', [
-          'name',
-          'postTaxAnnualIncome',
-          'adjustForInflation',
-          'yearlyRaisePercentage',
-          'startDate',
-          'endDate',
-          'atRetirement',
-        ],
-        settings.jobs.map((job) => ({
-          ...job,
-          adjustForInflation: job.adjustForInflation,
-          atRetirement: parseAtRetirement(job.atRetirement),
-        })));
-
-        setRepeatedGroup(form, 'life_events', [
-          'name',
-          'date',
-          'balanceChange',
-          'monthlyExpensesChange',
-        ],
-        settings.life_events);
-
-        setRepeatedGroup(form, 'asset_classes', [
-          'name',
-          'allocationPercentage',
-          'averageAnnualReturnPercentage',
-          'standardDeviationPercentage',
-        ],
-        settings.asset_classes);
-
-        setFieldValue(
-          form,
-          'startingBalance',
-          settings.startingBalance
-        );
-        setFieldValue(
-          form,
-          'monthlyExpenses',
-          settings.monthlyExpenses
-        );
-        setFieldValue(form, 'endYear', settings.endYear);
-        setFieldValue(
-          form,
-          'inflation[averageAnnualReturnPercentage]',
-          settings.inflation.averageAnnualReturnPercentage
-        );
-        setFieldValue(
-          form,
-          'inflation[standardDeviationPercentage]',
-          settings.inflation.standardDeviationPercentage
-        );
-      }
-      queuedImportSettings.current = null;
-    }
-  };
-
-  useEffect(() => {
-    if (!queuedImportSettings.current) {
-      return;
-    }
-
-    const form = document.getElementById('monte-carlo-form') as HTMLFormElement | null;
-    if (!form) {
-      return;
-    }
-
-    const settings = queuedImportSettings.current;
-    setRepeatedGroup(form, 'jobs', [
-      'name',
-      'postTaxAnnualIncome',
-      'adjustForInflation',
-      'yearlyRaisePercentage',
-      'startDate',
-      'endDate',
-      'atRetirement',
-    ],
-    settings.jobs.map((job) => ({
-      ...job,
-      adjustForInflation: job.adjustForInflation,
-      atRetirement: parseAtRetirement(job.atRetirement),
-    })));
+  // Fill every form field from imported settings. Used both when the row
+  // counts already match and after new rows render.
+  const fillForm = (form: HTMLFormElement, settings: MonteCarloSettings) => {
+    setRepeatedGroup(form, 'jobs', JOB_FIELD_NAMES,
+      settings.jobs.map((job) => ({
+        ...job,
+        atRetirement: parseAtRetirement(job.atRetirement),
+      })));
 
     setRepeatedGroup(form, 'life_events', [
       'name',
@@ -435,16 +337,8 @@ const MonteCarloForm = ({
     ],
     settings.asset_classes);
 
-    setFieldValue(
-      form,
-      'startingBalance',
-      settings.startingBalance
-    );
-    setFieldValue(
-      form,
-      'monthlyExpenses',
-      settings.monthlyExpenses
-    );
+    setFieldValue(form, 'startingBalance', settings.startingBalance);
+    setFieldValue(form, 'monthlyExpenses', settings.monthlyExpenses);
     setFieldValue(form, 'endYear', settings.endYear);
     setFieldValue(
       form,
@@ -456,7 +350,46 @@ const MonteCarloForm = ({
       'inflation[standardDeviationPercentage]',
       settings.inflation.standardDeviationPercentage
     );
+  };
+
+  const applySettings = (settings: MonteCarloSettings) => {
+    const targetJobs = Math.max(settings.jobs.length, 1);
+    const targetLifeEvents = Math.max(settings.life_events.length, 1);
+    const targetAssetClasses = Math.max(settings.asset_classes.length, 1);
+    const needsRowUpdate =
+      targetJobs !== numJobs ||
+      targetLifeEvents !== numLifeEvents ||
+      targetAssetClasses !== numAssetClasses;
+
+    queuedImportSettings.current = settings;
+    setNumJobs(targetJobs);
+    setNumLifeEvents(targetLifeEvents);
+    setNumAssetClasses(targetAssetClasses);
+
+    if (!needsRowUpdate) {
+      const form = document.getElementById('monte-carlo-form') as HTMLFormElement | null;
+      if (form) {
+        fillForm(form, settings);
+      }
+      queuedImportSettings.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (!queuedImportSettings.current) {
+      return;
+    }
+
+    const form = document.getElementById('monte-carlo-form') as HTMLFormElement | null;
+    if (!form) {
+      return;
+    }
+
+    fillForm(form, queuedImportSettings.current);
     queuedImportSettings.current = null;
+    // Runs only after the row counts change, once the new rows exist. The
+    // settings come from a ref, so fillForm doesn't need to be a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [numJobs, numLifeEvents, numAssetClasses]);
 
   const getExportFileName = () => {
