@@ -71,6 +71,8 @@ describe('MonteCarloForm settings export and import', () => {
     expect(missing).toEqual([]);
   });
 
+  // Import already ignores unknown job keys; this keeps settings files saved
+  // before the raise field was removed importing if that ever changes.
   test('a settings file with the removed raise field still imports', async () => {
     const readExport = captureExport();
     const { form, all } = renderForm();
