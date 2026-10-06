@@ -234,3 +234,31 @@ describe('confidence slider', () => {
     expect(otherLineColors(container)).toEqual(before);
   });
 });
+
+describe('chart scale', () => {
+  const lineCount = (container: HTMLElement) => container.querySelectorAll('.recharts-line-curve').length;
+  const topYTick = (container: HTMLElement) => {
+    const ticks = Array.from(container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'));
+    return Number(ticks[ticks.length - 1].textContent!.replace(/[$,]/g, ''));
+  };
+
+  test('leaves min and max out by default, so they do not set the y-axis', () => {
+    // One runaway future, like the ones that reach billions by the end year.
+    const data = response();
+    data.results[0] = data.results[0].map((year) => ({
+      ...year,
+      balance: year.balance * 100,
+      inflationAdjustedBalance: year.inflationAdjustedBalance * 100,
+    }));
+    const { container } = render(<MonteCarloResultsCard fetcher={{ data, state: 'idle' } as any} />);
+    const minMaxSwitch = screen.getByLabelText('Exclude min/max from graph?');
+    expect(minMaxSwitch).toBeChecked();
+    const linesWithout = lineCount(container);
+    const topWithout = topYTick(container);
+
+    fireEvent.click(minMaxSwitch);
+
+    expect(lineCount(container)).toBe(linesWithout + 2);
+    expect(topYTick(container)).toBeGreaterThan(topWithout);
+  });
+});

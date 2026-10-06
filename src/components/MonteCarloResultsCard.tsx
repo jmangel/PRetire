@@ -43,7 +43,9 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
 
   const [inflationAdjusted, setInflationAdjusted] = useState(true);
   const [onlyShowPercentiles, setOnlyShowPercentiles] = useState(true);
-  const [excludeMinMax, setExcludeMinMax] = useState(false);
+  // On by default: the max (and min) future sets the y-axis on its own, which
+  // flattens the other percentile lines and the ready line near the bottom.
+  const [excludeMinMax, setExcludeMinMax] = useState(true);
   const [onlyShowDeterministicLine, setOnlyShowDeterministicLine] = useState(false);
   const [confidence, setConfidence] = useState(90);
   // Kept while the switch is disabled (with "Adjust for inflation" off) on
