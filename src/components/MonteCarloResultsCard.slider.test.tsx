@@ -4,8 +4,25 @@
 import { ReactElement } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import MonteCarloResultsCard, { keepWorkingChartLastYear, SLIDER_SETTLE_MS } from './MonteCarloResultsCard';
+import { ReadyLineSeries } from './MonteCarloGraph';
 import MonteCarloSimulation, { AssetClass, Inflation, Job } from '../calculators/MonteCarloSimulation';
-import { computeReadyLine } from '../calculators/ReadyLine';
+import { computeReadyLine, readyLineAt } from '../calculators/ReadyLine';
+
+// The real chart, wrapped so tests can read the ready line it was given. Its
+// "Ready line (N%)" label only reaches the page in the hover tooltip. (A
+// plain function rather than jest.fn, which the test setup resets.)
+const mockGraphProps: Array<{ readyLine?: ReadyLineSeries }> = [];
+jest.mock('./MonteCarloGraph', () => {
+  const actual = jest.requireActual('./MonteCarloGraph');
+  return {
+    ...actual,
+    __esModule: true,
+    default: (props: any) => {
+      mockGraphProps.push(props);
+      return actual.default(props);
+    },
+  };
+});
 
 // ResponsiveContainer measures its parent, which is always 0x0 in jsdom, so
 // give the chart a fixed size to make it render.
@@ -66,8 +83,22 @@ const response = () => {
   };
 };
 
-const renderCard = () =>
-  render(<MonteCarloResultsCard fetcher={{ data: response(), state: 'idle' } as any} />);
+const renderCard = () => {
+  const data = response();
+  return { data, ...render(<MonteCarloResultsCard fetcher={{ data, state: 'idle' } as any} />) };
+};
+// The ready line the chart was last drawn with.
+const chartReadyLine = (): ReadyLineSeries => {
+  const readyLine = mockGraphProps[mockGraphProps.length - 1]?.readyLine;
+  if (!readyLine) throw new Error('The chart has no ready line');
+  return readyLine;
+};
+// The chart's label names the confidence its line is drawn at.
+const expectLabelMatchesLine = (data: ReturnType<typeof response>, confidence: number) => {
+  const { label, values } = chartReadyLine();
+  expect(label).toBe(`Ready line (${confidence}%)`);
+  expect(values).toEqual(readyLineAt(data.readyLine!, confidence / 100));
+};
 const readyLinePath = (container: HTMLElement) =>
   container.querySelector('.recharts-line-curve[stroke="#198754"]')?.getAttribute('d');
 const otherLineColors = (container: HTMLElement) =>
@@ -99,17 +130,19 @@ describe('confidence slider', () => {
   afterEach(() => jest.useRealTimers());
 
   test('in the default percentiles view, the chart follows the slider live', () => {
-    const { container } = renderCard();
+    const { container, data } = renderCard();
     const before = readyLinePath(container);
+    expectLabelMatchesLine(data, 90);
 
     moveSlider(70);
 
     expect(readyLinePath(container)).not.toBe(before);
+    expectLabelMatchesLine(data, 70);
   });
 
   test('with every future drawn, the chart waits until the slider is still', () => {
     jest.useFakeTimers();
-    const { container } = renderCard();
+    const { container, data } = renderCard();
     fireEvent.click(screen.getByLabelText('Only show percentiles?'));
     act(() => {
       jest.advanceTimersByTime(SLIDER_SETTLE_MS);
@@ -129,12 +162,66 @@ describe('confidence slider', () => {
       jest.advanceTimersByTime(SLIDER_SETTLE_MS - 1);
     });
     expect(readyLinePath(container)).toBe(before);
+    // The chart's label still names the line it shows, not the slider.
+    expectLabelMatchesLine(data, 90);
 
     // Still for long enough: now it redraws, once.
     act(() => {
       jest.advanceTimersByTime(1);
     });
     expect(readyLinePath(container)).not.toBe(before);
+    expectLabelMatchesLine(data, 70);
+  });
+
+  test('with keep-working futures shown, the zoom also waits until the slider is still', () => {
+    jest.useFakeTimers();
+    const { data } = renderCard();
+    fireEvent.click(screen.getByLabelText('Only show percentiles?'));
+    fireEvent.click(screen.getByLabelText('Keep working until ready'));
+    act(() => {
+      jest.advanceTimersByTime(SLIDER_SETTLE_MS);
+    });
+    const before = chartReadyLine().chartLastYear;
+    expect(before).toBeDefined();
+
+    // The zoom follows when 9 in 10 are ready, which moves with the
+    // confidence. Reading the live value would redraw on every step.
+    moveSlider(50);
+    act(() => {
+      jest.advanceTimersByTime(SLIDER_SETTLE_MS - 1);
+    });
+    expect(chartReadyLine().chartLastYear).toBe(before);
+    expectLabelMatchesLine(data, 90);
+
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(chartReadyLine().chartLastYear).not.toBe(before);
+    expectLabelMatchesLine(data, 50);
+  });
+
+  test('switching views while the slider is settling keeps the label and line together', () => {
+    jest.useFakeTimers();
+    const { data } = renderCard();
+
+    // Percentiles view follows the slider live.
+    moveSlider(70);
+    expectLabelMatchesLine(data, 70);
+
+    // Switching to every future before the slider settles shows the last
+    // settled value until the wait ends.
+    fireEvent.click(screen.getByLabelText('Only show percentiles?'));
+    expectLabelMatchesLine(data, 90);
+    act(() => {
+      jest.advanceTimersByTime(SLIDER_SETTLE_MS);
+    });
+    expectLabelMatchesLine(data, 70);
+
+    // Switching back mid-wait jumps straight to the live value.
+    moveSlider(60);
+    expectLabelMatchesLine(data, 70);
+    fireEvent.click(screen.getByLabelText('Only show percentiles?'));
+    expectLabelMatchesLine(data, 60);
   });
 
   test("moving the slider doesn't recolor the other lines", () => {
