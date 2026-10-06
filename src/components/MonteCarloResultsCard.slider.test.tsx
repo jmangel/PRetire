@@ -51,7 +51,6 @@ const inputs = {
       name: '',
       postTaxAnnualIncome: '70000',
       adjustForInflation: 'on',
-      yearlyRaisePercentage: '0',
       startDate: '',
       endDate: `${startYear + 12}-07-01`,
       atRetirement: 'stops',
