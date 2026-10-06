@@ -134,7 +134,6 @@ export const JOB_FIELDS = {
   name: 'string',
   postTaxAnnualIncome: 'number',
   adjustForInflation: 'boolean',
-  yearlyRaisePercentage: 'number',
   startDate: 'string',
   endDate: 'string',
   atRetirement: 'string',

@@ -63,12 +63,26 @@ describe('MonteCarloForm and parseJobs', () => {
 });
 
 describe('MonteCarloForm settings export and import', () => {
-  test('export saves every job field', async () => {
+  // Export and import read the form by field name, so a JOB_FIELDS entry with
+  // no input would be saved as "" and never restored.
+  test('every job field has an input in the form', () => {
+    const { all } = renderForm();
+    const missing = JOB_FIELD_NAMES.filter((field) => all(field).length === 0);
+    expect(missing).toEqual([]);
+  });
+
+  // Import already ignores unknown job keys; this keeps settings files saved
+  // before the raise field was removed importing if that ever changes.
+  test('a settings file with the removed raise field still imports', async () => {
     const readExport = captureExport();
-    renderForm();
+    const { form, all } = renderForm();
     fireEvent.click(screen.getByText('Export settings'));
     const settings = await readExport();
-    expect(Object.keys(settings.jobs[0]).sort()).toEqual([...JOB_FIELD_NAMES].sort());
+    settings.jobs[0] = { ...settings.jobs[0], postTaxAnnualIncome: '42000', yearlyRaisePercentage: '3' };
+
+    importSettings(form, settings);
+    await waitFor(() => expect(all('postTaxAnnualIncome')[0].value).toBe('42000'));
+    expect(screen.queryByText(/Unable to import settings/)).toBeNull();
   });
 
   test('inflation switches export as true/false and import back to their own jobs', async () => {

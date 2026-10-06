@@ -12,7 +12,6 @@ const jobsFormData = (
     if (job.adjustForInflation) {
       formData.append('jobs[][adjustForInflation]', String(index));
     }
-    formData.append('jobs[][yearlyRaisePercentage]', '');
     formData.append('jobs[][startDate]', '');
     formData.append('jobs[][endDate]', '');
     if (job.atRetirement !== undefined) {

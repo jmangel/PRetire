@@ -10,7 +10,6 @@ describe('plannedRetirementDate', () => {
       name: '',
       postTaxAnnualIncome,
       adjustForInflation: 'on',
-      yearlyRaisePercentage: '0',
       startDate: '',
       endDate,
       atRetirement,
