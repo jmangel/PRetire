@@ -16,9 +16,6 @@ export default function Root() {
               activeKey={location.pathname}
               className="me-auto"
             >
-              <Nav.Link as={Link} className="me-2" eventKey="/" to="/">
-                Home
-              </Nav.Link>
               <Nav.Link
                 as={Link}
                 className="me-2"
@@ -34,6 +31,9 @@ export default function Root() {
                 to="/tax_calculator"
               >
                 Tax Calculator
+              </Nav.Link>
+              <Nav.Link as={Link} className="me-2" eventKey="/about" to="/about">
+                About
               </Nav.Link>
               <Nav.Link
                 as={Link}
@@ -55,7 +55,6 @@ export default function Root() {
           </Navbar.Collapse>
         </Container>
       </Navbar>
-      <LegalDisclaimer />
       <Outlet />
       <LegalDisclaimer />
     </>
