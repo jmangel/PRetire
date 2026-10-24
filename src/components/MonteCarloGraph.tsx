@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { MonteCarloResult } from "../calculators/MonteCarloSimulation";
 import { useMemo } from "react";
-import { dollarFormatter } from "./MonteCarloForm";
+import { compactDollarFormatter } from "./MonteCarloForm";
 
 type Percentiles = {
   max: number,
@@ -261,16 +261,16 @@ export const CustomTooltip = (props: {
     <div className="bg-light">
       <p><strong>Year: {label}</strong></p>
       {tooltipYearData.readyLine !== undefined && (
-        <p><LineSwatch color={READY_LINE_COLOR} />{readyLineLabel}: {dollarFormatter(tooltipYearData.readyLine)}</p>
+        <p><LineSwatch color={READY_LINE_COLOR} />{readyLineLabel}: {compactDollarFormatter(tooltipYearData.readyLine)}</p>
       )}
       {pastReadyLine && (
         <p className="text-muted">Ready line: not shown after planned retirement</p>
       )}
       {tooltipYearData.deterministic !== undefined && (
-        <p><LineSwatch color={lineColors.deterministic} dashed />Steady-returns path: {dollarFormatter(tooltipYearData.deterministic)}</p>
+        <p><LineSwatch color={lineColors.deterministic} dashed />Steady-returns path: {compactDollarFormatter(tooltipYearData.deterministic)}</p>
       )}
       {PERCENTILE_ROWS.map(([key, rowLabel]) => (
-        <p key={key}><LineSwatch color={lineColors[key]} />{rowLabel}: {dollarFormatter(tooltipYearData[key])}</p>
+        <p key={key}><LineSwatch color={lineColors[key]} />{rowLabel}: {compactDollarFormatter(tooltipYearData[key])}</p>
       ))}
     </div>
   );
@@ -454,8 +454,8 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
         <XAxis dataKey="year" />
         <YAxis
           ticks={customYTicks} domain={customDomain}
-          tickFormatter={dollarFormatter}
-          width={140}
+          tickFormatter={compactDollarFormatter}
+          width={70}
           allowDataOverflow={true}
         />
         <Tooltip content={tooltip} />

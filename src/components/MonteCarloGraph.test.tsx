@@ -223,7 +223,7 @@ describe('CustomTooltip', () => {
       />
     );
 
-    expect(screen.getByText('Ready line (90%): $1,000.00')).toBeInTheDocument();
+    expect(screen.getByText('Ready line (90%): $1K')).toBeInTheDocument();
     expect(screen.queryByText('Ready line: not shown after planned retirement')).not.toBeInTheDocument();
   });
   test('gives a color key only to the rows drawn as lines', () => {

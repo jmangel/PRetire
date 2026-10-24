@@ -42,6 +42,10 @@ type MonteCarloSettings = {
 export const dollarFormatter = (val: number) =>
   val.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
+/** Short dollar amounts for the graph, like $856K or $1.46B. */
+export const compactDollarFormatter = (val: number) =>
+  val.toLocaleString('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumSignificantDigits: 3 });
+
 const defaultAssetClasses = [
   // I basically used the most conservative stats I could find, ie. lowest
   // average annual return I saw online and highest standard deviation I saw
