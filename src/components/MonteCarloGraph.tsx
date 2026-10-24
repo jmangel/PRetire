@@ -213,15 +213,15 @@ const LineSwatch = ({ color, dashed }: { color?: string, dashed?: boolean }) => 
 
 const PERCENTILE_ROWS: Array<[keyof Percentiles, string]> = [
   ['max', 'Max'],
-  ['p90', '90% Percentile'],
-  ['p80', '80% Percentile'],
-  ['p70', '70% Percentile'],
-  ['p60', '60% Percentile'],
+  ['p90', '90th percentile'],
+  ['p80', '80th percentile'],
+  ['p70', '70th percentile'],
+  ['p60', '60th percentile'],
   ['median', 'Median'],
-  ['p40', '40% Percentile'],
-  ['p30', '30% Percentile'],
-  ['p20', '20% Percentile'],
-  ['p10', '10% Percentile'],
+  ['p40', '40th percentile'],
+  ['p30', '30th percentile'],
+  ['p20', '20th percentile'],
+  ['p10', '10th percentile'],
   ['min', 'Min'],
 ];
 
