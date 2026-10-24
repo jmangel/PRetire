@@ -231,11 +231,15 @@ describe('CustomTooltip', () => {
       <CustomTooltip label="2031" tooltipData={tooltipData} lineColors={{ median: '#123456', deterministic: '#0d6efd' }} />
     );
 
+    // The swatches are decorative SVG, hidden from accessibility queries, so
+    // their strokes can only be read from the DOM.
     const strokeOf = (text: string) =>
+      // eslint-disable-next-line testing-library/no-node-access
       screen.getByText(text, { exact: false }).querySelector('line')?.getAttribute('stroke');
     expect(strokeOf('Median:')).toBe('#123456');
     expect(strokeOf('Steady-returns path:')).toBe('#0d6efd');
     expect(strokeOf('Max:')).toBeFalsy();
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     expect(container.querySelectorAll('svg')).toHaveLength(12);
   });
 });
