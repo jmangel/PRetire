@@ -46,6 +46,13 @@ const importSettings = (form: HTMLFormElement, settings: object) => {
 afterEach(() => jest.restoreAllMocks());
 
 describe('MonteCarloForm and parseJobs', () => {
+  test('starts with a balance and expenses filled in, so a first run draws a real chart', () => {
+    const { form } = renderForm();
+    const data = new FormData(form);
+    expect(data.get('startingBalance')).toBe('1000000');
+    expect(data.get('monthlyExpenses')).toBe('-4000');
+  });
+
   test('each inflation switch stays with its own job in the submitted form', () => {
     const { form, all } = renderForm();
     fireEvent.click(screen.getByText('Add an income source'));

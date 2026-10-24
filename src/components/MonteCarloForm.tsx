@@ -523,7 +523,7 @@ const MonteCarloForm = ({
                     type="number"
                     step="any"
                     name="startingBalance"
-                    placeholder="1000000"
+                    defaultValue={1000000}
                   />
                 </InputGroup>
               </Form.Group>
@@ -537,7 +537,7 @@ const MonteCarloForm = ({
                     type="number"
                     step="any"
                     name="monthlyExpenses"
-                    placeholder="-4000"
+                    defaultValue={-4000}
                   />
                 </InputGroup>
                 <Form.Text className="text-muted">
