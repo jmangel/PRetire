@@ -177,7 +177,7 @@ export const visibleYValuesFor = (
     ...(entry.readyLine !== undefined ? [entry.readyLine] : []),
   ]);
 
-// The ready line's and average path's fixed colors.
+// The ready line's and steady-returns path's fixed colors.
 const READY_LINE_COLOR = '#198754';
 const DETERMINISTIC_COLOR = '#0d6efd';
 
@@ -244,7 +244,7 @@ export const CustomTooltip = (props: {
         <p className="text-muted">Ready line: not shown after planned retirement</p>
       )}
       {tooltipYearData.deterministic !== undefined && (
-        <p><LineSwatch color={lineColors.deterministic} dashed />Average path: {dollarFormatter(tooltipYearData.deterministic)}</p>
+        <p><LineSwatch color={lineColors.deterministic} dashed />Steady-returns path: {dollarFormatter(tooltipYearData.deterministic)}</p>
       )}
       {PERCENTILE_ROWS.map(([key, rowLabel]) => (
         <p key={key}><LineSwatch color={lineColors[key]} />{rowLabel}: {dollarFormatter(tooltipYearData[key])}</p>
@@ -255,8 +255,8 @@ export const CustomTooltip = (props: {
 
 /**
  * One entry per year with every future's balance (series1, series2, ...)
- * and the average path's (deterministic). Years keep the order they're first
- * seen in: the futures' years, then any only the average path has. Looked up
+ * and the steady-returns path's (deterministic). Years keep the order they're first
+ * seen in: the futures' years, then any only the steady-returns path has. Looked up
  * by year in a Map rather than by scanning the list for every value.
  */
 export const collectBalancesByYear = (
@@ -287,11 +287,11 @@ export const collectBalancesByYear = (
   return Array.from(entriesByYear.values());
 };
 
-/** One year's percentiles across the futures, plus the average path. */
+/** One year's percentiles across the futures, plus the steady-returns path. */
 export const toPercentilesEntry = (entry: Record<string, number>): PercentilesChartData => {
   const { year, deterministic, ...series } = entry;
 
-  // A year only the average path has gets no percentiles, just its value.
+  // A year only the steady-returns path has gets no percentiles, just its value.
   const newEntry = { year } as PercentilesChartData;
 
   const yearBalances = Object.values(series).sort((a, b) => a - b);
@@ -366,7 +366,7 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
   const visibleLineKeysId = visibleLineKeys.join(',');
 
   // Only the lines actually drawn get a swatch in the tooltip. With every
-  // future drawn, that's just the average path: the percentiles aren't lines.
+  // future drawn, that's just the steady-returns path: the percentiles aren't lines.
   const visibleLineColors = useMemo(() => {
     const colors: Record<string, string> = {};
     visibleLineKeysId.split(',').forEach((key) => {

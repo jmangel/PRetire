@@ -64,7 +64,7 @@ describe('mergeReadyLine', () => {
   });
 });
 
-// Two futures' balances per year, plus the average path.
+// Two futures' balances per year, plus the steady-returns path.
 const rawData = [
   { year: 2030, series1: 10, series2: 30, deterministic: 20 },
   { year: 2031, series1: 15, series2: 45, deterministic: 25 },
@@ -76,7 +76,7 @@ const percentileData = rawData.map(({ year, deterministic }) => ({
 }));
 
 describe('computeBaseTooltipData', () => {
-  test('computes percentiles from raw futures, leaving out the average path', () => {
+  test('computes percentiles from raw futures, leaving out the steady-returns path', () => {
     const data = computeBaseTooltipData({ series: rawData });
 
     expect(data[2031]).toMatchObject({ year: 2031, min: 15, max: 45, median: 45, deterministic: 25 });
@@ -101,7 +101,7 @@ describe('mergeTooltipReadyLine', () => {
 });
 
 describe('computeYearExtents and visibleYValuesFor', () => {
-  test('fit all futures and the average path by default', () => {
+  test('fit all futures and the steady-returns path by default', () => {
     const extents = computeYearExtents(rawData, { excludeMinMax: false, onlyShowDeterministicLine: false });
 
     expect(extents[2032]).toEqual([5, 60]);
@@ -113,7 +113,7 @@ describe('computeYearExtents and visibleYValuesFor', () => {
     expect(extents[2030]).toEqual([0, 2030]);
   });
 
-  test('fit only the average path when that is all that is shown', () => {
+  test('fit only the steady-returns path when that is all that is shown', () => {
     const extents = computeYearExtents(rawData, { excludeMinMax: false, onlyShowDeterministicLine: true });
 
     expect(extents).toEqual({ 2030: [20, 20], 2031: [25, 25], 2032: [40, 40] });
@@ -234,7 +234,7 @@ describe('CustomTooltip', () => {
     const strokeOf = (text: string) =>
       screen.getByText(text, { exact: false }).querySelector('line')?.getAttribute('stroke');
     expect(strokeOf('Median:')).toBe('#123456');
-    expect(strokeOf('Average path:')).toBe('#0d6efd');
+    expect(strokeOf('Steady-returns path:')).toBe('#0d6efd');
     expect(strokeOf('Max:')).toBeFalsy();
     expect(container.querySelectorAll('svg')).toHaveLength(12);
   });
@@ -253,7 +253,7 @@ describe('collectBalancesByYear', () => {
 
   test('gives one entry per year, in first-seen order, with every value', () => {
     const entries = collectBalancesByYear(
-      // Futures covering different years, and an average path with a year
+      // Futures covering different years, and a steady-returns path with a year
       // (2033) that no future has.
       [result([2030, 2031], 1000), result([2031, 2032], 2000)],
       result([2030, 2031, 2032, 2033], 3000),
@@ -268,7 +268,7 @@ describe('collectBalancesByYear', () => {
     ]);
   });
 
-  test('reads the requested balance and works without an average path', () => {
+  test('reads the requested balance and works without a steady-returns path', () => {
     expect(collectBalancesByYear([result([2030], 1000)], undefined, 'inflationAdjustedBalance')).toEqual([
       { year: 2030, series1: 3030.5 },
     ]);
@@ -276,11 +276,11 @@ describe('collectBalancesByYear', () => {
 });
 
 describe('toPercentilesEntry', () => {
-  test('a year only the average path has keeps just its value', () => {
+  test('a year only the steady-returns path has keeps just its value', () => {
     expect(toPercentilesEntry({ year: 2033, deterministic: 5033 })).toEqual({ year: 2033, deterministic: 5033 });
   });
 
-  test("summarizes the futures' balances and leaves the average path out of them", () => {
+  test("summarizes the futures' balances and leaves the steady-returns path out of them", () => {
     const entry = toPercentilesEntry({ year: 2031, series1: 10, series2: 30, series3: 20, deterministic: 999 });
 
     expect(entry.min).toBe(10);
