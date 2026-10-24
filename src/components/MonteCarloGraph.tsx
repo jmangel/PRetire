@@ -179,7 +179,23 @@ export const visibleYValuesFor = (
 
 // The ready line's and steady-returns path's fixed colors.
 const READY_LINE_COLOR = '#198754';
-const DETERMINISTIC_COLOR = '#0d6efd';
+const DETERMINISTIC_COLOR = '#c98500';
+
+// Percentile lines shade from light at the edges to dark at the median, one
+// hue so the fan reads as a single spread. Min and max are a recessive gray.
+const PERCENTILE_COLORS: Record<string, string> = {
+  max: '#adb5bd',
+  p90: '#86b6ef',
+  p80: '#5598e7',
+  p70: '#2a78d6',
+  p60: '#1c5cab',
+  median: '#104281',
+  p40: '#1c5cab',
+  p30: '#2a78d6',
+  p20: '#5598e7',
+  p10: '#86b6ef',
+  min: '#adb5bd',
+};
 
 /**
  * A short sample of a line's stroke, so tooltip rows can be matched to the
@@ -359,12 +375,14 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
   const { year: _, readyLine: __, ...yearsSeries } = chartData.length > 0 ? chartData[0] : { year: null, readyLine: undefined };
   const readyLinePoints = chartData.filter((entry) => entry.readyLine !== undefined).length;
 
-  // Pick each line's random color once per set of results, so re-renders
-  // (like dragging the confidence slider) don't change every line's color.
+  // Each future gets a random color, picked once per set of results so
+  // re-renders (like dragging the confidence slider) don't change them.
   const seriesColors = useMemo(() => {
     const colors: Record<string, string> = {};
     Object.keys(balanceChartData[0] ?? {}).forEach((key) => {
-      colors[key] = key === 'deterministic' ? DETERMINISTIC_COLOR : generateContrastingHexCode();
+      colors[key] = key === 'deterministic'
+        ? DETERMINISTIC_COLOR
+        : PERCENTILE_COLORS[key] ?? generateContrastingHexCode();
     });
     return colors;
   }, [balanceChartData]);
@@ -447,7 +465,7 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
             dataKey={key}
             stroke={seriesColors[key]}
             strokeDasharray={key === 'deterministic' ? '6 4' : undefined}
-            strokeWidth={key === 'deterministic' ? 2 : 1}
+            strokeWidth={key === 'deterministic' || key === 'median' ? 2 : 1}
             key={index}
             isAnimationActive={false}
             dot={false}
