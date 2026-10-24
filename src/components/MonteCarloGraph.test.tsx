@@ -9,6 +9,7 @@ import MonteCarloGraph, {
   mergeTooltipReadyLine,
   ReadyLineSeries,
   toPercentilesEntry,
+  visibleLineKeysFor,
   visibleYValuesFor,
 } from './MonteCarloGraph';
 import { MonteCarloResult } from '../calculators/MonteCarloSimulation';
@@ -176,6 +177,33 @@ describe('MonteCarloGraph', () => {
   });
 });
 
+describe('visibleLineKeysFor', () => {
+  const percentileKeys = ['max', 'p90', 'p80', 'p70', 'p60', 'median', 'p40', 'p30', 'p20', 'p10', 'min', 'deterministic'];
+
+  test('draws every series, so every row gets a color key, by default', () => {
+    expect(visibleLineKeysFor(percentileKeys, { excludeMinMax: false, onlyShowDeterministicLine: false }))
+      .toEqual(percentileKeys);
+  });
+
+  test('leaves min and max without a line or key when they are excluded', () => {
+    const keys = visibleLineKeysFor(percentileKeys, { excludeMinMax: true, onlyShowDeterministicLine: false });
+    expect(keys).not.toContain('min');
+    expect(keys).not.toContain('max');
+    expect(keys).toContain('median');
+    expect(keys).toContain('deterministic');
+  });
+
+  test('keys only the steady-returns path when it is shown alone', () => {
+    expect(visibleLineKeysFor(percentileKeys, { excludeMinMax: true, onlyShowDeterministicLine: true }))
+      .toEqual(['deterministic']);
+  });
+
+  test("keys no percentile rows when every future is drawn, since they aren't lines", () => {
+    expect(visibleLineKeysFor(['series1', 'series2', 'deterministic'], { excludeMinMax: true, onlyShowDeterministicLine: false }))
+      .toEqual(['series1', 'series2', 'deterministic']);
+  });
+});
+
 describe('CustomTooltip', () => {
   const tooltipData = computeBaseTooltipData({ series: rawData });
 
@@ -197,6 +225,18 @@ describe('CustomTooltip', () => {
 
     expect(screen.getByText('Ready line (90%): $1,000.00')).toBeInTheDocument();
     expect(screen.queryByText('Ready line: not shown after planned retirement')).not.toBeInTheDocument();
+  });
+  test('gives a color key only to the rows drawn as lines', () => {
+    const { container } = render(
+      <CustomTooltip label="2031" tooltipData={tooltipData} lineColors={{ median: '#123456', deterministic: '#0d6efd' }} />
+    );
+
+    const strokeOf = (text: string) =>
+      screen.getByText(text, { exact: false }).querySelector('line')?.getAttribute('stroke');
+    expect(strokeOf('Median:')).toBe('#123456');
+    expect(strokeOf('Average path:')).toBe('#0d6efd');
+    expect(strokeOf('Max:')).toBeFalsy();
+    expect(container.querySelectorAll('svg')).toHaveLength(12);
   });
 });
 
