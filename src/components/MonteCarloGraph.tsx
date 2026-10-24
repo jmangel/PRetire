@@ -258,19 +258,19 @@ export const CustomTooltip = (props: {
     Number(label) > readyLineLastYear;
 
   return (
-    <div className="bg-light">
-      <p><strong>Year: {label}</strong></p>
+    <div className="bg-white border rounded shadow-sm px-2 py-1 small">
+      <p className="mb-1"><strong>Year: {label}</strong></p>
       {tooltipYearData.readyLine !== undefined && (
-        <p><LineSwatch color={READY_LINE_COLOR} />{readyLineLabel}: {compactDollarFormatter(tooltipYearData.readyLine)}</p>
+        <p className="mb-0"><LineSwatch color={READY_LINE_COLOR} />{readyLineLabel}: {compactDollarFormatter(tooltipYearData.readyLine)}</p>
       )}
       {pastReadyLine && (
-        <p className="text-muted">Ready line: not shown after planned retirement</p>
+        <p className="mb-0 text-muted">Ready line: not shown after planned retirement</p>
       )}
       {tooltipYearData.deterministic !== undefined && (
-        <p><LineSwatch color={lineColors.deterministic} dashed />Steady-returns path: {compactDollarFormatter(tooltipYearData.deterministic)}</p>
+        <p className="mb-0"><LineSwatch color={lineColors.deterministic} dashed />Steady-returns path: {compactDollarFormatter(tooltipYearData.deterministic)}</p>
       )}
       {PERCENTILE_ROWS.map(([key, rowLabel]) => (
-        <p key={key}><LineSwatch color={lineColors[key]} />{rowLabel}: {compactDollarFormatter(tooltipYearData[key])}</p>
+        <p key={key} className="mb-0"><LineSwatch color={lineColors[key]} />{rowLabel}: {compactDollarFormatter(tooltipYearData[key])}</p>
       ))}
     </div>
   );
