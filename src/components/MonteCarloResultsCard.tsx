@@ -219,7 +219,7 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
                 disabled={!deterministicResult}
               />
               <Form.Text>
-                (Every year gets exactly the average return and inflation, with no ups and downs. It usually ends above the median, since real swings drag down growth.)
+                (Every year gets exactly the average return and inflation, with no ups and downs (no volatility; standard deviation treated as 0). It usually ends above the median, since real swings drag down growth.)
               </Form.Text>
             </Form.Group>
           </Col>
