@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { FEATURES } from '../pages/AboutPage';
+import { FEATURES } from '../content/features';
 
 export const INTRO_DISMISSED_KEY = 'pretire.introDismissed';
 
@@ -34,7 +34,7 @@ const IntroCard = () => {
       <ul className="mb-2">
         {FEATURES.map(({ title }) => <li key={title}>{title}</li>)}
       </ul>
-      <Link to="/about">Learn more about PREtire</Link>
+      <Link to="/about" target="_blank" rel="noopener noreferrer">Learn more about PREtire</Link>
     </Alert>
   );
 };

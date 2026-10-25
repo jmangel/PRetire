@@ -18,7 +18,7 @@ const MonteCarloPage = () => {
       <div className="text-center m-2">
         <h1>PREtirement Planning - Monte Carlo Projections</h1>
         <p className="text-muted">
-          <small>🔒 Runs entirely in your browser. Your data never leaves your device. <Link to="/about">Learn more</Link></small>
+          <small>🔒 Runs entirely in your browser. Your data never leaves your device. <Link to="/about" target="_blank" rel="noopener noreferrer">Learn more</Link></small>
         </p>
         <IntroCard />
       </div>
