@@ -3,7 +3,7 @@
    field's name attribute (the same names parseJobs reads), so they select
    fields by name rather than by label or role. */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import MonteCarloForm from './MonteCarloForm';
+import MonteCarloForm, { axisDollarFormatter, compactDollarFormatter } from './MonteCarloForm';
 import { JOB_FIELD_NAMES, parseJobs } from '../calculators/MonteCarlo';
 
 // The page wraps the form in <fetcher.Form id="monte-carlo-form">; a plain
@@ -46,6 +46,13 @@ const importSettings = (form: HTMLFormElement, settings: object) => {
 afterEach(() => jest.restoreAllMocks());
 
 describe('MonteCarloForm and parseJobs', () => {
+  test('starts with a balance and expenses filled in, so a first run draws a real chart', () => {
+    const { form } = renderForm();
+    const data = new FormData(form);
+    expect(data.get('startingBalance')).toBe('1000000');
+    expect(data.get('monthlyExpenses')).toBe('-4000');
+  });
+
   test('each inflation switch stays with its own job in the submitted form', () => {
     const { form, all } = renderForm();
     fireEvent.click(screen.getByText('Add an income source'));
@@ -146,5 +153,30 @@ describe('MonteCarloForm settings export and import', () => {
     expect(all('postTaxAnnualIncome').map((input) => input.value)).toEqual(['60000', '20000']);
     expect(all('endDate')[0].value).toBe('2040-07-01');
     expect(all('atRetirement').map((select) => select.value)).toEqual(['stops', 'unaffected']);
+  });
+});
+
+describe('dollar formatters', () => {
+  test.each([
+    [0, '$0'],
+    [0.5, '$0.5'],
+    [4, '$4'],
+    [-4000, '-$4K'],
+    [855782.5, '$856K'],
+    [1455153418.05, '$1.46B'],
+    [2.5e12, '$2.5T'],
+  ])('compactDollarFormatter(%p) is %p', (value, label) => {
+    expect(compactDollarFormatter(value)).toBe(label);
+  });
+
+  test.each([
+    // A narrow range: three significant digits would give $1M, $1.03M, $1.05M...
+    [[1000000, 1025000, 1050000, 1075000, 1100000], ['$1.000M', '$1.025M', '$1.050M', '$1.075M', '$1.100M']],
+    [[0, 30e6, 60e6, 90e6, 120e6], ['$0', '$30M', '$60M', '$90M', '$120M']],
+    [[0, 250000, 500000, 750000, 1000000], ['$0', '$0.25M', '$0.50M', '$0.75M', '$1.00M']],
+    [[-500000, 0, 500000], ['-$500K', '$0', '$500K']],
+    [[0, 1, 2, 3, 4], ['$0', '$1', '$2', '$3', '$4']],
+  ])('axisDollarFormatter labels %p as %p', (ticks, labels) => {
+    expect(ticks.map(axisDollarFormatter(ticks))).toEqual(labels);
   });
 });
