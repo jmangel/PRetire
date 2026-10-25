@@ -1,11 +1,15 @@
-import MonteCarloSimulation, {
+import {
   AssetClass,
   Inflation,
   Job,
   LifeEvent,
   MonteCarloResult,
+  jobsIncome,
+  lifeEventsBalanceChange,
+  lifeEventsMonthlyExpensesChange,
   sampleRandomNormal,
-} from './MonteCarloSimulation';
+  weightedReturnRate,
+} from './PlanInputs';
 
 /*
  * Simulated futures that can be replayed.
@@ -16,10 +20,9 @@ import MonteCarloSimulation, {
  * few milliseconds, and fixed-date and retire-when-ready results are compared
  * on the same markets.
  *
- * The yearly arithmetic matches MonteCarloSimulation.run exactly (see
- * Futures.test.tsx). Everything that depends only on the calendar (income,
- * dated life events) is worked out once per plan, in today's dollars or as
- * fixed dollar amounts, so a year of a future is a handful of additions.
+ * Everything that depends only on the calendar (income, dated life events)
+ * is worked out once per plan, in today's dollars or as fixed dollar
+ * amounts, so a year of a future is a handful of additions.
  */
 
 /** Drawn markets: entry f * years + t is future f's rate in year t. */
@@ -36,13 +39,10 @@ export const drawMarkets = (
   futures: number,
   years: number
 ): Markets => {
-  // A helper only for its weighted-return draw, so the draws stay the same
-  // as MonteCarloSimulation's.
-  const helper = new MonteCarloSimulation(0, 0, [], [], assetClasses, inflation, 0);
   const returns = new Float64Array(futures * years);
   const inflationRates = new Float64Array(futures * years);
   for (let i = 0; i < futures * years; i++) {
-    returns[i] = helper.totalWeightedInvestmentReturnRate(false);
+    returns[i] = weightedReturnRate(assetClasses, false);
     inflationRates[i] = sampleRandomNormal(inflation.averageAnnualReturn, inflation.standardDeviation);
   }
   return { futures, years, returns, inflation: inflationRates };
@@ -53,15 +53,12 @@ export const averageMarkets = (
   assetClasses: AssetClass[],
   inflation: Inflation,
   years: number
-): Markets => {
-  const helper = new MonteCarloSimulation(0, 0, [], [], assetClasses, inflation, 0);
-  return {
-    futures: 1,
-    years,
-    returns: new Float64Array(years).fill(helper.totalWeightedInvestmentReturnRate(true)),
-    inflation: new Float64Array(years).fill(inflation.averageAnnualReturn),
-  };
-};
+): Markets => ({
+  futures: 1,
+  years,
+  returns: new Float64Array(years).fill(weightedReturnRate(assetClasses, true)),
+  inflation: new Float64Array(years).fill(inflation.averageAnnualReturn),
+});
 
 /**
  * A plan's cash flows by year (index t is year startYear + t). Income is split
@@ -115,25 +112,18 @@ export const buildCalendar = ({
     .filter((job) => job.atRetirement === 'stops')
     .map((job) => (retirementDate ? endingBy(job, retirementDate) : job));
   const other = jobs.filter((job) => job.atRetirement !== 'stops');
-  const helper = (subset: Job[]) =>
-    new MonteCarloSimulation(0, 0, subset, lifeEvents, [], new Inflation({
-      averageAnnualReturnPercentage: 0,
-      standardDeviationPercentage: 0,
-    }), endYear, startYear);
   // Income is worked out with an inflation multiplier of 1: today's dollars
   // for income adjusted for inflation, fixed dollars for the rest.
   const byYear = (subset: Job[]) => {
     const values = new Float64Array(years);
-    const sim = helper(subset);
-    for (let t = 0; t < years; t++) values[t] = sim.jobsIncome(startYear + t, 1);
+    for (let t = 0; t < years; t++) values[t] = jobsIncome(subset, startYear + t);
     return values;
   };
-  const events = helper([]);
   const monthlyExpensesChange = new Float64Array(years);
   const balanceChange = new Float64Array(years);
   for (let t = 0; t < years; t++) {
-    monthlyExpensesChange[t] = events.lifeEventsMonthlyExpensesChange(startYear + t);
-    balanceChange[t] = events.lifeEventsBalanceChange(startYear + t);
+    monthlyExpensesChange[t] = lifeEventsMonthlyExpensesChange(lifeEvents, startYear + t);
+    balanceChange[t] = lifeEventsBalanceChange(lifeEvents, startYear + t);
   }
   const atRetirement = lifeEvents.filter((event) => event.atRetirement);
   const sum = (values: number[]) =>

@@ -1,4 +1,4 @@
-import { AssetClass, Inflation, Job, LifeEvent, MonteCarloResult } from "./MonteCarloSimulation";
+import { AssetClass, Inflation, Job, LifeEvent, MonteCarloResult } from "./PlanInputs";
 import { averageMarkets, buildCalendar, drawMarkets, simulateFutures } from "./Futures";
 import { ReadyLineData, computeReadyLine, readyFutures, readyLineAt } from "./ReadyLine";
 

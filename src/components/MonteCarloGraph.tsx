@@ -8,7 +8,7 @@ import {
   Line,
   ReferenceLine,
 } from "recharts";
-import { MonteCarloResult } from "../calculators/MonteCarloSimulation";
+import { MonteCarloResult } from "../calculators/PlanInputs";
 import { useMemo } from "react";
 import { dollarFormatter } from "./MonteCarloForm";
 

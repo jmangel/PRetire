@@ -1,4 +1,4 @@
-import MonteCarloSimulation, {
+import {
   AssetClass,
   Inflation,
   Job,
@@ -6,8 +6,9 @@ import MonteCarloSimulation, {
   MonteCarloResult,
   incomeThatStopsAtRetirement,
   sampleRandomNormal,
+  weightedReturnRate,
   workIncomeEndDate,
-} from './MonteCarloSimulation';
+} from './PlanInputs';
 import {
   Calendar,
   Markets,
@@ -131,7 +132,6 @@ export const requiredBalancesByYear = ({
   const calendar = buildCalendar({
     startingBalance: 0, monthlyExpenses, jobs, lifeEvents, startYear, endYear,
   });
-  const helper = new MonteCarloSimulation(0, 0, [], [], assetClasses, inflation, endYear, startYear);
 
   const realExpenses = new Float64Array(numYears);
   let monthly = monthlyExpenses;
@@ -190,7 +190,7 @@ export const requiredBalancesByYear = ({
 
   for (let s = 0; s < sequences; s++) {
     for (let t = 0; t < numYears; t++) {
-      returns[t] = helper.totalWeightedInvestmentReturnRate(false);
+      returns[t] = weightedReturnRate(assetClasses, false);
       inflationRates[t] = sampleRandomNormal(
         inflation.averageAnnualReturn,
         inflation.standardDeviation

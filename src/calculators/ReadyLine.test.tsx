@@ -1,4 +1,5 @@
-import MonteCarloSimulation, { AssetClass, Inflation, Job, LifeEvent, sampleRandomNormal } from './MonteCarloSimulation';
+import { AssetClass, Inflation, Job, LifeEvent, sampleRandomNormal } from './PlanInputs';
+import { simulateOne } from './simulateOne';
 import {
   ReadyLineData,
   computeReadyLine,
@@ -75,10 +76,10 @@ describe('requiredBalancesByYear', () => {
 
     // Simulating retirement from exactly that balance should bottom out at $0.
     const retire = (balance: number) =>
-      new MonteCarloSimulation(
+      simulateOne(
         balance, -4000, [socialSecurity], lifeEvents, assetClasses,
-        steadyInflation, 2070, retireAtEndOf + 1
-      ).runDeterministic();
+        steadyInflation, 2070, retireAtEndOf + 1, { average: true }
+      );
     const lowest = Math.min(...retire(needed).map(({ inflationAdjustedBalance }) => inflationAdjustedBalance));
 
     expect(lowest).toBeGreaterThanOrEqual(-1e-6);
@@ -111,17 +112,19 @@ describe('requiredBalancesByYear', () => {
     });
     const needed = required[retireAtEndOf - startYear][0];
 
-    // Pick up at retirement with the inflation that has built up by then, so
-    // the pension's fixed dollar amount is worth what it would be at that point.
+    // Pick up at retirement, in dollars of that time: the inflation built up
+    // by then has already shrunk the pension's fixed amount by this much.
     const multiplier = 1.03 ** (retireAtEndOf + 1 - startYear);
-    const retire = (balance: number) => {
-      const sim = new MonteCarloSimulation(
-        balance * multiplier, -4000 * multiplier, [pension], [], assetClasses,
-        steadyInflation, 2070, retireAtEndOf + 1
+    const shrunkPension = job(String(18000 / multiplier), {
+      startDate: '2045-01-01',
+      atRetirement: 'unaffected',
+      adjustForInflation: false,
+    });
+    const retire = (balance: number) =>
+      simulateOne(
+        balance, -4000, [shrunkPension], [], assetClasses,
+        steadyInflation, 2070, retireAtEndOf + 1, { average: true }
       );
-      sim.cumulativeInflationMultiplier = multiplier;
-      return sim.runDeterministic();
-    };
     const lowest = Math.min(...retire(needed).map(({ inflationAdjustedBalance }) => inflationAdjustedBalance));
 
     expect(lowest).toBeGreaterThanOrEqual(-1e-6);
@@ -159,12 +162,17 @@ describe('requiredBalancesByYear', () => {
         for (let year = startYear; year <= retireAtEndOf; year++) {
           multiplier *= 1 + sampleRandomNormal(marketInflation.averageAnnualReturn, marketInflation.standardDeviation);
         }
-        const sim = new MonteCarloSimulation(
-          realBalance * multiplier, -4000 * multiplier, [pension], [], assetClasses,
+        // In dollars of the retirement date, as in the test above.
+        const shrunkPension = job(String(24000 / multiplier), {
+          startDate: '2045-01-01',
+          atRetirement: 'unaffected',
+          adjustForInflation: false,
+        });
+        const result = simulateOne(
+          realBalance, -4000, [shrunkPension], [], assetClasses,
           marketInflation, 2090, retireAtEndOf + 1
         );
-        sim.cumulativeInflationMultiplier = multiplier;
-        if (sim.run().every(({ balance }) => balance >= 0)) successes++;
+        if (result.every(({ balance }) => balance >= 0)) successes++;
       }
       return successes / runs;
     };
@@ -197,10 +205,10 @@ describe('requiredBalancesByYear', () => {
     const successRateFrom = (balance: number, runs = 4000) => {
       let successes = 0;
       for (let i = 0; i < runs; i++) {
-        const result = new MonteCarloSimulation(
+        const result = simulateOne(
           balance, -4000, [socialSecurity], [], assetClasses,
           marketInflation, 2100, retireAtEndOf + 1
-        ).run();
+        );
         if (result.every(({ balance }) => balance >= 0)) successes++;
       }
       return successes / runs;
@@ -242,15 +250,11 @@ describe('at-retirement life events', () => {
       const dated = new LifeEvent({
         name: '', date: `${retireAtEndOf + 1}-01-01`, balanceChange: '-20000', monthlyExpensesChange: '-800',
       });
-      const multiplier = 1.03 ** (retireAtEndOf + 1 - startYear);
-      const retire = (balance: number) => {
-        const sim = new MonteCarloSimulation(
-          balance * multiplier, -4000 * multiplier, [], [dated], assetClasses,
-          steadyInflation, 2070, retireAtEndOf + 1
+      const retire = (balance: number) =>
+        simulateOne(
+          balance, -4000, [], [dated], assetClasses,
+          steadyInflation, 2070, retireAtEndOf + 1, { average: true }
         );
-        sim.cumulativeInflationMultiplier = multiplier;
-        return sim.runDeterministic();
-      };
       const lowest = Math.min(...retire(needed).map(({ inflationAdjustedBalance }) => inflationAdjustedBalance));
 
       expect(lowest).toBeGreaterThanOrEqual(-1e-6);

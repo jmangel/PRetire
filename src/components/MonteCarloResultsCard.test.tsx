@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import MonteCarloResultsCard from './MonteCarloResultsCard';
-import { AssetClass, Inflation, Job } from '../calculators/MonteCarloSimulation';
+import { AssetClass, Inflation, Job } from '../calculators/PlanInputs';
 import { RetirementMode, simulatePlan } from '../calculators/MonteCarlo';
 
 // Recharts' ResponsiveContainer needs ResizeObserver, which jsdom lacks.

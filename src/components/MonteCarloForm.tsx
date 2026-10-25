@@ -2,7 +2,7 @@ import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { Button, Card, Col, Form, InputGroup, Nav, Row } from 'react-bootstrap';
 import { FetcherWithComponents } from 'react-router-dom';
 import HasManyRows from './HasManyRows';
-import { Job, parseAtRetirement, workIncomeEndDate } from '../calculators/MonteCarloSimulation';
+import { Job, parseAtRetirement, workIncomeEndDate } from '../calculators/PlanInputs';
 import {
   DEFAULT_CONFIDENCE,
   JOB_FIELD_NAMES,

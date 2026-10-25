@@ -1,4 +1,4 @@
-import MonteCarloSimulation, { AssetClass, Inflation, Job, LifeEvent, fractionOfYearActive } from './MonteCarloSimulation';
+import { AssetClass, Inflation, Job, LifeEvent, fractionOfYearActive } from './PlanInputs';
 import { averageMarkets, buildCalendar, drawMarkets, endingBy, simulateFutures } from './Futures';
 
 const assets = (averageAnnualReturnPercentage: number, standardDeviationPercentage: number) => [
@@ -34,70 +34,48 @@ const lifeEvent = (
   { date?: string; balanceChange?: string; monthlyExpensesChange?: string; atRetirement?: boolean }
 ) => new LifeEvent({ name: '', date, balanceChange, monthlyExpensesChange, atRetirement });
 
-// A small seeded generator, so the class and drawMarkets see the same draws.
-const seedRandom = (seed: number) => {
-  let state = seed;
-  jest.spyOn(Math, 'random').mockImplementation(() => {
-    state = (state * 1664525 + 1013904223) % 4294967296;
-    return (state + 0.5) / 4294967296;
-  });
-};
-
-afterEach(() => jest.restoreAllMocks());
-
 const startYear = 2030;
 const endYear = 2060;
 const years = endYear - startYear + 1;
 
 describe('simulateFutures', () => {
-  test('matches MonteCarloSimulation.run year by year for the same draws', () => {
-    const jobs = [
-      job('80000', { endDate: '2036-07-01' }),
-      job('20000', { startDate: '2034-03-01', endDate: '2050-01-01', adjustForInflation: false }),
-      job('24000', { startDate: '2045-01-01', atRetirement: 'unaffected' }),
-      job('12000', { startDate: '2040-01-01', atRetirement: 'unaffected', adjustForInflation: false }),
-    ];
-    const lifeEvents = [
-      lifeEvent({ date: '2038-06-01', balanceChange: '-50000' }),
-      lifeEvent({ date: '2041-06-01', monthlyExpensesChange: '1000' }),
-    ];
-    const assetClasses = assets(8, 15);
-    const marketInflation = inflation(3, 1.5);
-
-    seedRandom(42);
-    const expected = new MonteCarloSimulation(
-      250000, -4000, jobs, lifeEvents, assetClasses, marketInflation, endYear, startYear
-    ).run();
-
-    seedRandom(42);
-    const markets = drawMarkets(assetClasses, marketInflation, 1, years);
+  test('random futures draw from the given markets, and average ones use the averages', () => {
     const calendar = buildCalendar({
-      startingBalance: 250000, monthlyExpenses: -4000, jobs, lifeEvents, startYear, endYear,
+      startingBalance: 100000, monthlyExpenses: 0, jobs: [], lifeEvents: [], startYear, endYear,
     });
-    const actual = simulateFutures(markets, calendar, { kind: 'date' }, { record: true }).results![0];
+    const steady = simulateFutures(
+      averageMarkets(assets(8, 15), inflation(3, 1.5), years), calendar, { kind: 'date' }, { record: true }
+    ).results![0];
+    // 70% at 8% and 30% at 4%: 6.8% a year.
+    expect(steady[0].balance).toBeCloseTo(106800, 6);
+    expect(steady[0].inflation).toBeCloseTo(0.03, 10);
 
-    expect(actual).toHaveLength(expected.length);
-    actual.forEach((year, index) => {
-      expect(year.year).toBe(expected[index].year);
-      expect(year.inflation).toBe(expected[index].inflation);
-      expect(year.balance).toBeCloseTo(expected[index].balance, 4);
-      expect(year.monthlyExpenses).toBeCloseTo(expected[index].monthlyExpenses, 6);
-    });
+    const random = drawMarkets(assets(8, 15), inflation(3, 1.5), 500, years);
+    const meanReturn = random.returns.reduce((acc, value) => acc + value, 0) / random.returns.length;
+    expect(meanReturn).toBeCloseTo(0.068, 2);
   });
 
-  test('average markets match runDeterministic', () => {
-    const jobs = [job('70000', { endDate: '2040-01-01' })];
-    const expected = new MonteCarloSimulation(
-      100000, -3000, jobs, [], assets(7, 15), inflation(2.5, 1), endYear, startYear
-    ).runDeterministic();
+  test('income adjusted for inflation grows with it, fixed income does not', () => {
     const calendar = buildCalendar({
-      startingBalance: 100000, monthlyExpenses: -3000, jobs, lifeEvents: [], startYear, endYear,
+      startingBalance: 0,
+      monthlyExpenses: 0,
+      jobs: [
+        job('10000'),
+        job('1000', { adjustForInflation: false, atRetirement: 'unaffected' }),
+      ],
+      lifeEvents: [lifeEvent({ date: '2031-06-01', balanceChange: '-100' })],
+      startYear,
+      endYear,
     });
-    const actual = simulateFutures(
-      averageMarkets(assets(7, 15), inflation(2.5, 1), years), calendar, { kind: 'date' }, { record: true }
+    const result = simulateFutures(
+      averageMarkets(assets(0, 0), inflation(10, 0), years), calendar, { kind: 'date' }, { record: true }
     ).results![0];
 
-    actual.forEach((year, index) => expect(year.balance).toBeCloseTo(expected[index].balance, 4));
+    expect(result[0].balance).toBeCloseTo(11000, 6);
+    // Year two: adjusted income has had a year of inflation, the life event
+    // is in today's dollars so it's inflated twice by the end of the year.
+    expect(result[1].balance).toBeCloseTo(11000 + 11000 + 1000 - 100 * 1.21, 6);
+    expect(result[1].inflationAdjustedBalance).toBeCloseTo(result[1].balance / 1.21, 6);
   });
 
   describe('with no returns or inflation', () => {

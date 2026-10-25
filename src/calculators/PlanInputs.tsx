@@ -1,3 +1,9 @@
+/*
+ * The plan's inputs (income, life events, asset classes, inflation) and the
+ * year-by-year helpers the simulation builds on. The simulation itself is in
+ * Futures.tsx.
+ */
+
 export class Inflation {
   averageAnnualReturn: number;
   standardDeviation: number;
@@ -145,9 +151,6 @@ export class LifeEvent {
   }
 }
 
-const happensIn = (lifeEvent: LifeEvent, year: number) =>
-  !lifeEvent.atRetirement && !!lifeEvent.date && lifeEvent.date.getUTCFullYear() === year;
-
 const convertPercentageToDecimal = (percent: number) => percent / 100;
 
 /**
@@ -195,150 +198,49 @@ export type MonteCarloResult = Array<{
   inflationAdjustedMonthlyExpenses: number;
 }>;
 
-class MonteCarloSimulation {
-  runningBalance: number;
-  runningMonthlyExpenses: number;
-  jobs: Job[];
-  lifeEvents: LifeEvent[];
-  assetClasses: AssetClass[];
-  inflation: Inflation;
-  cumulativeInflationMultiplier: number;
-  endYear: number;
-  startYear: number;
+const happensIn = (lifeEvent: LifeEvent, year: number) =>
+  !lifeEvent.atRetirement && !!lifeEvent.date && lifeEvent.date.getUTCFullYear() === year;
 
-  constructor(
-    startingBalance: number,
-    monthlyExpenses: number,
-    jobs: Job[],
-    lifeEvents: LifeEvent[],
-    assetClasses: AssetClass[],
-    inflation: Inflation,
-    endYear: number,
-    // First simulated year. Defaults to next year; mostly useful for tests.
-    startYear: number = new Date().getFullYear() + 1
-  ) {
-    this.runningBalance = startingBalance;
-    this.runningMonthlyExpenses = monthlyExpenses;
-    this.jobs = jobs;
-    this.lifeEvents = lifeEvents;
-    this.assetClasses = assetClasses;
-    this.inflation = inflation;
-    this.endYear = endYear;
-    this.startYear = startYear;
+/**
+ * Income from these jobs in the given calendar year, prorated for jobs that
+ * start or end partway through it. Income adjusted for inflation is
+ * multiplied by the inflation built up before that year.
+ */
+export const jobsIncome = (jobs: Job[], year: number, inflationMultiplier = 1) =>
+  jobs.reduce((acc, job) => {
+    const fraction = fractionOfYearActive(year, job.startDate, job.endDate);
+    // NaN (from an unparseable date) would otherwise poison every later year.
+    if (!Number.isFinite(fraction) || fraction <= 0) return acc;
 
-    this.cumulativeInflationMultiplier = 1;
-  }
+    let income = job.postTaxAnnualIncome * fraction;
+    if (job.adjustForInflation) income *= inflationMultiplier;
 
-  run(deterministic = false) {
-    const yearResults = [];
+    return acc + income;
+  }, 0);
 
-    for (
-      let year = this.startYear;
-      year <= this.endYear;
-      year++
-    ) {
-      this.applyPreInflationBalanceChanges(year, deterministic);
-      const inflation = this.applyInflation(deterministic);
-      this.applyPostInflationChanges(year);
+/**
+ * The change to monthly expenses (in today's dollars) from life events dated
+ * in this year. At-retirement events are applied by the futures simulation.
+ */
+export const lifeEventsMonthlyExpensesChange = (lifeEvents: LifeEvent[], year: number) =>
+  lifeEvents.reduce((acc, lifeEvent) => (happensIn(lifeEvent, year) ? acc + lifeEvent.monthlyExpensesChange : acc), 0);
 
-      yearResults.push({
-        year,
-        balance: this.runningBalance,
-        inflationAdjustedBalance:
-          this.runningBalance / this.cumulativeInflationMultiplier,
-        inflation,
-        monthlyExpenses: this.runningMonthlyExpenses,
-        inflationAdjustedMonthlyExpenses:
-          this.runningMonthlyExpenses / this.cumulativeInflationMultiplier,
-      });
-    }
+/** The change to the balance (in today's dollars) from life events dated in this year. */
+export const lifeEventsBalanceChange = (lifeEvents: LifeEvent[], year: number) =>
+  lifeEvents.reduce((acc, lifeEvent) => (happensIn(lifeEvent, year) ? acc + lifeEvent.balanceChange : acc), 0);
 
-    return yearResults;
-  }
-
-  applyPreInflationBalanceChanges(year: number, deterministic: boolean) {
-    this.runningBalance += this.investmentGain(deterministic);
-
-    this.runningBalance += this.runningMonthlyExpenses * 12;
-
-    this.runningBalance += this.jobsIncome(year);
-  }
-
-  applyInflation(deterministic: boolean) {
-    const inflationRate = deterministic
-      ? this.inflation.averageAnnualReturn
-      : sampleRandomNormal(
-          this.inflation.averageAnnualReturn,
-          this.inflation.standardDeviation
-        );
-
-    this.cumulativeInflationMultiplier *= 1 + inflationRate;
-
-    this.runningMonthlyExpenses *= 1 + inflationRate;
-
-    return inflationRate;
-  }
-
-  applyPostInflationChanges(year: number) {
-    this.runningMonthlyExpenses +=
-      this.lifeEventsMonthlyExpensesChange(year) *
-      this.cumulativeInflationMultiplier;
-
-    this.runningBalance +=
-      this.lifeEventsBalanceChange(year) * this.cumulativeInflationMultiplier;
-  }
-
-  investmentGain(deterministic: boolean) {
-    return this.runningBalance * this.totalWeightedInvestmentReturnRate(deterministic);
-  }
-
-  totalWeightedInvestmentReturnRate(deterministic: boolean) {
-    return this.assetClasses.reduce((acc, assetClass) => {
-      return (
-        acc +
-        assetClass.allocation *
-          (deterministic
-            ? assetClass.averageAnnualReturn
-            : sampleRandomNormal(
-                assetClass.averageAnnualReturn,
-                assetClass.standardDeviation
-              ))
-      );
-    }, 0);
-  }
-
-  runDeterministic() {
-    return this.run(true);
-  }
-
-  jobsIncome(year: number, cumulativeInflationMultiplier = this.cumulativeInflationMultiplier) {
-    return this.jobs.reduce((acc, job) => {
-      const fraction = fractionOfYearActive(year, job.startDate, job.endDate);
-      // NaN (from an unparseable date) would otherwise poison every later year.
-      if (!Number.isFinite(fraction) || fraction <= 0) return acc;
-
-      let income = job.postTaxAnnualIncome * fraction;
-      if (job.adjustForInflation) income *= cumulativeInflationMultiplier;
-
-      return acc + income;
-    }, 0);
-  }
-
-  lifeEventsMonthlyExpensesChange(year: number) {
-    return this.lifeEvents.reduce((acc, lifeEvent) => {
-      if (!happensIn(lifeEvent, year)) return acc;
-
-      return acc + lifeEvent.monthlyExpensesChange;
-    }, 0);
-  }
-
-  lifeEventsBalanceChange(year: number) {
-    return this.lifeEvents.reduce((acc, lifeEvent) => {
-      if (!happensIn(lifeEvent, year)) return acc;
-
-      return acc + lifeEvent.balanceChange;
-    }, 0);
-  }
-}
-
-export default MonteCarloSimulation;
+/**
+ * One year's return on the whole portfolio: each asset class's return,
+ * weighted by its allocation. Random unless deterministic, in which case
+ * each class returns its average.
+ */
+export const weightedReturnRate = (assetClasses: AssetClass[], deterministic: boolean) =>
+  assetClasses.reduce(
+    (acc, assetClass) =>
+      acc +
+      assetClass.allocation *
+        (deterministic
+          ? assetClass.averageAnnualReturn
+          : sampleRandomNormal(assetClass.averageAnnualReturn, assetClass.standardDeviation)),
+    0
+  );

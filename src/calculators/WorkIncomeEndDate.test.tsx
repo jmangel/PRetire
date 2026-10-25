@@ -1,4 +1,4 @@
-import { Job, workIncomeEndDate } from './MonteCarloSimulation';
+import { Job, workIncomeEndDate } from './PlanInputs';
 
 describe('workIncomeEndDate', () => {
   const job = (

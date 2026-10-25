@@ -5,7 +5,7 @@ import { ReactElement } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import MonteCarloResultsCard, { SLIDER_SETTLE_MS } from './MonteCarloResultsCard';
 import { ReadyLineSeries } from './MonteCarloGraph';
-import { AssetClass, Inflation, Job, MonteCarloResult } from '../calculators/MonteCarloSimulation';
+import { AssetClass, Inflation, Job, MonteCarloResult } from '../calculators/PlanInputs';
 import { readyLineAt } from '../calculators/ReadyLine';
 import { RetirementMode, simulatePlan } from '../calculators/MonteCarlo';
 

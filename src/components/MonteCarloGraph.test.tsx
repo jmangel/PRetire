@@ -14,7 +14,7 @@ import MonteCarloGraph, {
   toPercentilesEntry,
   visibleYValuesFor,
 } from './MonteCarloGraph';
-import { MonteCarloResult } from '../calculators/MonteCarloSimulation';
+import { MonteCarloResult } from '../calculators/PlanInputs';
 
 // ResponsiveContainer measures its parent, which is always 0x0 in jsdom, so
 // give the chart a fixed size to make it render.
