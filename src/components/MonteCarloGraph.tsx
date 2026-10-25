@@ -177,13 +177,61 @@ export const visibleYValuesFor = (
     ...(entry.readyLine !== undefined ? [entry.readyLine] : []),
   ]);
 
+// The ready line's and steady-returns path's fixed colors.
+const READY_LINE_COLOR = '#198754';
+const DETERMINISTIC_COLOR = '#0d6efd';
+
+/**
+ * A short sample of a line's stroke, so tooltip rows can be matched to the
+ * chart. The dashed sample uses the steady-returns line's own dash. Solid
+ * samples are drawn thicker than their 1px lines on purpose, so the color is
+ * easy to see. Without a color it still takes up space, to keep rows
+ * aligned. Only ever set visibility to hidden: Recharts hides the whole
+ * tooltip with visibility, and a child set to visible would show through it.
+ */
+const LineSwatch = ({ color, dashed }: { color?: string, dashed?: boolean }) => (
+  <svg width="16" height="8" className="me-1" aria-hidden="true" style={color ? undefined : { visibility: 'hidden' }}>
+    <line x1="0" y1="4" x2="16" y2="4" stroke={color} strokeWidth={dashed ? 2 : 3} strokeDasharray={dashed ? '6 4' : undefined} />
+  </svg>
+);
+
+const PERCENTILE_ROWS: Array<[keyof Percentiles, string]> = [
+  ['max', 'Max'],
+  ['p90', '90% Percentile'],
+  ['p80', '80% Percentile'],
+  ['p70', '70% Percentile'],
+  ['p60', '60% Percentile'],
+  ['median', 'Median'],
+  ['p40', '40% Percentile'],
+  ['p30', '30% Percentile'],
+  ['p20', '20% Percentile'],
+  ['p10', '10% Percentile'],
+  ['min', 'Min'],
+];
+
+/**
+ * The series drawn as lines, which are also the tooltip rows that get a color
+ * key: only the steady-returns path when it's shown alone, otherwise every
+ * series except min and max when those are excluded.
+ */
+export const visibleLineKeysFor = (
+  seriesKeys: string[],
+  options: { excludeMinMax: boolean; onlyShowDeterministicLine: boolean }
+): string[] =>
+  seriesKeys.filter((key) => {
+    if (options.onlyShowDeterministicLine) return key === 'deterministic';
+    return !options.excludeMinMax || (key !== 'max' && key !== 'min');
+  });
+
 export const CustomTooltip = (props: {
   label?: string,
   tooltipData: TooltipData,
   readyLineLabel?: string,
   readyLineLastYear?: number,
+  /** Colors of the lines drawn on the chart, by data key. Rows without one get no swatch. */
+  lineColors?: Record<string, string>,
 }) => {
-  const { tooltipData, label, readyLineLabel, readyLineLastYear } = props;
+  const { tooltipData, label, readyLineLabel, readyLineLastYear, lineColors = {} } = props;
 
   const tooltipYearData = label ? (tooltipData[label] as PercentilesChartData) : null;
   if (!tooltipYearData) return null;
@@ -197,33 +245,25 @@ export const CustomTooltip = (props: {
     <div className="bg-light">
       <p><strong>Year: {label}</strong></p>
       {tooltipYearData.readyLine !== undefined && (
-        <p>{readyLineLabel}: {dollarFormatter(tooltipYearData.readyLine)}</p>
+        <p><LineSwatch color={READY_LINE_COLOR} />{readyLineLabel}: {dollarFormatter(tooltipYearData.readyLine)}</p>
       )}
       {pastReadyLine && (
         <p className="text-muted">Ready line: not shown after planned retirement</p>
       )}
       {tooltipYearData.deterministic !== undefined && (
-        <p>Average path: {dollarFormatter(tooltipYearData.deterministic)}</p>
+        <p><LineSwatch color={lineColors.deterministic} dashed />Steady-returns path: {dollarFormatter(tooltipYearData.deterministic)}</p>
       )}
-      <p>Max: {dollarFormatter(tooltipYearData.max)}</p>
-      <p>90% Percentile: {dollarFormatter(tooltipYearData.p90)}</p>
-      <p>80% Percentile: {dollarFormatter(tooltipYearData.p80)}</p>
-      <p>70% Percentile: {dollarFormatter(tooltipYearData.p70)}</p>
-      <p>60% Percentile: {dollarFormatter(tooltipYearData.p60)}</p>
-      <p>Median: {dollarFormatter(tooltipYearData.median)}</p>
-      <p>40% Percentile: {dollarFormatter(tooltipYearData.p40)}</p>
-      <p>30% Percentile: {dollarFormatter(tooltipYearData.p30)}</p>
-      <p>20% Percentile: {dollarFormatter(tooltipYearData.p20)}</p>
-      <p>10% Percentile: {dollarFormatter(tooltipYearData.p10)}</p>
-      <p>Min: {dollarFormatter(tooltipYearData.min)}</p>
+      {PERCENTILE_ROWS.map(([key, rowLabel]) => (
+        <p key={key}><LineSwatch color={lineColors[key]} />{rowLabel}: {dollarFormatter(tooltipYearData[key])}</p>
+      ))}
     </div>
   );
 };
 
 /**
  * One entry per year with every future's balance (series1, series2, ...)
- * and the average path's (deterministic). Years keep the order they're first
- * seen in: the futures' years, then any only the average path has. Looked up
+ * and the steady-returns path's (deterministic). Years keep the order they're first
+ * seen in: the futures' years, then any only the steady-returns path has. Looked up
  * by year in a Map rather than by scanning the list for every value.
  */
 export const collectBalancesByYear = (
@@ -254,11 +294,11 @@ export const collectBalancesByYear = (
   return Array.from(entriesByYear.values());
 };
 
-/** One year's percentiles across the futures, plus the average path. */
+/** One year's percentiles across the futures, plus the steady-returns path. */
 export const toPercentilesEntry = (entry: Record<string, number>): PercentilesChartData => {
   const { year, deterministic, ...series } = entry;
 
-  // A year only the average path has gets no percentiles, just its value.
+  // A year only the steady-returns path has gets no percentiles, just its value.
   const newEntry = { year } as PercentilesChartData;
 
   const yearBalances = Object.values(series).sort((a, b) => a - b);
@@ -324,10 +364,23 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
   const seriesColors = useMemo(() => {
     const colors: Record<string, string> = {};
     Object.keys(balanceChartData[0] ?? {}).forEach((key) => {
-      colors[key] = key === 'deterministic' ? '#0d6efd' : generateContrastingHexCode();
+      colors[key] = key === 'deterministic' ? DETERMINISTIC_COLOR : generateContrastingHexCode();
     });
     return colors;
   }, [balanceChartData]);
+
+  const visibleLineKeys = visibleLineKeysFor(Object.keys(yearsSeries), { excludeMinMax, onlyShowDeterministicLine });
+  const visibleLineKeysId = visibleLineKeys.join(',');
+
+  // Only the lines actually drawn get a swatch in the tooltip. With every
+  // future drawn, that's just the steady-returns path: the percentiles aren't lines.
+  const visibleLineColors = useMemo(() => {
+    const colors: Record<string, string> = {};
+    visibleLineKeysId.split(',').forEach((key) => {
+      if (seriesColors[key]) colors[key] = seriesColors[key];
+    });
+    return colors;
+  }, [visibleLineKeysId, seriesColors]);
 
   const tooltip = useMemo(
     () => (
@@ -335,9 +388,10 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
         tooltipData={tooltipData}
         readyLineLabel={readyLine?.label}
         readyLineLastYear={readyLine?.lastYear}
+        lineColors={visibleLineColors}
       />
     ),
-    [tooltipData, readyLine?.label, readyLine?.lastYear]
+    [tooltipData, readyLine?.label, readyLine?.lastYear, visibleLineColors]
   );
 
   // The y-axis only needs the lowest and highest visible values, so find each
@@ -387,23 +441,18 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
           allowDataOverflow={true}
         />
         <Tooltip content={tooltip} />
-        {Object.entries(yearsSeries)
-          .filter(([key]) => {
-            if (onlyShowDeterministicLine) return key === 'deterministic';
-            return !excludeMinMax || (key !== 'max' && key !== 'min');
-          })
-          .map(([key, _], index) => (
-            <Line
-              type="monotone"
-              dataKey={key}
-              stroke={seriesColors[key]}
-              strokeDasharray={key === 'deterministic' ? '6 4' : undefined}
-              strokeWidth={key === 'deterministic' ? 2 : 1}
-              key={index}
-              isAnimationActive={false}
-              dot={false}
-            />
-          ))}
+        {visibleLineKeys.map((key, index) => (
+          <Line
+            type="monotone"
+            dataKey={key}
+            stroke={seriesColors[key]}
+            strokeDasharray={key === 'deterministic' ? '6 4' : undefined}
+            strokeWidth={key === 'deterministic' ? 2 : 1}
+            key={index}
+            isAnimationActive={false}
+            dot={false}
+          />
+        ))}
         {showPlannedRetirement && (
           <ReferenceLine
             x={plannedRetirementYear}
@@ -417,13 +466,13 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
             type="monotone"
             dataKey="readyLine"
             name={readyLine?.label}
-            stroke="#198754"
+            stroke={READY_LINE_COLOR}
             strokeWidth={3}
             key="readyLine"
             isAnimationActive={false}
             // A line needs two points; with only one visible (retiring next
             // year), draw a dot so it doesn't silently disappear.
-            dot={readyLinePoints === 1 ? { r: 5, fill: '#198754', stroke: '#198754' } : false}
+            dot={readyLinePoints === 1 ? { r: 5, fill: READY_LINE_COLOR, stroke: READY_LINE_COLOR } : false}
           />
         )}
       </LineChart>
