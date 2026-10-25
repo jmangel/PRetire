@@ -52,11 +52,15 @@ const run = async (formData: FormData): Promise<MonteCarloResponse> => {
   const endYear = parseInt(formData.get('endYear') as string) || 2100;
   const startYear = new Date().getFullYear() + 1;
 
-  const mode = parseRetirementMode(formData.get('retirement[mode]'));
   const confidence = parseConfidence(formData.get('retirement[confidence]') ?? DEFAULT_CONFIDENCE);
   const retirementDateValue = String(formData.get('retirement[date]') ?? '');
   const plannedRetirement =
-    mode === 'date' && retirementDateValue.length > 0 ? new Date(retirementDateValue) : undefined;
+    parseRetirementMode(formData.get('retirement[mode]')) === 'date' && retirementDateValue.length > 0
+      ? new Date(retirementDateValue)
+      : undefined;
+  // The form needs a date to run a fixed-date plan. Without one, retire when
+  // ready rather than letting work income run to the end year.
+  const mode: RetirementMode = plannedRetirement ? 'date' : 'ready';
 
   const jobs = parseJobs(formData);
   const lifeEvents = parseLifeEvents(formData);

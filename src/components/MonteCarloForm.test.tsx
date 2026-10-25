@@ -243,3 +243,30 @@ describe('MonteCarloForm retirement settings', () => {
     await waitFor(() => expect(switches().map((input) => input.checked)).toEqual([false, true]));
   });
 });
+
+describe('MonteCarloForm fixed-date plans', () => {
+  test("can't run without a retirement date", () => {
+    renderForm();
+    const run = screen.getByRole('button', { name: 'Run Simulation' });
+    expect(run).toBeEnabled();
+
+    fireEvent.click(screen.getByLabelText('On a date:'));
+    expect(run).toBeDisabled();
+    expect(screen.getByText(/Pick a retirement date, or choose/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Retirement date'), { target: { value: '2041-03-01' } });
+    expect(run).toBeEnabled();
+  });
+
+  test('an imported fixed-date plan with its date can run', async () => {
+    const readExport = captureExport();
+    const { form } = renderForm();
+    fireEvent.click(screen.getByText('Export settings'));
+    const settings = await readExport();
+    settings.retirement = { mode: 'date', confidence: '90', date: '2041-03-01' };
+
+    importSettings(form, settings);
+    await waitFor(() => expect(screen.getByLabelText('On a date:')).toBeChecked());
+    expect(screen.getByRole('button', { name: 'Run Simulation' })).toBeEnabled();
+  });
+});

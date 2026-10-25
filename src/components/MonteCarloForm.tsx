@@ -223,6 +223,10 @@ const MonteCarloForm = ({
   const [numJobs, setNumJobs] = useState(1);
   const [numLifeEvents, setNumLifeEvents] = useState(1);
   const [retirementMode, setRetirementMode] = useState<RetirementMode>('ready');
+  // A fixed-date plan can't run without its date: otherwise work income
+  // would just keep going to the end year.
+  const [hasRetirementDate, setHasRetirementDate] = useState(false);
+  const missingRetirementDate = retirementMode === 'date' && !hasRetirementDate;
   // Which life events happen at retirement, by row. Their date field is
   // read-only while the switch is on (not disabled: disabled fields are left
   // out of the form data, which would shift every later row's date).
@@ -427,6 +431,7 @@ const MonteCarloForm = ({
   const applySettings = (imported: MonteCarloSettings) => {
     const settings = migrateSettings(imported);
     setRetirementMode(parseRetirementMode(settings.retirement?.mode));
+    setHasRetirementDate(Boolean(settings.retirement?.date));
     setLifeEventsAtRetirement(settings.life_events.map((event) => Boolean(event.atRetirement)));
     const targetJobs = Math.max(settings.jobs.length, 1);
     const targetLifeEvents = Math.max(settings.life_events.length, 1);
@@ -660,9 +665,16 @@ const MonteCarloForm = ({
                       aria-label="Retirement date"
                       size="sm"
                       disabled={retirementMode !== 'date'}
+                      isInvalid={missingRetirementDate}
+                      onChange={(event) => setHasRetirementDate(event.target.value !== '')}
                     />
                   </Col>
                 </Row>
+                {missingRetirementDate && (
+                  <div className="text-danger small">
+                    Pick a retirement date, or choose "As soon as I'm ready".
+                  </div>
+                )}
                 <Form.Text className="text-muted">
                   Retiring when ready, each simulated future keeps working
                   until its savings reach the ready line, then retires. Work
@@ -1001,9 +1013,14 @@ const MonteCarloForm = ({
           </Col>
         )}
         <Col>
-          <Button variant="primary" type="submit" disabled={running}>
+          <Button variant="primary" type="submit" disabled={running || missingRetirementDate}>
             {running ? 'Running, please wait' : 'Run Simulation'}
           </Button>
+          {missingRetirementDate && (
+            <Form.Text className="text-danger ms-2">
+              Pick a retirement date on Basic Settings first.
+            </Form.Text>
+          )}
         </Col>
       </Row>
     </>

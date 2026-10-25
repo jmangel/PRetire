@@ -88,19 +88,41 @@ export const clampForLogScale = <T extends object>(data: T[], floor = LOG_SCALE_
     return clamped as unknown as T;
   });
 
+const MAX_LOG_TICKS = 8;
+
 /**
- * Ticks and domain for a log-scale axis: every power of ten from the one at
- * or below the lowest value (never below the floor) to the one at or above
- * the highest.
+ * Ticks and domain for a log-scale axis: powers of ten from the one at or
+ * below the lowest value (never below the floor) to the one at or above the
+ * highest. The axis fits the results, so a huge range (say, up to
+ * quintillions) gets every second or third power instead of a crowd of
+ * ticks.
  */
 export const logScaleTicks = (values: number[], floor = LOG_SCALE_FLOOR): [number[], [number, number]] => {
   const finite = values.filter((value) => Number.isFinite(value));
   const low = Math.max(floor, finite.length > 0 ? getMin(finite) : floor);
   const high = Math.max(low, finite.length > 0 ? getMax(finite) : floor);
   const first = Math.floor(Math.log10(low));
-  const last = Math.max(first + 1, Math.ceil(Math.log10(high)));
-  const ticks = Array.from({ length: last - first + 1 }, (_, i) => 10 ** (first + i));
+  const powers = Math.max(1, Math.ceil(Math.log10(high)) - first);
+  const step = Math.ceil(powers / (MAX_LOG_TICKS - 1));
+  const count = Math.ceil(powers / step) + 1;
+  const ticks = Array.from({ length: count }, (_, i) => 10 ** (first + i * step));
   return [ticks, [ticks[0], ticks[ticks.length - 1]]];
+};
+
+const compactDollars = new Intl.NumberFormat('en-US', {
+  style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 0,
+});
+const scientificDollars = new Intl.NumberFormat('en-US', {
+  style: 'currency', currency: 'USD', notation: 'scientific', maximumFractionDigits: 0,
+});
+
+/**
+ * A log-scale tick label: $1K, $10M, $1T. Compact notation stops at
+ * trillions, so anything from a quadrillion up is written like $1E18.
+ */
+export const logTickLabel = (value: number, floor = LOG_SCALE_FLOOR) => {
+  const label = value < 1e15 ? compactDollars.format(value) : scientificDollars.format(value);
+  return value <= floor ? `≤ ${label}` : label;
 };
 
 /** One year's percentiles from every simulated balance in that year's entry. */
@@ -432,9 +454,7 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
         <YAxis
           ticks={customYTicks} domain={customDomain}
           scale={logScale ? 'log' : 'auto'}
-          tickFormatter={(value: number) =>
-            logScale && value <= LOG_SCALE_FLOOR ? `≤ ${dollarFormatter(value)}` : dollarFormatter(value)
-          }
+          tickFormatter={(value: number) => (logScale ? logTickLabel(value) : dollarFormatter(value))}
           width={140}
           allowDataOverflow={true}
         />

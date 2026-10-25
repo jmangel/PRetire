@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import MonteCarloGraph, {
   clampForLogScale,
   logScaleTicks,
+  logTickLabel,
   collectBalancesByYear,
   computeBaseTooltipData,
   computeYearExtents,
@@ -264,5 +265,19 @@ describe('log scale', () => {
     // Never below the floor, and always at least two ticks.
     expect(logScaleTicks([-5000, 0, 1000])).toEqual([[1000, 10000], [1000, 10000]]);
     expect(logScaleTicks([])).toEqual([[1000, 10000], [1000, 10000]]);
+  });
+
+  test('a huge range thins to every few powers of ten instead of crowding the axis', () => {
+    const [ticks, domain] = logScaleTicks([5000, 3e18]); // up to quintillions
+    expect(ticks.length).toBeLessThanOrEqual(8);
+    expect(ticks[0]).toBe(1000);
+    expect(domain[1]).toBeGreaterThanOrEqual(3e18);
+  });
+
+  test('labels ticks compactly', () => {
+    expect([1000, 1e5, 1e6, 1e9, 1e12].map((value) => logTickLabel(value))).toEqual([
+      '≤ $1K', '$100K', '$1M', '$1B', '$1T',
+    ]);
+    expect(logTickLabel(1e18)).toBe('$1E18');
   });
 });

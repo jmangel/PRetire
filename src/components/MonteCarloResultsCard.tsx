@@ -34,10 +34,10 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
   // flattens the other percentile lines and the ready line near the bottom.
   const [excludeMinMax, setExcludeMinMax] = useState(true);
   const [onlyShowDeterministicLine, setOnlyShowDeterministicLine] = useState(false);
-  // On by default: on a linear scale, the futures that grow to tens of
-  // millions by the end year flatten everything else, including the ready
-  // line, near the bottom.
-  const [logScale, setLogScale] = useState(true);
+  // Off by default, since a log scale is less familiar. On a linear scale,
+  // though, the futures that grow to tens of millions by the end year can
+  // flatten everything else, including the ready line, near the bottom.
+  const [logScale, setLogScale] = useState(false);
   const [confidence, setConfidenceState] = useState(response?.confidence ?? DEFAULT_CONFIDENCE);
 
   // Start from the confidence each run was made with.
@@ -191,7 +191,11 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
                 checked={logScale}
                 onChange={(e) => setLogScale(e.target.checked)}
               />
-              <Form.Text>(Fits small and huge balances; below $1,000 shows at the bottom)</Form.Text>
+              <Form.Text>
+                {logScale
+                  ? '(Fits small and huge balances; below $1,000 shows at the bottom)'
+                  : '(Turn on if the ready line is squashed at the bottom)'}
+              </Form.Text>
             </Form.Group>
           </Col>
           <Col xs="auto">

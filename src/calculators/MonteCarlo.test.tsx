@@ -1,4 +1,4 @@
-import { parseConfidence, parseJobs, parseLifeEvents, parseRetirementMode } from './MonteCarlo';
+import run, { parseConfidence, parseJobs, parseLifeEvents, parseRetirementMode } from './MonteCarlo';
 
 const jobsFormData = (
   jobs: Array<{ income: string; adjustForInflation: boolean; atRetirement?: string }>
@@ -93,5 +93,34 @@ describe('retirement settings', () => {
     expect(parseConfidence('10')).toBe(50);
     expect(parseConfidence('')).toBe(90);
     expect(parseConfidence(undefined)).toBe(90);
+  });
+});
+
+describe('run', () => {
+  test('a fixed-date plan without a date retires when ready instead', async () => {
+    const formData = new FormData();
+    formData.append('startingBalance', '100000');
+    formData.append('monthlyExpenses', '-4000');
+    formData.append('endYear', String(new Date().getFullYear() + 6));
+    formData.append('retirement[mode]', 'date');
+    formData.append('retirement[date]', '');
+    formData.append('retirement[confidence]', '90');
+    formData.append('jobs[][name]', 'Job');
+    formData.append('jobs[][postTaxAnnualIncome]', '90000');
+    formData.append('jobs[][adjustForInflation]', '0');
+    formData.append('jobs[][startDate]', '');
+    formData.append('jobs[][endDate]', '');
+    formData.append('jobs[][atRetirement]', 'stops');
+    formData.append('inflation[averageAnnualReturnPercentage]', '3');
+    formData.append('inflation[standardDeviationPercentage]', '1');
+    formData.append('asset_classes[][name]', 'Stocks');
+    formData.append('asset_classes[][averageAnnualReturnPercentage]', '7');
+    formData.append('asset_classes[][standardDeviationPercentage]', '15');
+    formData.append('asset_classes[][allocationPercentage]', '100');
+
+    const response = await run(formData);
+
+    expect(response.mode).toBe('ready');
+    expect(response.readyLine?.plannedRetirement).toBeUndefined();
   });
 });

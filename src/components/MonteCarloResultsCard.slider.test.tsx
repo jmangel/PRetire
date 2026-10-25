@@ -227,7 +227,6 @@ describe('chart scale', () => {
       inflationAdjustedBalance: year.inflationAdjustedBalance * 100,
     }));
     const { container } = render(<MonteCarloResultsCard fetcher={{ data, state: 'idle' } as any} />);
-    fireEvent.click(screen.getByLabelText('Log scale?')); // linear, where one future can stretch the axis
     const minMaxSwitch = screen.getByLabelText('Exclude min/max from graph?');
     expect(minMaxSwitch).toBeChecked();
     const linesWithout = lineCount(container);
@@ -239,13 +238,15 @@ describe('chart scale', () => {
     expect(topYTick(container)).toBeGreaterThan(topWithout);
   });
 
-  test('uses a log scale by default, with a tick at each power of ten', () => {
+  test('the log scale is off by default, and on has a tick at each power of ten', () => {
     const { container } = renderCard('ready');
-    expect(screen.getByLabelText('Log scale?')).toBeChecked();
+    expect(screen.getByLabelText('Log scale?')).not.toBeChecked();
+
+    fireEvent.click(screen.getByLabelText('Log scale?'));
 
     const ticks = Array.from(container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'))
-      .map((tick) => Number(tick.textContent!.replace(/[^0-9.]/g, '')));
+      .map((tick) => tick.textContent);
     expect(ticks.length).toBeGreaterThan(2);
-    ticks.forEach((tick) => expect(Math.log10(tick) % 1).toBeCloseTo(0, 10));
+    ticks.forEach((tick) => expect(tick).toMatch(/^(≤ )?\$(1|10|100)[KMBT]?$/));
   });
 });
