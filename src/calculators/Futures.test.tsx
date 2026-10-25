@@ -147,6 +147,26 @@ describe('simulateFutures', () => {
       expect(byYear[2040]).toBeCloseTo(byYear[2039] - 12000 - 1000, 6);
     });
 
+    test('running out before work income ends counts as running out, not as being forced out', () => {
+      const calendar = buildCalendar({
+        startingBalance: 10000,
+        monthlyExpenses: -2000,
+        jobs: [job('12000', { endDate: '2040-01-01' })],
+        lifeEvents: [lifeEvent({ atRetirement: true, balanceChange: '-1000' })],
+        startYear,
+        endYear,
+      });
+      const line = Array(years - 1).fill(1e12);
+      const { outcomes, results } = simulateFutures(
+        flat, calendar, { kind: 'ready', line, workEnd: new Date('2040-01-01') }, { record: true }
+      );
+      const byYear = balances(results![0]);
+
+      expect(outcomes[0]).toEqual({ readyYear: undefined, forced: false, succeeded: false, ranOutWhileWorking: true });
+      // It still stops working in 2040, so the at-retirement event happens.
+      expect(byYear[2040]).toBeCloseTo(byYear[2039] - 24000 - 1000, 6);
+    });
+
     test('running out while still working means never ready, and not succeeding', () => {
       const calendar = buildCalendar({
         startingBalance: 10000,

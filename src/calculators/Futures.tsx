@@ -161,7 +161,11 @@ export type Retirement =
 export type FutureOutcome = {
   /** Ready at the end of this year. Undefined if never ready. */
   readyYear?: number;
-  /** Retired because work income ran out before the future was ready. */
+  /**
+   * Retired because work income ran out before the future was ready, with
+   * money still left. A future that had already run out of money counts as
+   * ranOutWhileWorking instead.
+   */
   forced: boolean;
   /** Never went below zero. */
   succeeded: boolean;
@@ -213,10 +217,13 @@ export const simulateFutures = (
     const yearResults: MonteCarloResult | undefined = record ? [] : undefined;
 
     for (let t = 0; t < years; t++) {
-      // Not ready by the time work income runs out: retire anyway.
+      // Not ready by the time work income runs out: retire anyway. A future
+      // that already ran out of money while working stops then too (so
+      // at-retirement events still happen), but it's counted only as having
+      // run out, which is why it wasn't ready.
       if (ready && retirementIndex === undefined && forcedIndex !== undefined && t >= forcedIndex) {
         retirementIndex = forcedIndex;
-        forced = true;
+        forced = !ranOutWhileWorking;
       }
 
       balance += balance * markets.returns[offset + t];

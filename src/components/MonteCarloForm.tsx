@@ -2,112 +2,21 @@ import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { Button, Card, Col, Form, InputGroup, Nav, Row } from 'react-bootstrap';
 import { FetcherWithComponents } from 'react-router-dom';
 import HasManyRows from './HasManyRows';
-import { Job, parseAtRetirement, workIncomeEndDate } from '../calculators/PlanInputs';
+import { parseAtRetirement } from '../calculators/PlanInputs';
 import {
-  DEFAULT_CONFIDENCE,
   JOB_FIELD_NAMES,
   JOB_FIELDS,
-  JobField,
   MAX_CONFIDENCE,
   MIN_CONFIDENCE,
   RetirementMode,
   parseConfidence,
   parseRetirementMode,
 } from '../calculators/MonteCarlo';
+import { JobSettings, MonteCarloSettings, migrateSettings } from '../calculators/Settings';
 
 const NUM_SETTINGS_TABS = 4;
 
-// One exported income source: switches are saved as booleans, every other
-// field as text.
-type JobSettings = {
-  [K in Exclude<JobField, 'atRetirement'>]: typeof JOB_FIELDS[K] extends 'boolean' ? boolean : string;
-} & {
-  // Missing in settings files saved before this option existed.
-  atRetirement?: string;
-};
-
-type RetirementSettings = {
-  mode: RetirementMode;
-  confidence: string;
-  date: string;
-};
-
-type LifeEventSettings = {
-  name: string;
-  date: string;
-  balanceChange: string;
-  monthlyExpensesChange: string;
-  // Missing in settings files saved before this option existed.
-  atRetirement?: boolean;
-};
-
-export type MonteCarloSettings = {
-  startingBalance: string;
-  monthlyExpenses: string;
-  endYear: string;
-  // Missing in settings files saved before retirement was its own setting.
-  retirement?: RetirementSettings;
-  jobs: JobSettings[];
-  life_events: LifeEventSettings[];
-  inflation: {
-    averageAnnualReturnPercentage: string;
-    standardDeviationPercentage: string;
-  };
-  asset_classes: Array<{
-    name: string;
-    allocationPercentage: string;
-    averageAnnualReturnPercentage: string;
-    standardDeviationPercentage: string;
-  }>;
-};
-
 const LIFE_EVENT_FIELDS = ['name', 'date', 'balanceChange', 'monthlyExpensesChange'];
-
-/**
- * Settings files saved before retirement was its own setting worked out the
- * retirement date from the income: the last end date among work income. Open
- * those on that fixed date, so their results don't change. The end dates that
- * marked retirement are cleared, since the retirement setting now covers them
- * and a work income end date means "ends before retirement" (like a job
- * change). Without such a date (some work income had no end date, or there
- * was none), the plan retires when ready.
- */
-export const migrateSettings = (settings: MonteCarloSettings): MonteCarloSettings => {
-  if (settings.retirement) return settings;
-
-  const jobs = settings.jobs.map(
-    (job) =>
-      new Job({
-        name: String(job.name ?? ''),
-        postTaxAnnualIncome: String(job.postTaxAnnualIncome ?? ''),
-        adjustForInflation: job.adjustForInflation ? 'on' : '',
-        startDate: String(job.startDate ?? ''),
-        endDate: String(job.endDate ?? ''),
-        atRetirement: job.atRetirement,
-      })
-  );
-  const retirementDate = workIncomeEndDate(jobs);
-  if (!retirementDate) {
-    return {
-      ...settings,
-      retirement: { mode: 'ready', confidence: String(DEFAULT_CONFIDENCE), date: '' },
-    };
-  }
-
-  return {
-    ...settings,
-    retirement: {
-      mode: 'date',
-      confidence: String(DEFAULT_CONFIDENCE),
-      date: settings.jobs[jobs.findIndex((job) => job.endDate?.getTime() === retirementDate.getTime())].endDate,
-    },
-    jobs: settings.jobs.map((job, index) =>
-      jobs[index].atRetirement === 'stops' && jobs[index].endDate?.getTime() === retirementDate.getTime()
-        ? { ...job, endDate: '' }
-        : job
-    ),
-  };
-};
 
 export const dollarFormatter = (val: number) =>
   val.toLocaleString('en-US', { style: 'currency', currency: 'USD' });

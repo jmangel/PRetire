@@ -127,16 +127,24 @@ describe('MonteCarloForm settings export and import', () => {
     await waitFor(() => expect(all('atRetirement')[0].value).toBe('unaffected'));
   });
 
-  test('a settings file from before "At retirement" existed imports as "Stops"', async () => {
+  test('a settings file from before "At retirement" existed keeps running income on its own dates', async () => {
     const readExport = captureExport();
     const { form, all } = renderForm();
     fireEvent.click(screen.getByText('Export settings'));
     const settings = await readExport();
-    delete settings.jobs[0].atRetirement;
+    delete settings.retirement;
+    const { atRetirement, ...oldJob } = settings.jobs[0];
+    settings.jobs = [
+      { ...oldJob, postTaxAnnualIncome: '90000', endDate: '2042-07-01' },
+      { ...oldJob, postTaxAnnualIncome: '26000', startDate: '2058-01-01', endDate: '' }, // Social Security
+    ];
 
-    fireEvent.change(all('atRetirement')[0], { target: { value: 'unaffected' } });
     importSettings(form, settings);
-    await waitFor(() => expect(all('atRetirement')[0].value).toBe('stops'));
+    await waitFor(() => expect(all('atRetirement')).toHaveLength(2));
+    // The job retires on its old end date; Social Security keeps paying.
+    expect(all('atRetirement').map((select) => select.value)).toEqual(['stops', 'unaffected']);
+    expect(screen.getByLabelText('On a date:')).toBeChecked();
+    expect(screen.getByLabelText('Retirement date')).toHaveValue('2042-07-01');
   });
 
   test('importing more jobs than rows adds rows and fills every field', async () => {
