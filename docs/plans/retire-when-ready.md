@@ -74,12 +74,18 @@ A future whose work income all ends by its own end dates before it's ready
 | | Ready mode (default) | Fixed-date mode |
 |---|---|---|
 | Header | "You'd typically be ready by the end of **2038**" with the existing range sentences ("Half are ready between…, 9 in 10 by…") | "Your simulation succeeded 87% of the time", as today |
-| Below it | "If you re-check every year and retire once you reach the ready line, the money lasts in 93% of futures." | The "When you could retire" summary, as today |
-| Chart | Futures that retire when ready; ready line up to a few years past the 90th percentile ready year | As today: futures retiring on the date; ready line up to that year |
+| Below it | "If you re-check every year and retire once you reach the ready line, the money lasts in 93% of futures." When some futures never reach the line, the summary says why (forced out by a work income end date, or ran out of money while still working) and splits the success rate: futures that retire when ready, futures forced out, and overall. | The "When you could retire" summary, as today |
+| Chart | Futures that retire when ready, over the whole plan (not zoomed); ready line up to the year 9 in 10 futures are ready | As today: futures retiring on the date; ready line up to that year |
 
 - The **"keep working" toggle is removed.** In ready mode the futures already
   keep working until ready. In fixed-date mode the comparison it showed is
   ready mode, and the summary text already describes it.
+- A **"Log scale?"** switch, off by default, for when the futures that grow
+  to tens of millions flatten the ready line. Ticks are powers of ten,
+  thinned for huge ranges. Balances below $1,000 are drawn at the bottom.
+  (Added during the build.)
+- The confidence is called **"Desired success rate"** on screen. The settings
+  file keeps the key `confidence`.
 - No special message for ready years near the end year, no "commit to this
   year" comparison, and no note about the optimism of keeping working in bad
   markets. All three were considered and dropped as unnecessary.
@@ -118,7 +124,10 @@ Life events get `"atRetirement": true|false`.
 
 Opening a file without `retirement`:
 
-- If `plannedRetirementDate(jobs)` returns a date: **fixed-date mode** with
+- Files from before income had a type (no `atRetirement`) ran every income
+  source on its own dates. Rows with an end date become work income, rows
+  without one other income, so they keep paying as before.
+- If `workIncomeEndDate(jobs)` (formerly `plannedRetirementDate`) returns a date: **fixed-date mode** with
   that date. Its results don't change.
 - Otherwise (some work income has a blank end date, or there's no work
   income): **ready mode**. For blank end dates this changes the result, but
@@ -127,7 +136,7 @@ Opening a file without `retirement`:
 
 ## Engine
 
-Files: `src/calculators/MonteCarloSimulation.tsx`, `ReadyLine.tsx`,
+Files: `src/calculators/Futures.tsx` (new), `PlanInputs.tsx` (formerly `MonteCarloSimulation.tsx`), `ReadyLine.tsx`,
 `MonteCarlo.tsx`.
 
 - **Work income end dates are caps.** Each future's work income stops at the
@@ -186,8 +195,8 @@ Files: `src/components/MonteCarloResultsCard.tsx`, `ReadyLineSummary.tsx`,
 - The results slider updates the same confidence as the form. Moving it
   replays the futures; the chart redraw keeps today's settle delay when every
   future is drawn.
-- Remove the "keep working" switch and `keepWorkingChartLastYear`'s planned
-  year argument (ready mode uses the 90th percentile ready year only).
+- Remove the "keep working" switch, `keepWorkingChartLastYear`, and the chart
+  cropping it fed.
 
 ## Pull requests
 

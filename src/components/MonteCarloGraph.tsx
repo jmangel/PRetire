@@ -34,8 +34,6 @@ export type ReadyLineSeries = {
   startYear: number;
   /** Last year to draw, if the line should stop early (e.g. at retirement). */
   lastYear?: number;
-  /** Last year to show on the chart at all, to zoom in on when futures are ready. */
-  chartLastYear?: number;
   label: string;
 };
 
@@ -43,8 +41,8 @@ export type ReadyLineSeries = {
 const NON_BALANCE_KEYS = ['year', 'deterministic', 'readyLine'];
 
 /**
- * Add the ready line to the chart data: crop to chartLastYear if set, and
- * attach each year's ready-line value up to lastYear. Values that aren't
+ * Add the ready line to the chart data: each year's ready-line value up to
+ * lastYear. Values that aren't
  * finite (possible with extreme volatility inputs) are left out so they
  * can't break the y-axis. Balances are never cut off by lastYear.
  */
@@ -54,12 +52,9 @@ export const mergeReadyLine = <T extends { year: number }>(
 ): Array<T & { readyLine?: number }> => {
   if (!readyLine) return data;
 
-  const { chartLastYear, lastYear, startYear, values } = readyLine;
-  const visible = chartLastYear === undefined
-    ? data
-    : data.filter((entry) => entry.year <= chartLastYear);
+  const { lastYear, startYear, values } = readyLine;
 
-  return visible.map((entry) => {
+  return data.map((entry) => {
     const value = values[entry.year - startYear];
     const show =
       value !== undefined &&

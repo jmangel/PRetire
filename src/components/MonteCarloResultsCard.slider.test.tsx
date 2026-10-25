@@ -6,7 +6,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import MonteCarloResultsCard, { SLIDER_SETTLE_MS } from './MonteCarloResultsCard';
 import { ReadyLineSeries } from './MonteCarloGraph';
 import { AssetClass, Inflation, Job, MonteCarloResult } from '../calculators/PlanInputs';
-import { readyLineAt } from '../calculators/ReadyLine';
+import { readyLineAt, readyOutcomes, summarizeReadyYears } from '../calculators/ReadyLine';
 import { MonteCarloResponse, RetirementMode, simulatePlan } from '../calculators/MonteCarlo';
 
 // The real chart, wrapped so tests can read the ready line it was given. Its
@@ -115,6 +115,21 @@ const otherLineColors = (container: HTMLElement) =>
 const moveSlider = (value: number) =>
   fireEvent.change(screen.getByLabelText(/Desired success rate/), { target: { value: String(value) } });
 
+describe('where the ready line stops', () => {
+  test('with a fixed date, at the retirement year', () => {
+    renderCard('date');
+    expect(chartReadyLine().lastYear).toBe(startYear + 12);
+  });
+
+  test('retiring when ready, at the year 9 in 10 futures are ready', () => {
+    const { data } = renderCard('ready');
+    const p90 = summarizeReadyYears(readyOutcomes(data.readyLine!, readyLineAt(data.readyLine!, 0.9))).p90;
+
+    expect(p90).toBeDefined();
+    expect(chartReadyLine().lastYear).toBe(p90);
+  });
+});
+
 describe('confidence slider', () => {
   afterEach(() => jest.useRealTimers());
 
@@ -210,6 +225,33 @@ describe('confidence slider', () => {
     expectLabelMatchesLine(data, 70);
     fireEvent.click(screen.getByLabelText('Only show percentiles?'));
     expectLabelMatchesLine(data, 60);
+  });
+
+  test('a new run never draws at a rate other than the one on screen, even if the slider moved during the run', () => {
+    jest.useFakeTimers();
+    const first = response('ready');
+    const { rerender } = render(<CardWithSuccessRate data={first} />);
+
+    // Moved while a run (submitted at 90%) is still going.
+    moveSlider(75);
+    act(() => {
+      jest.advanceTimersByTime(SLIDER_SETTLE_MS);
+    });
+    const drawnBefore = mockGraphProps.length;
+
+    const second = response('ready'); // made at 90%
+    rerender(<CardWithSuccessRate data={second} />);
+    act(() => {
+      jest.advanceTimersByTime(SLIDER_SETTLE_MS);
+    });
+
+    // The slider stays where it was put, and every chart drawn for the new
+    // results uses it: nothing flashes back to 90%.
+    expect(screen.getByText('Desired success rate: 75%')).toBeInTheDocument();
+    const labels = mockGraphProps.slice(drawnBefore).map((props) => props.readyLine?.label);
+    expect(labels.length).toBeGreaterThan(0);
+    expect(new Set(labels)).toEqual(new Set(['Ready line (75%)']));
+    expectLabelMatchesLine(second, 75);
   });
 
   test("moving the slider doesn't recolor the other lines", () => {

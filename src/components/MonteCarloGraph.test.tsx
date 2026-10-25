@@ -52,13 +52,6 @@ describe('mergeReadyLine', () => {
     expect(merged[4].median).toBe(20340);
   });
 
-  test('crops the chart to chartLastYear', () => {
-    const merged = mergeReadyLine(data, line({ chartLastYear: 2032 }));
-
-    expect(merged.map((entry) => entry.year)).toEqual([2030, 2031, 2032]);
-    expect(merged.map((entry) => entry.readyLine)).toEqual([100, 101, 102]);
-  });
-
   test('leaves out values that are not finite', () => {
     const merged = mergeReadyLine(data, line({ values: [100, Infinity, 102, NaN, 104] }));
 
@@ -90,13 +83,13 @@ describe('computeBaseTooltipData', () => {
 });
 
 describe('mergeTooltipReadyLine', () => {
-  test("adds each shown year's ready-line value and drops years cropped from the chart", () => {
+  test("adds the ready-line value for each year it's drawn", () => {
     const base = computeBaseTooltipData({ series: rawData });
-    const chartData = mergeReadyLine(rawData, line({ values: [100, 101, 102], chartLastYear: 2031, lastYear: 2030 }));
+    const chartData = mergeReadyLine(rawData, line({ values: [100, 101, 102], lastYear: 2030 }));
 
     const data = mergeTooltipReadyLine(base, chartData);
 
-    expect(Object.keys(data)).toEqual(['2030', '2031']);
+    expect(Object.keys(data)).toEqual(['2030', '2031', '2032']);
     expect(data[2030]).toMatchObject({ readyLine: 100, max: 30 });
     expect(data[2031]).not.toHaveProperty('readyLine');
   });
@@ -121,11 +114,11 @@ describe('computeYearExtents and visibleYValuesFor', () => {
     expect(extents).toEqual({ 2030: [20, 20], 2031: [25, 25], 2032: [40, 40] });
   });
 
-  test('also fit the ready line, only for years still on the chart', () => {
+  test("also fit the ready line, only where it's drawn", () => {
     const extents = computeYearExtents(rawData, { excludeMinMax: false, onlyShowDeterministicLine: true });
-    const chartData = mergeReadyLine(rawData, line({ values: [500, 600, 700], chartLastYear: 2031 }));
+    const chartData = mergeReadyLine(rawData, line({ values: [500, 600, 700], lastYear: 2031 }));
 
-    expect(visibleYValuesFor(chartData, extents)).toEqual([20, 20, 500, 25, 25, 600]);
+    expect(visibleYValuesFor(chartData, extents)).toEqual([20, 20, 500, 25, 25, 600, 40, 40]);
   });
 });
 
