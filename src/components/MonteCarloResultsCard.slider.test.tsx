@@ -239,9 +239,9 @@ describe('chart scale', () => {
   const lineCount = (container: HTMLElement) => container.querySelectorAll('.recharts-line-curve').length;
   const topYTick = (container: HTMLElement) => {
     const ticks = Array.from(container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'));
-    // Ticks are compact, like $1.2M.
-    const [, amount, suffix] = ticks[ticks.length - 1].textContent!.match(/^\$([\d.]+)([KMBT]?)$/)!;
-    return Number(amount) * 1000 ** ' KMBT'.indexOf(suffix || ' ');
+    // Ticks are compact, like $1.2M or -$250K.
+    const [, sign, amount, suffix] = ticks[ticks.length - 1].textContent!.match(/^(-?)\$([\d.]+)([KMBT]?)$/)!;
+    return (sign ? -1 : 1) * Number(amount) * 1000 ** ' KMBT'.indexOf(suffix || ' ');
   };
 
   test('leaves min and max out by default, so they do not set the y-axis', () => {

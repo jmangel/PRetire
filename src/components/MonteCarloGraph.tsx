@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { MonteCarloResult } from "../calculators/MonteCarloSimulation";
 import { useMemo } from "react";
-import { compactDollarFormatter } from "./MonteCarloForm";
+import { axisDollarFormatter, compactDollarFormatter } from "./MonteCarloForm";
 
 type Percentiles = {
   max: number,
@@ -438,6 +438,11 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
     }
   );
 
+  const yTickFormatter = useMemo(
+    () => (customYTicks ? axisDollarFormatter(customYTicks) : compactDollarFormatter),
+    [customYTicks]
+  );
+
   return (
     <ResponsiveContainer width="95%" height={550} debounce={100}>
       <LineChart
@@ -454,7 +459,7 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
         <XAxis dataKey="year" />
         <YAxis
           ticks={customYTicks} domain={customDomain}
-          tickFormatter={compactDollarFormatter}
+          tickFormatter={yTickFormatter}
           width={70}
           allowDataOverflow={true}
         />

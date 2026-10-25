@@ -46,6 +46,29 @@ export const dollarFormatter = (val: number) =>
 export const compactDollarFormatter = (val: number) =>
   val.toLocaleString('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumSignificantDigits: 3 });
 
+const DOLLAR_UNITS: Array<[number, string]> = [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']];
+
+/**
+ * Labels for evenly spaced y-axis ticks. Every tick uses the largest tick's
+ * unit and enough decimals to show the step between ticks, so neighboring
+ * labels never round to the same text: $1.000M, $1.025M, $1.050M rather
+ * than $1M, $1.03M, $1.05M.
+ */
+export const axisDollarFormatter = (ticks: number[]): ((val: number) => string) => {
+  if (ticks.length < 2) return compactDollarFormatter;
+  const largest = Math.max(...ticks.map(Math.abs));
+  const [unit, suffix] = DOLLAR_UNITS.find(([size]) => largest >= size) ?? [1, ''];
+  const step = Math.abs(ticks[1] - ticks[0]) / unit;
+  let decimals = 0;
+  while (decimals < 6 && Math.abs(Math.round(step * 10 ** decimals) - step * 10 ** decimals) > 1e-6) {
+    decimals++;
+  }
+  return (val: number) =>
+    val === 0
+      ? '$0'
+      : `${val < 0 ? '-' : ''}$${(Math.abs(val) / unit).toFixed(decimals)}${suffix}`;
+};
+
 const defaultAssetClasses = [
   // I basically used the most conservative stats I could find, ie. lowest
   // average annual return I saw online and highest standard deviation I saw

@@ -177,6 +177,55 @@ describe('MonteCarloGraph', () => {
   });
 });
 
+describe('MonteCarloGraph lines and axis', () => {
+  const result = (balances: number[]): MonteCarloResult =>
+    balances.map((balance, k) => ({
+      year: 2030 + k,
+      balance,
+      inflationAdjustedBalance: balance,
+      inflation: 0,
+      monthlyExpenses: 0,
+      inflationAdjustedMonthlyExpenses: 0,
+    }));
+
+  test('draws the median darkest and thickest of the percentile lines', () => {
+    const { container } = render(
+      <MonteCarloGraph
+        results={[result([100, 200, 300]), result([150, 250, 350]), result([120, 220, 320])]}
+        inflationAdjusted
+        onlyShowPercentiles
+        excludeMinMax={false}
+        onlyShowDeterministicLine={false}
+      />
+    );
+    // Recharts' lines have no roles or labels, so find them by class name.
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
+    const curves = Array.from(container.querySelectorAll('.recharts-line-curve'));
+    const median = curves.find((curve) => curve.getAttribute('stroke') === '#104281');
+    expect(median).toBeDefined();
+    expect(median!.getAttribute('stroke-width')).toBe('2');
+    const others = curves.filter((curve) => curve !== median);
+    expect(others.every((curve) => curve.getAttribute('stroke-width') === '1')).toBe(true);
+  });
+
+  test('gives every y-axis tick its own label on a narrow range', () => {
+    const { container } = render(
+      <MonteCarloGraph
+        results={[result([1000000, 1004000, 1008000]), result([1001000, 1005000, 1009000])]}
+        inflationAdjusted
+        onlyShowPercentiles
+        excludeMinMax={false}
+        onlyShowDeterministicLine={false}
+      />
+    );
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
+    const labels = Array.from(container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'))
+      .map((tick) => tick.textContent);
+    expect(labels.length).toBeGreaterThan(2);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+});
+
 describe('visibleLineKeysFor', () => {
   const percentileKeys = ['max', 'p90', 'p80', 'p70', 'p60', 'median', 'p40', 'p30', 'p20', 'p10', 'min', 'deterministic'];
 
