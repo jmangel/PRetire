@@ -41,10 +41,11 @@ export class AssetClass extends Inflation {
 }
 
 /**
- * What happens to an income source when you retire.
- * - 'stops': work income (salary, wages). It ends at retirement.
- * - 'unaffected': income on its own schedule (Social Security at a chosen
- *   claiming age, a pension starting at 65, rental income).
+ * What kind of income this is.
+ * - 'stops': work income (salary, wages). It ends when you retire, or on its
+ *   own end date if that comes first (like a job change).
+ * - 'unaffected': other income on its own schedule (Social Security at a
+ *   chosen claiming age, a pension starting at 65, rental income).
  */
 export type AtRetirement = 'stops' | 'unaffected';
 
@@ -91,14 +92,18 @@ export const incomeThatStopsAtRetirement = (jobs: Job[]) =>
   );
 
 /**
- * The planned retirement date implied by the income sources: when the last
- * income that stops at retirement ends. Earlier end dates (like a job change)
- * don't count, because another job is still paying after them.
+ * When work income runs out on its own end dates: the last end date among
+ * income that stops at retirement. Earlier end dates (like a job change)
+ * don't count, because another job is still paying after them. A future
+ * that isn't ready by then retires anyway, as with mandatory retirement.
  *
- * Returns undefined when there is no planned date: either nothing stops at
- * retirement (already retired), or some work income has no end date.
+ * Settings files saved before retirement was its own setting also used this
+ * as the retirement date.
+ *
+ * Returns undefined when work income doesn't run out on its own: either
+ * there is none (already retired), or some of it has no end date.
  */
-export const plannedRetirementDate = (jobs: Job[]): Date | undefined => {
+export const workIncomeEndDate = (jobs: Job[]): Date | undefined => {
   const stopping = incomeThatStopsAtRetirement(jobs);
   if (stopping.length === 0) return undefined;
   if (stopping.some((job) => !job.endDate)) return undefined;
@@ -111,24 +116,37 @@ export class LifeEvent {
   balanceChange: number;
   monthlyExpensesChange: number;
   date?: Date;
+  /**
+   * Happens on the retirement date instead of its own date, which in "retire
+   * when ready" plans differs from one simulated future to the next. The
+   * year-by-year helpers below skip these; the futures simulation applies
+   * them (see Futures.tsx).
+   */
+  atRetirement: boolean;
 
   constructor({
     name,
     balanceChange,
     monthlyExpensesChange,
     date,
+    atRetirement = false,
   }: {
     name: string;
     balanceChange: string;
     monthlyExpensesChange: string;
     date: string;
+    atRetirement?: boolean;
   }) {
     this.name = name;
     this.balanceChange = parseFloat(balanceChange);
     this.monthlyExpensesChange = parseFloat(monthlyExpensesChange);
     this.date = date.length > 0 ? new Date(date) : undefined;
+    this.atRetirement = atRetirement;
   }
 }
+
+const happensIn = (lifeEvent: LifeEvent, year: number) =>
+  !lifeEvent.atRetirement && !!lifeEvent.date && lifeEvent.date.getUTCFullYear() === year;
 
 const convertPercentageToDecimal = (percent: number) => percent / 100;
 
@@ -308,7 +326,7 @@ class MonteCarloSimulation {
 
   lifeEventsMonthlyExpensesChange(year: number) {
     return this.lifeEvents.reduce((acc, lifeEvent) => {
-      if (!lifeEvent.date || lifeEvent.date.getUTCFullYear() !== year) return acc;
+      if (!happensIn(lifeEvent, year)) return acc;
 
       return acc + lifeEvent.monthlyExpensesChange;
     }, 0);
@@ -316,7 +334,7 @@ class MonteCarloSimulation {
 
   lifeEventsBalanceChange(year: number) {
     return this.lifeEvents.reduce((acc, lifeEvent) => {
-      if (!lifeEvent.date || lifeEvent.date.getUTCFullYear() !== year) return acc;
+      if (!happensIn(lifeEvent, year)) return acc;
 
       return acc + lifeEvent.balanceChange;
     }, 0);

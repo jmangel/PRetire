@@ -2,12 +2,13 @@ import MonteCarloSimulation, { AssetClass, Inflation, Job, LifeEvent, sampleRand
 import {
   ReadyLineData,
   computeReadyLine,
-  keepWorkingJobs,
+  readyFutures,
   readyLineAt,
-  readyYears,
+  readyOutcomes,
   requiredBalancesByYear,
   summarizeReadyYears,
 } from './ReadyLine';
+import { averageMarkets, drawMarkets } from './Futures';
 
 const assets = (averageAnnualReturnPercentage: number, standardDeviationPercentage: number) => [
   new AssetClass({
@@ -213,84 +214,80 @@ describe('requiredBalancesByYear', () => {
   });
 });
 
-describe('keepWorkingJobs', () => {
-  test('only the income ending on the planned retirement date keeps going', () => {
-    const jobs = [
-      job('80000', { endDate: '2031-07-01' }), // job change
-      job('95000', { startDate: '2031-07-01', endDate: '2044-07-01' }),
-      job('30000', { startDate: '2055-01-01', endDate: '2044-07-01', atRetirement: 'unaffected' }),
-    ];
-    const working = keepWorkingJobs(jobs, 2027);
+describe('at-retirement life events', () => {
+  test('the line covers them, happening the year after retiring', () => {
+    // Health insurance until Medicare, say: a lump sum and higher expenses
+    // that start whenever you retire.
+    const atRetirement = new LifeEvent({
+      name: '', date: '', balanceChange: '-20000', monthlyExpensesChange: '-800', atRetirement: true,
+    });
+    const assetClasses = assets(5, 0);
+    const steadyInflation = inflation(3, 0);
+    const startYear = 2030;
+    const required = requiredBalancesByYear({
+      monthlyExpenses: -4000,
+      jobs: [job('95000')],
+      lifeEvents: [atRetirement],
+      assetClasses,
+      inflation: steadyInflation,
+      startYear,
+      endYear: 2070,
+      sequences: 2,
+    });
 
-    expect(working[0].endDate).toEqual(new Date('2031-07-01'));
-    expect(working[1].endDate).toBeUndefined();
-    expect(working[1].startDate).toEqual(new Date('2031-07-01'));
-    expect(working[1]).toBeInstanceOf(Job);
-    expect(working[2].endDate).toEqual(new Date('2044-07-01'));
-    expect(jobs[1].endDate).toEqual(new Date('2044-07-01')); // original untouched
-  });
+    for (const retireAtEndOf of [2035, 2045]) {
+      const needed = required[retireAtEndOf - startYear][0];
+      // The same event, dated on the retirement date (January 1 of the next
+      // year), simulated from that balance should bottom out at $0.
+      const dated = new LifeEvent({
+        name: '', date: `${retireAtEndOf + 1}-01-01`, balanceChange: '-20000', monthlyExpensesChange: '-800',
+      });
+      const multiplier = 1.03 ** (retireAtEndOf + 1 - startYear);
+      const retire = (balance: number) => {
+        const sim = new MonteCarloSimulation(
+          balance * multiplier, -4000 * multiplier, [], [dated], assetClasses,
+          steadyInflation, 2070, retireAtEndOf + 1
+        );
+        sim.cumulativeInflationMultiplier = multiplier;
+        return sim.runDeterministic();
+      };
+      const lowest = Math.min(...retire(needed).map(({ inflationAdjustedBalance }) => inflationAdjustedBalance));
 
-  test("doesn't bring back a job that ended before the first simulated year", () => {
-    const jobs = [job('95000', { endDate: '2028-07-01' })];
-
-    expect(keepWorkingJobs(jobs, 2030)[0].endDate).toEqual(new Date('2028-07-01'));
+      expect(lowest).toBeGreaterThanOrEqual(-1e-6);
+      expect(lowest).toBeLessThan(1);
+    }
   });
 });
 
 describe('computeReadyLine', () => {
-  test('keep-working futures earn past the planned retirement date', () => {
-    const data = computeReadyLine({
-      startingBalance: 0,
-      monthlyExpenses: 0,
-      jobs: [job('70000', { endDate: '2035-01-01' })],
-      lifeEvents: [],
-      assetClasses: assets(0, 0),
-      inflation: inflation(0, 0),
-      startYear: 2030,
-      endYear: 2040,
-      futures: 2,
-      sequences: 2,
-    })!;
+  const startYear = 2030;
+  const base = {
+    startingBalance: 1000000,
+    monthlyExpenses: -4000,
+    lifeEvents: [],
+    assetClasses: assets(5, 10),
+    inflation: inflation(3, 1),
+    startYear,
+    endYear: 2080,
+    markets: drawMarkets(assets(5, 10), inflation(3, 1), 2, 51),
+    averageMarkets: averageMarkets(assets(5, 10), inflation(3, 1), 51),
+    sequences: 2,
+  };
 
-    expect(data.plannedRetirement).toEqual(new Date('2035-01-01'));
-    expect(data.workingDeterministicResult.at(-1)!.balance).toBeCloseTo(770000, 6);
-    expect(data.workingResults).toHaveLength(2);
-  });
-
-  test('is undefined when the planned retirement is before the first simulated year', () => {
-    // E.g. re-running a saved plan after retiring: the last job's end date is
-    // now in the past, and that job must not be brought back.
-    const inputs = {
-      startingBalance: 1000000,
-      monthlyExpenses: -4000,
-      lifeEvents: [],
-      assetClasses: assets(5, 10),
-      inflation: inflation(3, 1),
-      startYear: 2030,
-      endYear: 2080,
-      futures: 2,
-      sequences: 2,
-    };
-
-    expect(computeReadyLine({ ...inputs, jobs: [job('95000', { endDate: '2028-07-01' })] })).toBeUndefined();
+  test('is undefined when the plan has already retired by the first simulated year', () => {
+    // E.g. re-running a saved plan after retiring.
+    const jobs = [job('95000')];
+    expect(computeReadyLine({ ...base, jobs, plannedRetirement: new Date('2028-07-01') })).toBeUndefined();
     // Retiring on the first day of the first simulated year counts too.
-    expect(computeReadyLine({ ...inputs, jobs: [job('95000', { endDate: '2030-01-01' })] })).toBeUndefined();
+    expect(computeReadyLine({ ...base, jobs, plannedRetirement: new Date('2030-01-01') })).toBeUndefined();
     // Retiring during the first simulated year still gets a ready line.
-    expect(computeReadyLine({ ...inputs, jobs: [job('95000', { endDate: '2030-07-01' })] })).toBeDefined();
+    expect(computeReadyLine({ ...base, jobs, plannedRetirement: new Date('2030-07-01') })).toBeDefined();
+    // Without a date, work income that has already ended means retired.
+    expect(computeReadyLine({ ...base, jobs: [job('95000', { endDate: '2028-07-01' })] })).toBeUndefined();
   });
 
   test('is undefined when there is no year left to retire in', () => {
-    const inputs = {
-      startingBalance: 1000000,
-      monthlyExpenses: -4000,
-      jobs: [job('95000', { endDate: '2040-07-01' })],
-      lifeEvents: [],
-      assetClasses: assets(5, 10),
-      inflation: inflation(3, 1),
-      startYear: 2030,
-      futures: 2,
-      sequences: 2,
-    };
+    const inputs = { ...base, jobs: [job('95000')] };
 
     expect(computeReadyLine({ ...inputs, endYear: 2030 })).toBeUndefined();
     expect(computeReadyLine({ ...inputs, endYear: 2029 })).toBeUndefined();
@@ -301,49 +298,72 @@ describe('computeReadyLine', () => {
     expect(readyLineAt(oneYear, 0.9)).toHaveLength(1);
   });
 
-  test('is undefined when nothing stops at retirement', () => {
-    expect(
-      computeReadyLine({
-        startingBalance: 1000000,
-        monthlyExpenses: -4000,
-        jobs: [job('30000', { atRetirement: 'unaffected' })],
-        lifeEvents: [],
-        assetClasses: assets(5, 10),
-        inflation: inflation(3, 1),
-        endYear: 2080,
-        futures: 2,
-        sequences: 2,
-      })
-    ).toBeUndefined();
+  test('is undefined when there is no work income', () => {
+    expect(computeReadyLine({ ...base, jobs: [job('30000', { atRetirement: 'unaffected' })] })).toBeUndefined();
+  });
+
+  test('keeps when work income runs out on its own, for forced retirement', () => {
+    const data = computeReadyLine({ ...base, jobs: [job('95000', { endDate: '2045-07-01' })] })!;
+    expect(data.workEnd).toEqual(new Date('2045-07-01'));
+    expect(data.plannedRetirement).toBeUndefined();
   });
 });
 
-describe('readyYears and summarizeReadyYears', () => {
-  const row = (year: number, balance: number) => ({
-    year,
-    balance,
-    inflationAdjustedBalance: balance,
-    inflation: 0,
-    monthlyExpenses: 0,
-    inflationAdjustedMonthlyExpenses: 0,
+describe('retiring when ready', () => {
+  const startYear = 2027;
+  const endYear = 2100;
+  const years = endYear - startYear + 1;
+  const assetClasses = assets(9.9, 19.7028);
+  const marketInflation = inflation(2.9, 1.1343);
+  const data = computeReadyLine({
+    startingBalance: 100000,
+    monthlyExpenses: -4000,
+    jobs: [job('95000'), job('24000', { startDate: '2055-01-01', atRetirement: 'unaffected' })],
+    lifeEvents: [],
+    assetClasses,
+    inflation: marketInflation,
+    startYear,
+    endYear,
+    markets: drawMarkets(assetClasses, marketInflation, 2000, years),
+    averageMarkets: averageMarkets(assetClasses, marketInflation, years),
+    sequences: 2000,
+  })!;
+
+  test('succeeds at least about as often as the confidence', () => {
+    // Each future retires with at least the confidence's odds, and often a
+    // good year carries it well past the line, so the overall rate lands at
+    // or above the confidence.
+    for (const confidence of [0.6, 0.9]) {
+      const summary = summarizeReadyYears(readyOutcomes(data, readyLineAt(data, confidence)));
+      expect(summary.successRate).toBeGreaterThan(confidence - 0.04);
+      expect(summary.neverReady).toBe(0);
+    }
   });
 
-  test('each future is ready the first year it reaches the line', () => {
-    const data = {
-      startYear: 2030,
-      workingResults: [
-        [row(2030, 50), row(2031, 150), row(2032, 90)], // crosses, then dips: still 2031
-        [row(2030, 10), row(2031, 20), row(2032, 30)], // never crosses
-        [row(2030, -1), row(2031, 500), row(2032, 500)], // ran out while working
-      ],
-    } as unknown as ReadyLineData;
-
-    expect(readyYears(data, [100, 100, 100])).toEqual([2031, undefined, undefined]);
+  test('a higher confidence means later ready years', () => {
+    const at = (confidence: number) => summarizeReadyYears(readyOutcomes(data, readyLineAt(data, confidence)));
+    expect(at(0.95).median!).toBeGreaterThan(at(0.6).median!);
   });
+
+  test('the chart futures are the same futures', () => {
+    const line = readyLineAt(data, 0.9);
+    const { results, deterministicResult } = readyFutures(data, line);
+    const outcomes = readyOutcomes(data, line);
+
+    expect(results).toHaveLength(2000);
+    expect(deterministicResult).toHaveLength(years);
+    results.forEach((result, index) => {
+      expect(result.every(({ balance }) => balance >= 0)).toBe(outcomes[index].succeeded);
+    });
+  });
+});
+
+describe('summarizeReadyYears', () => {
+  const outcome = (readyYear?: number, forced = false, succeeded = true) => ({ readyYear, forced, succeeded });
 
   test('summarizes the spread of ready years', () => {
     const years = [2035, 2037, 2039, 2041, 2043, 2045, 2047, 2049, undefined];
-    const summary = summarizeReadyYears(years);
+    const summary = summarizeReadyYears(years.map((year) => outcome(year)));
 
     expect(summary.p25).toBe(2039);
     expect(summary.median).toBe(2043);
@@ -353,9 +373,19 @@ describe('readyYears and summarizeReadyYears', () => {
   });
 
   test('a percentile that lands on never-ready futures is undefined', () => {
-    const summary = summarizeReadyYears([2040, undefined, undefined]);
+    const summary = summarizeReadyYears([outcome(2040), outcome(), outcome()]);
 
     expect(summary.p25).toBe(2040);
     expect(summary.median).toBeUndefined();
+  });
+
+  test('counts futures forced out and futures that succeed', () => {
+    const summary = summarizeReadyYears([
+      outcome(2040), outcome(undefined, true), outcome(undefined, true, false), outcome(2042, false, false),
+    ]);
+
+    expect(summary.forcedOut).toBe(0.5);
+    expect(summary.neverReady).toBe(0.5);
+    expect(summary.successRate).toBe(0.5);
   });
 });

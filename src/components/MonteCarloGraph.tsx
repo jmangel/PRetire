@@ -283,8 +283,8 @@ export const toPercentilesEntry = (entry: Record<string, number>): PercentilesCh
   return newEntry;
 };
 
-const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResult?: MonteCarloResult, inflationAdjusted: boolean, onlyShowPercentiles: boolean, excludeMinMax: boolean, onlyShowDeterministicLine: boolean, readyLine?: ReadyLineSeries, plannedRetirementYear?: number }) => {
-  const { results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLine, plannedRetirementYear } = props;
+const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResult?: MonteCarloResult, inflationAdjusted: boolean, onlyShowPercentiles: boolean, excludeMinMax: boolean, onlyShowDeterministicLine: boolean, readyLine?: ReadyLineSeries, plannedRetirementYear?: number, retirementLabel?: string }) => {
+  const { results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLine, plannedRetirementYear, retirementLabel = 'Planned retirement' } = props;
 
   const yearEntries = useMemo(
     () => collectBalancesByYear(results, deterministicResult, inflationAdjusted ? 'inflationAdjustedBalance' : 'balance'),
@@ -409,7 +409,7 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
             x={plannedRetirementYear}
             stroke="#6c757d"
             strokeDasharray="4 4"
-            label={{ value: 'Planned retirement', position: 'insideTopLeft', fill: '#6c757d' }}
+            label={{ value: retirementLabel, position: 'insideTopLeft', fill: '#6c757d' }}
           />
         )}
         {readyLinePoints > 0 && (

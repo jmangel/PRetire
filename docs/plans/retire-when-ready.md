@@ -33,8 +33,12 @@ On the Basics tab:
 
 | Today | New |
 |---|---|
-| At retirement, this income: **Stops** | **Work income** (stops when I retire) |
-| At retirement, this income: **Keeps its own dates** | **Other income** (follows its own dates) |
+| At retirement, this income: **Stops** | Type of income: **Work income** |
+| At retirement, this income: **Keeps its own dates** | Type of income: **Other income** |
+
+Help text: "Work income stops when you retire. Other income (Social Security,
+pensions, rent) follows its own dates." (Longer option labels were cut off at
+the dropdown's width.)
 
 Values in saved files (`stops` / `unaffected`) don't change.
 
@@ -164,8 +168,9 @@ Files: `src/calculators/MonteCarloSimulation.tsx`, `ReadyLine.tsx`,
 File: `src/components/MonteCarloForm.tsx`.
 
 - "When do you retire?" radio, confidence input (50–99, matching the slider)
-  and date input on the Basics tab. The date input is disabled in ready mode;
-  the confidence input is disabled in fixed-date mode.
+  and date input on the Basics tab. The date input is disabled in ready mode.
+  The confidence input stays on in both modes: with a fixed date it still sets
+  the ready line in the "When you could retire" summary.
 - Reword the income dropdown and the end-date help text (decisions 2 and 3).
 - Life events: an "At retirement" switch beside the date that disables it.
 - Export and import for the new fields, plus the migration above.
@@ -185,6 +190,8 @@ Files: `src/components/MonteCarloResultsCard.tsx`, `ReadyLineSummary.tsx`,
   year argument (ready mode uses the 90th percentile ready year only).
 
 ## Pull requests
+
+Built as a single PR in the end, with the steps below as its parts.
 
 1. **Engine.** Replayable futures, end dates as caps, ready-mode simulation,
    success rate and ready years from the replay, forced-out futures. The app
