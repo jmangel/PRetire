@@ -4,7 +4,7 @@ import MonteCarloGraph, { ReadyLineSeries } from "./MonteCarloGraph";
 import SpinnerOverlay from "./SpinnerOverlay";
 import ReadyLineSummary, { readyHeadline } from "./ReadyLineSummary";
 import { FetcherWithComponents } from "react-router-dom";
-import { DEFAULT_CONFIDENCE, MonteCarloResponse } from "../calculators/MonteCarlo";
+import { MonteCarloResponse } from "../calculators/MonteCarlo";
 import { readyFutures, readyLineAt, readyOutcomes, summarizeReadyYears } from "../calculators/ReadyLine";
 
 /** How long the slider must be still before a slow chart redraws. */
@@ -24,7 +24,16 @@ export const useSettledValue = <T,>(value: T, delayMs: number): T => {
   return settled;
 };
 
-const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any> }) => {
+const MonteCarloResultsCard = ({
+  fetcher,
+  confidence,
+  setConfidence,
+}: {
+  fetcher: FetcherWithComponents<any>;
+  /** The desired success rate (a percentage), shared with the form. */
+  confidence: number;
+  setConfidence: (confidence: number) => void;
+}) => {
   const response = (fetcher.data as MonteCarloResponse) || null;
   const loading = fetcher.state === 'loading' || fetcher.state === 'submitting';
 
@@ -38,26 +47,10 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
   // though, the futures that grow to tens of millions by the end year can
   // flatten everything else, including the ready line, near the bottom.
   const [logScale, setLogScale] = useState(false);
-  const [confidence, setConfidenceState] = useState(response?.confidence ?? DEFAULT_CONFIDENCE);
-
-  // Start from the confidence each run was made with.
-  useEffect(() => {
-    if (response) setConfidenceState(response.confidence);
-  }, [response]);
-
-  // The slider and the form's confidence field are one setting: keep the
-  // form in step, so exporting the settings or running again uses the
-  // confidence shown here.
-  const setConfidence = (value: number) => {
-    setConfidenceState(value);
-    const field = document.querySelector<HTMLInputElement>('[name="retirement[confidence]"]');
-    if (field) field.value = String(value);
-  };
-
   const readyLineData = response?.readyLine;
   const retiresWhenReady = response?.mode === 'ready' && !!readyLineData;
 
-  // Changing the confidence only replays futures already drawn; nothing is
+  // Changing the success rate only replays futures already drawn; nothing is
   // re-sampled. The summary and the slider's label always follow the slider
   // live.
   const readyLine = useMemo(

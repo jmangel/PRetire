@@ -2,16 +2,24 @@
    These tests check what the form submits and exports, which is keyed by each
    field's name attribute (the same names parseJobs reads), so they select
    fields by name rather than by label or role. */
+import { useState } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import MonteCarloForm from './MonteCarloForm';
 import { JOB_FIELD_NAMES, parseJobs } from '../calculators/MonteCarlo';
 
 // The page wraps the form in <fetcher.Form id="monte-carlo-form">; a plain
 // form with that id is enough for these tests.
+// The page shares the desired success rate between the form and the
+// results; this stands in for it.
+const FormWithSuccessRate = () => {
+  const [confidence, setConfidence] = useState(90);
+  return <MonteCarloForm fetcher={{ state: 'idle' } as any} confidence={confidence} setConfidence={setConfidence} />;
+};
+
 const renderForm = () => {
   const { container } = render(
     <form id="monte-carlo-form">
-      <MonteCarloForm fetcher={{ state: 'idle' } as any} />
+      <FormWithSuccessRate />
     </form>
   );
   const form = container.querySelector('form') as HTMLFormElement;
@@ -268,5 +276,21 @@ describe('MonteCarloForm fixed-date plans', () => {
     importSettings(form, settings);
     await waitFor(() => expect(screen.getByLabelText('On a date:')).toBeChecked());
     expect(screen.getByRole('button', { name: 'Run Simulation' })).toBeEnabled();
+  });
+});
+
+describe('MonteCarloForm desired success rate field', () => {
+  test('submits the last valid rate while a new one is being typed, and shows it again on leaving', () => {
+    const { form } = renderForm();
+    const field = screen.getByLabelText('Desired success rate');
+
+    fireEvent.change(field, { target: { value: '8' } }); // on the way to 85
+    expect(new FormData(form).get('retirement[confidence]')).toBe('90');
+    fireEvent.change(field, { target: { value: '85' } });
+    expect(new FormData(form).get('retirement[confidence]')).toBe('85');
+
+    fireEvent.change(field, { target: { value: '' } });
+    fireEvent.blur(field);
+    expect(field).toHaveValue(85);
   });
 });

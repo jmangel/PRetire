@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
+import MonteCarloForm from './MonteCarloForm';
 import MonteCarloResultsCard from './MonteCarloResultsCard';
 import { AssetClass, Inflation, Job } from '../calculators/PlanInputs';
-import { RetirementMode, simulatePlan } from '../calculators/MonteCarlo';
+import { MonteCarloResponse, RetirementMode, simulatePlan } from '../calculators/MonteCarlo';
 
 // Recharts' ResponsiveContainer needs ResizeObserver, which jsdom lacks.
 class ResizeObserverStub {
@@ -44,8 +46,21 @@ const plan = (mode: RetirementMode, endDate = '') => ({
   sequences: 50,
 });
 
+// The page shares the desired success rate between the form and the
+// results; this stands in for it.
+const CardWithSuccessRate = ({ data }: { data: MonteCarloResponse }) => {
+  const [confidence, setConfidence] = useState(90);
+  return (
+    <MonteCarloResultsCard
+      fetcher={{ data, state: 'idle' } as any}
+      confidence={confidence}
+      setConfidence={setConfidence}
+    />
+  );
+};
+
 const renderCard = (mode: RetirementMode, endDate?: string) =>
-  render(<MonteCarloResultsCard fetcher={{ data: simulatePlan(plan(mode, endDate)), state: 'idle' } as any} />);
+  render(<CardWithSuccessRate data={simulatePlan(plan(mode, endDate))} />);
 
 describe('MonteCarloResultsCard', () => {
   test('retiring when ready leads with the typical ready year and how often the money lasts', () => {
@@ -71,17 +86,30 @@ describe('MonteCarloResultsCard', () => {
     expect(screen.queryByLabelText('Keep working until ready')).not.toBeInTheDocument();
   });
 
-  test('the slider keeps the form\'s confidence field in step', () => {
-    const field = document.createElement('input');
-    field.name = 'retirement[confidence]';
-    field.value = '90';
-    document.body.appendChild(field);
-    renderCard('ready');
+  test('the slider and the form field are one setting', () => {
+    const Page = () => {
+      const [confidence, setConfidence] = useState(90);
+      return (
+        <form id="monte-carlo-form">
+          <MonteCarloForm fetcher={{ state: 'idle' } as any} confidence={confidence} setConfidence={setConfidence} />
+          <MonteCarloResultsCard
+            fetcher={{ data: simulatePlan(plan('ready')), state: 'idle' } as any}
+            confidence={confidence}
+            setConfidence={setConfidence}
+          />
+        </form>
+      );
+    };
+    render(<Page />);
+    const field = screen.getByLabelText('Desired success rate');
+    const slider = screen.getByLabelText(/Desired success rate: /);
 
-    fireEvent.change(screen.getByLabelText(/Desired success rate/), { target: { value: '75' } });
+    fireEvent.change(slider, { target: { value: '75' } });
+    expect(field).toHaveValue(75);
 
-    expect(field.value).toBe('75');
-    field.remove();
+    fireEvent.change(field, { target: { value: '82' } });
+    expect(slider).toHaveValue('82');
+    expect(screen.getByText('Desired success rate: 82%')).toBeInTheDocument();
   });
 
   test('the ready line needs the inflation-adjusted view', () => {

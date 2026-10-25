@@ -1,13 +1,13 @@
 /* eslint-disable testing-library/no-container, testing-library/no-node-access --
    The chart's SVG lines have no roles or labels to query by, so these tests
    find them by Recharts' class names and the ready line's color. */
-import { ReactElement } from 'react';
+import { ReactElement, useState } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import MonteCarloResultsCard, { SLIDER_SETTLE_MS } from './MonteCarloResultsCard';
 import { ReadyLineSeries } from './MonteCarloGraph';
 import { AssetClass, Inflation, Job, MonteCarloResult } from '../calculators/PlanInputs';
 import { readyLineAt } from '../calculators/ReadyLine';
-import { RetirementMode, simulatePlan } from '../calculators/MonteCarlo';
+import { MonteCarloResponse, RetirementMode, simulatePlan } from '../calculators/MonteCarlo';
 
 // The real chart, wrapped so tests can read the ready line it was given. Its
 // "Ready line (N%)" label only reaches the page in the hover tooltip. (A
@@ -77,9 +77,22 @@ const response = (mode: RetirementMode = 'date') =>
     sequences: 200,
   });
 
+// The page shares the desired success rate between the form and the
+// results; this stands in for it.
+const CardWithSuccessRate = ({ data }: { data: MonteCarloResponse }) => {
+  const [confidence, setConfidence] = useState(90);
+  return (
+    <MonteCarloResultsCard
+      fetcher={{ data, state: 'idle' } as any}
+      confidence={confidence}
+      setConfidence={setConfidence}
+    />
+  );
+};
+
 const renderCard = (mode: RetirementMode = 'date') => {
   const data = response(mode);
-  return { data, ...render(<MonteCarloResultsCard fetcher={{ data, state: 'idle' } as any} />) };
+  return { data, ...render(<CardWithSuccessRate data={data} />) };
 };
 // The ready line the chart was last drawn with.
 const chartReadyLine = (): ReadyLineSeries => {
@@ -226,7 +239,7 @@ describe('chart scale', () => {
       balance: year.balance * 100,
       inflationAdjustedBalance: year.inflationAdjustedBalance * 100,
     }));
-    const { container } = render(<MonteCarloResultsCard fetcher={{ data, state: 'idle' } as any} />);
+    const { container } = render(<CardWithSuccessRate data={data} />);
     const minMaxSwitch = screen.getByLabelText('Exclude min/max from graph?');
     expect(minMaxSwitch).toBeChecked();
     const linesWithout = lineCount(container);

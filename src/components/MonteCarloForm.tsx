@@ -213,10 +213,53 @@ const AssetClassRow = ({
   );
 };
 
+/**
+ * The desired success rate's field. It edits the page's success rate, which
+ * the results slider shares. While typing, the field can hold text that isn't
+ * a valid rate yet (like "8" on the way to "85"); the rate only changes once
+ * it is one, and the field shows the rate again when it loses focus.
+ */
+const SuccessRateField = ({
+  confidence,
+  setConfidence,
+}: {
+  confidence: number;
+  setConfidence: (confidence: number) => void;
+}) => {
+  const [text, setText] = useState(String(confidence));
+  // Follow changes made elsewhere, like the results slider or an import.
+  useEffect(() => {
+    setText((current) => (Number(current) === confidence ? current : String(confidence)));
+  }, [confidence]);
+
+  return (
+    <Form.Control
+      type="number"
+      step={1}
+      min={MIN_CONFIDENCE}
+      max={MAX_CONFIDENCE}
+      value={text}
+      onChange={(event) => {
+        setText(event.target.value);
+        const value = Number(event.target.value);
+        if (event.target.value !== '' && value >= MIN_CONFIDENCE && value <= MAX_CONFIDENCE) {
+          setConfidence(parseConfidence(value));
+        }
+      }}
+      onBlur={() => setText(String(confidence))}
+    />
+  );
+};
+
 const MonteCarloForm = ({
   fetcher,
+  confidence,
+  setConfidence,
 }: {
   fetcher: FetcherWithComponents<any>;
+  /** The desired success rate (a percentage), shared with the results. */
+  confidence: number;
+  setConfidence: (confidence: number) => void;
 }) => {
   const running = fetcher.state === 'submitting';
 
@@ -414,7 +457,6 @@ const MonteCarloForm = ({
     setFieldValue(form, 'startingBalance', settings.startingBalance);
     setFieldValue(form, 'monthlyExpenses', settings.monthlyExpenses);
     setFieldValue(form, 'endYear', settings.endYear);
-    setFieldValue(form, 'retirement[confidence]', String(parseConfidence(settings.retirement?.confidence)));
     setFieldValue(form, 'retirement[date]', settings.retirement?.date ?? '');
     setFieldValue(
       form,
@@ -431,6 +473,7 @@ const MonteCarloForm = ({
   const applySettings = (imported: MonteCarloSettings) => {
     const settings = migrateSettings(imported);
     setRetirementMode(parseRetirementMode(settings.retirement?.mode));
+    setConfidence(parseConfidence(settings.retirement?.confidence));
     setHasRetirementDate(Boolean(settings.retirement?.date));
     setLifeEventsAtRetirement(settings.life_events.map((event) => Boolean(event.atRetirement)));
     const targetJobs = Math.max(settings.jobs.length, 1);
@@ -687,16 +730,11 @@ const MonteCarloForm = ({
               <Form.Group controlId="retirement_confidence">
                 <Form.Label>Desired success rate</Form.Label>
                 <InputGroup>
-                  <Form.Control
-                    type="number"
-                    step={1}
-                    min={MIN_CONFIDENCE}
-                    max={MAX_CONFIDENCE}
-                    name="retirement[confidence]"
-                    defaultValue={DEFAULT_CONFIDENCE}
-                  />
+                  <SuccessRateField confidence={confidence} setConfidence={setConfidence} />
                   <InputGroup.Text>%</InputGroup.Text>
                 </InputGroup>
+                {/* What's submitted and exported: always a valid rate. */}
+                <input type="hidden" name="retirement[confidence]" value={confidence} />
                 <Form.Text className="text-muted">
                   The chance of never running out you want before you
                   retire. You're ready once your savings give at least this.
