@@ -1,6 +1,8 @@
 import { ReactElement } from 'react';
 import { render, screen } from '@testing-library/react';
 import MonteCarloGraph, {
+  clampForLogScale,
+  logScaleTicks,
   collectBalancesByYear,
   computeBaseTooltipData,
   computeYearExtents,
@@ -247,5 +249,20 @@ describe('toPercentilesEntry', () => {
     expect(entry.median).toBe(20);
     expect(entry.max).toBe(30);
     expect(entry.deterministic).toBe(999);
+  });
+});
+
+describe('log scale', () => {
+  test('raises values below the floor to it, leaving the year alone', () => {
+    expect(clampForLogScale([{ year: 2030, series1: -5000, series2: 200, series3: 25000 }])).toEqual([
+      { year: 2030, series1: 1000, series2: 1000, series3: 25000 },
+    ]);
+  });
+
+  test('ticks run from the power of ten at or below the lowest value to the one at or above the highest', () => {
+    expect(logScaleTicks([42000, 3500000])).toEqual([[10000, 100000, 1000000, 10000000], [10000, 10000000]]);
+    // Never below the floor, and always at least two ticks.
+    expect(logScaleTicks([-5000, 0, 1000])).toEqual([[1000, 10000], [1000, 10000]]);
+    expect(logScaleTicks([])).toEqual([[1000, 10000], [1000, 10000]]);
   });
 });

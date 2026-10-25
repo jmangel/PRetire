@@ -71,6 +71,38 @@ export const mergeReadyLine = <T extends { year: number }>(
 
 type TooltipData = Record<string, PercentilesChartData | Percentiles>;
 
+/**
+ * The lowest value a log-scale chart shows. A log scale can't draw $0 or a
+ * negative balance, so anything lower (like a future that has run out) is
+ * drawn at this floor. The tooltip still shows the real values.
+ */
+export const LOG_SCALE_FLOOR = 1000;
+
+/** Each plotted value raised to at least the floor, for a log-scale chart. */
+export const clampForLogScale = <T extends object>(data: T[], floor = LOG_SCALE_FLOOR): T[] =>
+  data.map((entry) => {
+    const clamped: Record<string, number> = {};
+    Object.entries(entry).forEach(([key, value]) => {
+      clamped[key] = key === 'year' || !(value < floor) ? value : floor;
+    });
+    return clamped as unknown as T;
+  });
+
+/**
+ * Ticks and domain for a log-scale axis: every power of ten from the one at
+ * or below the lowest value (never below the floor) to the one at or above
+ * the highest.
+ */
+export const logScaleTicks = (values: number[], floor = LOG_SCALE_FLOOR): [number[], [number, number]] => {
+  const finite = values.filter((value) => Number.isFinite(value));
+  const low = Math.max(floor, finite.length > 0 ? getMin(finite) : floor);
+  const high = Math.max(low, finite.length > 0 ? getMax(finite) : floor);
+  const first = Math.floor(Math.log10(low));
+  const last = Math.max(first + 1, Math.ceil(Math.log10(high)));
+  const ticks = Array.from({ length: last - first + 1 }, (_, i) => 10 ** (first + i));
+  return [ticks, [ticks[0], ticks[ticks.length - 1]]];
+};
+
 /** One year's percentiles from every simulated balance in that year's entry. */
 const percentilesOf = (series: Record<string, number>): Percentiles | undefined => {
   const yearBalances = Object.entries(series)
@@ -283,8 +315,8 @@ export const toPercentilesEntry = (entry: Record<string, number>): PercentilesCh
   return newEntry;
 };
 
-const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResult?: MonteCarloResult, inflationAdjusted: boolean, onlyShowPercentiles: boolean, excludeMinMax: boolean, onlyShowDeterministicLine: boolean, readyLine?: ReadyLineSeries, plannedRetirementYear?: number, retirementLabel?: string }) => {
-  const { results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLine, plannedRetirementYear, retirementLabel = 'Planned retirement' } = props;
+const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResult?: MonteCarloResult, inflationAdjusted: boolean, onlyShowPercentiles: boolean, excludeMinMax: boolean, onlyShowDeterministicLine: boolean, readyLine?: ReadyLineSeries, plannedRetirementYear?: number, retirementLabel?: string, logScale?: boolean }) => {
+  const { results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLine, plannedRetirementYear, retirementLabel = 'Planned retirement', logScale = false } = props;
 
   const yearEntries = useMemo(
     () => collectBalancesByYear(results, deterministicResult, inflationAdjusted ? 'inflationAdjustedBalance' : 'balance'),
@@ -295,12 +327,27 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
     [yearEntries, onlyShowPercentiles]
   );
   const balanceChartData: Array<Record<string, number>> = percentileChartData ?? yearEntries;
+  // What's drawn. On a log scale, values below the floor are raised to it.
+  const plottedBalances = useMemo(
+    () => (logScale ? clampForLogScale(balanceChartData) : balanceChartData),
+    [balanceChartData, logScale]
+  );
 
-  // Everything expensive is computed from balanceChartData, which doesn't
-  // depend on the ready line, so dragging the confidence slider only does
-  // cheap per-year work below.
-  const chartData = useMemo(
-    () => mergeReadyLine(balanceChartData as PercentilesChartData[], readyLine),
+  // Everything expensive is computed from the balances, which don't depend on
+  // the ready line, so dragging the success-rate slider only does cheap
+  // per-year work below.
+  const chartData = useMemo(() => {
+    const merged = mergeReadyLine(plottedBalances as PercentilesChartData[], readyLine);
+    if (!logScale) return merged;
+    return merged.map((entry) =>
+      entry.readyLine !== undefined && entry.readyLine < LOG_SCALE_FLOOR
+        ? { ...entry, readyLine: LOG_SCALE_FLOOR }
+        : entry
+    );
+  }, [plottedBalances, readyLine, logScale]);
+  // The ready line's real values, for the tooltip.
+  const readyLineByYear = useMemo(
+    () => mergeReadyLine(balanceChartData.map(({ year }) => ({ year: year as number })), readyLine),
     [balanceChartData, readyLine]
   );
 
@@ -312,8 +359,8 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
   );
 
   const tooltipData = useMemo(
-    () => mergeTooltipReadyLine(baseTooltipData, chartData),
-    [baseTooltipData, chartData]
+    () => mergeTooltipReadyLine(baseTooltipData, readyLineByYear),
+    [baseTooltipData, readyLineByYear]
   );
 
   const { year: _, readyLine: __, ...yearsSeries } = chartData.length > 0 ? chartData[0] : { year: null, readyLine: undefined };
@@ -344,8 +391,8 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
   // year's once per set of results rather than scanning every line on each
   // slider move.
   const yearExtents = useMemo(
-    () => computeYearExtents(balanceChartData, { excludeMinMax, onlyShowDeterministicLine }),
-    [balanceChartData, excludeMinMax, onlyShowDeterministicLine]
+    () => computeYearExtents(plottedBalances, { excludeMinMax, onlyShowDeterministicLine }),
+    [plottedBalances, excludeMinMax, onlyShowDeterministicLine]
   );
 
   const visibleYValues = useMemo(
@@ -357,7 +404,7 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
     plannedRetirementYear !== undefined &&
     chartData.some((entry) => entry.year === plannedRetirementYear);
 
-  const [customYTicks, customDomain] = useNiceRechartsTicks(
+  const [linearYTicks, linearDomain] = useNiceRechartsTicks(
     visibleYValues,
     5,
     {
@@ -365,11 +412,13 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
       allowableTickIntervalsPerOrderOfMagnitude: [1, 2, 2.5, 3, 4, 5, 6, 7, 8, 9],
     }
   );
+  const logTicks = useMemo(() => (logScale ? logScaleTicks(visibleYValues) : undefined), [logScale, visibleYValues]);
+  const [customYTicks, customDomain] = logTicks ?? [linearYTicks, linearDomain];
 
   return (
     <ResponsiveContainer width="95%" height={550} debounce={100}>
       <LineChart
-        key={`${inflationAdjusted ? 'inflationAdjusted' : 'notInflationAdjusted'}${results.length > 0 ? results[0].at(-1)?.balance : null}`}
+        key={`${inflationAdjusted ? 'inflationAdjusted' : 'notInflationAdjusted'}${logScale ? 'log' : 'linear'}${results.length > 0 ? results[0].at(-1)?.balance : null}`}
         data={chartData}
         margin={{
           top: 5,
@@ -382,7 +431,10 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
         <XAxis dataKey="year" />
         <YAxis
           ticks={customYTicks} domain={customDomain}
-          tickFormatter={dollarFormatter}
+          scale={logScale ? 'log' : 'auto'}
+          tickFormatter={(value: number) =>
+            logScale && value <= LOG_SCALE_FLOOR ? `≤ ${dollarFormatter(value)}` : dollarFormatter(value)
+          }
           width={140}
           allowDataOverflow={true}
         />

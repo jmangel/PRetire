@@ -100,7 +100,7 @@ const otherLineColors = (container: HTMLElement) =>
     .map((line) => line.getAttribute('stroke'))
     .filter((stroke) => stroke !== '#198754');
 const moveSlider = (value: number) =>
-  fireEvent.change(screen.getByLabelText(/Confidence you won't run out/), { target: { value: String(value) } });
+  fireEvent.change(screen.getByLabelText(/Desired success rate/), { target: { value: String(value) } });
 
 describe('confidence slider', () => {
   afterEach(() => jest.useRealTimers());
@@ -133,7 +133,7 @@ describe('confidence slider', () => {
       jest.advanceTimersByTime(SLIDER_SETTLE_MS - 50);
     });
     moveSlider(70);
-    expect(screen.getByText("Confidence you won't run out: 70%")).toBeInTheDocument();
+    expect(screen.getByText("Desired success rate: 70%")).toBeInTheDocument();
     act(() => {
       jest.advanceTimersByTime(SLIDER_SETTLE_MS - 1);
     });
@@ -227,6 +227,7 @@ describe('chart scale', () => {
       inflationAdjustedBalance: year.inflationAdjustedBalance * 100,
     }));
     const { container } = render(<MonteCarloResultsCard fetcher={{ data, state: 'idle' } as any} />);
+    fireEvent.click(screen.getByLabelText('Log scale?')); // linear, where one future can stretch the axis
     const minMaxSwitch = screen.getByLabelText('Exclude min/max from graph?');
     expect(minMaxSwitch).toBeChecked();
     const linesWithout = lineCount(container);
@@ -236,5 +237,15 @@ describe('chart scale', () => {
 
     expect(lineCount(container)).toBe(linesWithout + 2);
     expect(topYTick(container)).toBeGreaterThan(topWithout);
+  });
+
+  test('uses a log scale by default, with a tick at each power of ten', () => {
+    const { container } = renderCard('ready');
+    expect(screen.getByLabelText('Log scale?')).toBeChecked();
+
+    const ticks = Array.from(container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'))
+      .map((tick) => Number(tick.textContent!.replace(/[^0-9.]/g, '')));
+    expect(ticks.length).toBeGreaterThan(2);
+    ticks.forEach((tick) => expect(Math.log10(tick) % 1).toBeCloseTo(0, 10));
   });
 });

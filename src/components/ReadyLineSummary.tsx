@@ -35,14 +35,14 @@ export const readySentences = (
     if (forced > 0.5) {
       text.push(
         forcedSentence('Most'),
-        'Try a lower confidence, lower expenses, or a later end date for your work income.'
+        'Try a lower success rate, lower expenses, or a later end date for your work income.'
       );
     } else if (ranOutWhileWorking > 0.5) {
       text.push(ranOutSentence('Most'), 'Try lower expenses or more work income.');
     } else {
       text.push(
         `Most of these futures don't reach the ready line before ${endYear}.`,
-        'Try a lower confidence, lower expenses, or a later ending year.'
+        'Try a lower success rate, lower expenses, or a later ending year.'
       );
     }
     if (forced <= 0.5 && percent(forced) > 0) text.push(forcedSentence(`About ${percent(forced)}%`));
@@ -171,7 +171,7 @@ const ReadyLineSummary = ({
       )}
       <Form.Group controlId="ready_line_confidence" style={{ maxWidth: '32rem' }}>
         <Form.Label className="mb-0">
-          Confidence you won't run out: {confidence}%
+          Desired success rate: {confidence}%
         </Form.Label>
         <Form.Range
           min={MIN_CONFIDENCE}
@@ -181,8 +181,8 @@ const ReadyLineSummary = ({
           onChange={(e) => setConfidence(Number(e.target.value))}
         />
         <Form.Text className="text-muted">
-          The ready line is the balance, in today's dollars, that gives this
-          chance of never running out if you retire that year.
+          The ready line is the balance, in today's dollars, that gives at
+          least this chance of never running out if you retire that year.
           {chartWaitsForSlider &&
             ' The chart updates once you stop moving the slider.'}
         </Form.Text>

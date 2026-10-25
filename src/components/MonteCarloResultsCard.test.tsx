@@ -78,7 +78,7 @@ describe('MonteCarloResultsCard', () => {
     document.body.appendChild(field);
     renderCard('ready');
 
-    fireEvent.change(screen.getByLabelText(/Confidence you won't run out/), { target: { value: '75' } });
+    fireEvent.change(screen.getByLabelText(/Desired success rate/), { target: { value: '75' } });
 
     expect(field.value).toBe('75');
     field.remove();

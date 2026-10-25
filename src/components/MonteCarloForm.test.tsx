@@ -174,17 +174,17 @@ describe('MonteCarloForm retirement settings', () => {
     const { form } = renderForm();
     fireEvent.click(screen.getByLabelText('On a date:'));
     fireEvent.change(screen.getByLabelText('Retirement date'), { target: { value: '2041-03-01' } });
-    fireEvent.change(screen.getByLabelText('Confidence the money lasts'), { target: { value: '80' } });
+    fireEvent.change(screen.getByLabelText('Desired success rate'), { target: { value: '80' } });
 
     fireEvent.click(screen.getByText('Export settings'));
     const settings = await readExport();
     expect(settings.retirement).toEqual({ mode: 'date', confidence: '80', date: '2041-03-01' });
 
     fireEvent.click(screen.getByLabelText("As soon as I'm ready"));
-    fireEvent.change(screen.getByLabelText('Confidence the money lasts'), { target: { value: '95' } });
+    fireEvent.change(screen.getByLabelText('Desired success rate'), { target: { value: '95' } });
     importSettings(form, settings);
     await waitFor(() => expect(screen.getByLabelText('On a date:')).toBeChecked());
-    expect(screen.getByLabelText('Confidence the money lasts')).toHaveValue(80);
+    expect(screen.getByLabelText('Desired success rate')).toHaveValue(80);
     expect(screen.getByLabelText('Retirement date')).toHaveValue('2041-03-01');
   });
 

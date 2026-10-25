@@ -673,7 +673,7 @@ const MonteCarloForm = ({
             </Col>
             <Col xs={12} sm={6} md={4} className="mt-3">
               <Form.Group controlId="retirement_confidence">
-                <Form.Label>Confidence the money lasts</Form.Label>
+                <Form.Label>Desired success rate</Form.Label>
                 <InputGroup>
                   <Form.Control
                     type="number"
@@ -686,9 +686,9 @@ const MonteCarloForm = ({
                   <InputGroup.Text>%</InputGroup.Text>
                 </InputGroup>
                 <Form.Text className="text-muted">
-                  You're ready once your savings give this chance of never
-                  running out. You can also adjust it with the slider in the
-                  results.
+                  The chance of never running out you want before you
+                  retire. You're ready once your savings give at least this.
+                  You can also adjust it with the slider in the results.
                 </Form.Text>
               </Form.Group>
             </Col>

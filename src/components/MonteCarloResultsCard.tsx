@@ -34,6 +34,10 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
   // flattens the other percentile lines and the ready line near the bottom.
   const [excludeMinMax, setExcludeMinMax] = useState(true);
   const [onlyShowDeterministicLine, setOnlyShowDeterministicLine] = useState(false);
+  // On by default: on a linear scale, the futures that grow to tens of
+  // millions by the end year flatten everything else, including the ready
+  // line, near the bottom.
+  const [logScale, setLogScale] = useState(true);
   const [confidence, setConfidenceState] = useState(response?.confidence ?? DEFAULT_CONFIDENCE);
 
   // Start from the confidence each run was made with.
@@ -123,8 +127,9 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
         retiresWhenReady ? chartSummary?.median : readyLineData?.plannedRetirement?.getUTCFullYear()
       }
       retirementLabel={retiresWhenReady ? 'Typically ready' : undefined}
+      logScale={logScale}
     />
-  ), [results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLineSeries, retiresWhenReady, chartSummary, readyLineData]);
+  ), [results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLineSeries, retiresWhenReady, chartSummary, readyLineData, logScale]);
 
   if (!response || response.results.length === 0) return null;
 
@@ -175,6 +180,18 @@ const MonteCarloResultsCard = ({ fetcher }: { fetcher: FetcherWithComponents<any
               {readyLineData && !inflationAdjusted && (
                 <Form.Text>(Turn this on to see the ready line)</Form.Text>
               )}
+            </Form.Group>
+          </Col>
+          <Col xs="auto">
+            <Form.Group>
+              <Form.Check
+                type="switch"
+                label="Log scale?"
+                id="log_scale"
+                checked={logScale}
+                onChange={(e) => setLogScale(e.target.checked)}
+              />
+              <Form.Text>(Fits small and huge balances; below $1,000 shows at the bottom)</Form.Text>
             </Form.Group>
           </Col>
           <Col xs="auto">

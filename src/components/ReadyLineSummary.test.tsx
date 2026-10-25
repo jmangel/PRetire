@@ -37,7 +37,7 @@ describe('readySentences', () => {
     ]);
     expect(readySentences({ neverReady: 0.97, forcedOut: 0.97 }, 2100, 2040).text).toEqual([
       "Most of these futures haven't reached the ready line when your work income ends in 2040, so they stop working then without being ready.",
-      'Try a lower confidence, lower expenses, or a later end date for your work income.',
+      'Try a lower success rate, lower expenses, or a later end date for your work income.',
     ]);
   });
 
@@ -142,7 +142,7 @@ describe('ReadyLineSummary', () => {
     expect(screen.getByText(/assumes you retire on July 1, 2044/)).toBeInTheDocument();
     expect(screen.getByText('2041')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText(/Confidence you won't run out: 90%/), { target: { value: '80' } });
+    fireEvent.change(screen.getByLabelText(/Desired success rate: 90%/), { target: { value: '80' } });
     expect(setConfidence).toHaveBeenCalledWith(80);
   });
 
