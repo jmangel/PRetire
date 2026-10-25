@@ -175,6 +175,8 @@ export type FutureOutcome = {
   forced: boolean;
   /** Never went below zero. */
   succeeded: boolean;
+  /** Went below zero before retiring, so never ready. */
+  ranOutWhileWorking: boolean;
 };
 
 export type SimulatedFutures = {
@@ -262,7 +264,7 @@ export const simulateFutures = (
       }
     }
 
-    outcomes.push({ readyYear, forced, succeeded });
+    outcomes.push({ readyYear, forced, succeeded, ranOutWhileWorking });
     if (results && yearResults) results.push(yearResults);
   }
 

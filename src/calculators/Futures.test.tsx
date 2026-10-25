@@ -165,7 +165,7 @@ describe('simulateFutures', () => {
       );
       const byYear = balances(results![0]);
 
-      expect(outcomes[0]).toEqual({ readyYear: undefined, forced: true, succeeded: true });
+      expect(outcomes[0]).toEqual({ readyYear: undefined, forced: true, succeeded: true, ranOutWhileWorking: false });
       expect(byYear[2040]).toBeCloseTo(byYear[2039] - 12000 - 1000, 6);
     });
 
@@ -182,7 +182,7 @@ describe('simulateFutures', () => {
       const line = Array(years - 1).fill(0).map((_, k) => (k < 5 ? 1e9 : -1));
       const { outcomes } = simulateFutures(flat, calendar, { kind: 'ready', line });
 
-      expect(outcomes[0]).toEqual({ readyYear: undefined, forced: false, succeeded: false });
+      expect(outcomes[0]).toEqual({ readyYear: undefined, forced: false, succeeded: false, ranOutWhileWorking: true });
     });
   });
 });

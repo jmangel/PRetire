@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import ReadyLineSummary, { formatPlannedDate, readyHeadline, readySentences } from './ReadyLineSummary';
+import ReadyLineSummary, { formatPlannedDate, readyHeadline, readySentences, successSentences } from './ReadyLineSummary';
 
-const summary = { p25: 2037, median: 2041, p75: 2045, p90: 2050, neverReady: 0, forcedOut: 0, successRate: 0.934 };
+const summary = {
+  p25: 2037, median: 2041, p75: 2045, p90: 2050,
+  neverReady: 0, forcedOut: 0, ranOutWhileWorking: 0, successRate: 0.934, readySuccessRate: 0.934,
+};
 
 describe('readySentences', () => {
   test('describes the typical year, the middle half, and 9 in 10', () => {
@@ -27,17 +30,72 @@ describe('readySentences', () => {
     expect(text[0]).toBe("Most of these futures don't reach the ready line before 2100.");
   });
 
-  test('says how many futures retire when work income ends before they are ready', () => {
+  test('says how many futures stop working when work income ends before they are ready', () => {
     expect(readySentences({ ...summary, p90: undefined, neverReady: 0.15, forcedOut: 0.15 }, 2100, 2045).text).toEqual([
       'Half of these futures are ready between 2037 and 2045.',
-      "About 15% of these futures aren't ready by 2045, when your work income ends, so they retire then anyway.",
+      "About 15% of these futures haven't reached the ready line when your work income ends in 2045, so they stop working then without being ready.",
     ]);
-    expect(readySentences({ ...summary, neverReady: 0.04, forcedOut: 0.04 }, 2100, 2045).text).toContain(
-      "About 4% of these futures aren't ready by 2045, when your work income ends, so they retire then anyway."
+    expect(readySentences({ neverReady: 0.97, forcedOut: 0.97 }, 2100, 2040).text).toEqual([
+      "Most of these futures haven't reached the ready line when your work income ends in 2040, so they stop working then without being ready.",
+      'Try a lower confidence, lower expenses, or a later end date for your work income.',
+    ]);
+  });
+
+  test('says how many futures run out of money while still working', () => {
+    expect(
+      readySentences({ ...summary, p90: undefined, neverReady: 0.12, ranOutWhileWorking: 0.12 }, 2100).text
+    ).toEqual([
+      'Half of these futures are ready between 2037 and 2045.',
+      'About 12% of these futures run out of money while still working, so they never reach the ready line.',
+    ]);
+    expect(readySentences({ neverReady: 0.8, ranOutWhileWorking: 0.8 }, 2100).text[0]).toBe(
+      'Most of these futures run out of money while still working, so they never reach the ready line.'
     );
-    expect(readySentences({ neverReady: 0.7, forcedOut: 0.7 }, 2100, 2045).text[0]).toBe(
-      "Most of these futures aren't ready by 2045, when your work income ends, so they retire then anyway."
-    );
+  });
+});
+
+describe('successSentences', () => {
+  test('one rate when every future reaches the line', () => {
+    expect(successSentences(summary)).toEqual([
+      'If you re-check every year and retire once your balance reaches the green ready line, the money lasts in 93% of these futures.',
+    ]);
+  });
+
+  test('separates futures that reach the line from those forced out before they do', () => {
+    expect(
+      successSentences(
+        { ...summary, neverReady: 0.38, forcedOut: 0.38, successRate: 0.83, readySuccessRate: 0.92, forcedSuccessRate: 0.68 },
+        2048
+      )
+    ).toEqual([
+      'Of the futures that reach the green ready line and retire then, the money lasts in 92%.',
+      'Of those that stop working in 2048 without being ready, it lasts in 68%.',
+      'Overall, the money lasts in 83% of these futures.',
+    ]);
+  });
+
+  test('when almost none reach the line, gives just the rate for those forced out', () => {
+    expect(
+      successSentences(
+        { ...summary, neverReady: 0.998, forcedOut: 0.998, successRate: 0.05, readySuccessRate: 1, forcedSuccessRate: 0.05 },
+        2040
+      )
+    ).toEqual(['Of the futures that stop working in 2040 without being ready, the money lasts in 5%.']);
+  });
+
+  test('keeps the overall rate when some futures are in neither group', () => {
+    // 3% reach the line, 60% are forced out, and the rest run out of money
+    // while still working.
+    expect(
+      successSentences(
+        { ...summary, neverReady: 0.97, forcedOut: 0.6, ranOutWhileWorking: 0.37, successRate: 0.05, forcedSuccessRate: 0.08 },
+        2040
+      )
+    ).toEqual([
+      'Of the futures that reach the green ready line and retire then, the money lasts in 93%.',
+      'Of those that stop working in 2040 without being ready, it lasts in 8%.',
+      'Overall, the money lasts in 5% of these futures.',
+    ]);
   });
 });
 
@@ -46,12 +104,15 @@ describe('readyHeadline', () => {
     expect(readyHeadline(summary, 2100)).toBe("You'd typically be ready to retire by the end of 2041");
   });
 
-  test('says when most futures are never ready', () => {
+  test('says when most futures are never ready, and why', () => {
     expect(readyHeadline({ ...summary, median: undefined, neverReady: 0.6 }, 2100)).toBe(
       "Most futures aren't ready to retire before 2100"
     );
     expect(readyHeadline({ ...summary, median: undefined, neverReady: 0.6, forcedOut: 0.6 }, 2100, 2045)).toBe(
-      "Most futures aren't ready before your work income ends in 2045"
+      "Most futures haven't reached the ready line when your work income ends in 2045"
+    );
+    expect(readyHeadline({ ...summary, median: undefined, neverReady: 0.6, ranOutWhileWorking: 0.6 }, 2100)).toBe(
+      'Most futures run out of money while still working'
     );
   });
 });
@@ -61,7 +122,7 @@ describe('ReadyLineSummary', () => {
     render(<ReadyLineSummary mode="ready" summary={summary} endYear={2100} confidence={90} setConfidence={jest.fn()} />);
 
     expect(screen.getByText(/Half of these futures are ready between 2037 and 2045/)).toBeInTheDocument();
-    expect(screen.getByText('93%')).toBeInTheDocument();
+    expect(screen.getByText(/the money lasts in 93% of these futures/)).toBeInTheDocument();
     expect(screen.queryByText('When you could retire')).not.toBeInTheDocument();
   });
 

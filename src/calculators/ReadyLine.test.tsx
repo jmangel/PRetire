@@ -389,3 +389,25 @@ describe('summarizeReadyYears', () => {
     expect(summary.successRate).toBe(0.5);
   });
 });
+
+describe('summarizeReadyYears success rates by group', () => {
+  test('splits the success rate between futures that reach the line and those forced out', () => {
+    const summary = summarizeReadyYears([
+      { readyYear: 2040, forced: false, succeeded: true, ranOutWhileWorking: false },
+      { readyYear: 2041, forced: false, succeeded: false, ranOutWhileWorking: false },
+      { forced: true, succeeded: true, ranOutWhileWorking: false },
+      { forced: true, succeeded: false, ranOutWhileWorking: false },
+      { forced: true, succeeded: false, ranOutWhileWorking: false },
+      { forced: false, succeeded: false, ranOutWhileWorking: true },
+    ]);
+
+    expect(summary.readySuccessRate).toBe(0.5);
+    expect(summary.forcedSuccessRate).toBeCloseTo(1 / 3, 10);
+    expect(summary.ranOutWhileWorking).toBeCloseTo(1 / 6, 10);
+    expect(summary.successRate).toBeCloseTo(2 / 6, 10);
+  });
+
+  test('a group with no futures has no rate', () => {
+    expect(summarizeReadyYears([{ readyYear: 2040, succeeded: true }]).forcedSuccessRate).toBeUndefined();
+  });
+});

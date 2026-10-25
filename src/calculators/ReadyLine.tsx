@@ -300,16 +300,26 @@ export type ReadyYearSummary = {
   neverReady: number;
   /**
    * Share of futures (0 to 1) whose work income ran out on its own end dates
-   * before they were ready, so they retired then anyway. Part of neverReady.
+   * before they were ready, so they stopped working then anyway. Part of
+   * neverReady.
    */
   forcedOut: number;
-  /** Share of futures (0 to 1) where the money lasts. */
+  /**
+   * Share of futures (0 to 1) that ran out of money while still working, so
+   * never reached the line. Part of neverReady.
+   */
+  ranOutWhileWorking: number;
+  /** Share of all futures (0 to 1) where the money lasts. */
   successRate: number;
+  /** Of the futures that reached the line and retired, the share where the money lasts. */
+  readySuccessRate?: number;
+  /** Of the futures forced out before they were ready, the share where the money lasts. */
+  forcedSuccessRate?: number;
 };
 
-export const summarizeReadyYears = (
-  outcomes: Array<{ readyYear?: number; forced?: boolean; succeeded?: boolean }>
-): ReadyYearSummary => {
+type Outcome = { readyYear?: number; forced?: boolean; succeeded?: boolean; ranOutWhileWorking?: boolean };
+
+export const summarizeReadyYears = (outcomes: Outcome[]): ReadyYearSummary => {
   const sorted = outcomes
     .map(({ readyYear }) => (readyYear === undefined ? Infinity : readyYear))
     .sort((a, b) => a - b);
@@ -319,6 +329,9 @@ export const summarizeReadyYears = (
     return Number.isFinite(value) ? value : undefined;
   };
   const share = (count: number) => (outcomes.length === 0 ? 0 : count / outcomes.length);
+  const successRateOf = (group: Outcome[]) =>
+    group.length === 0 ? undefined : group.filter(({ succeeded }) => succeeded).length / group.length;
+  const forced = outcomes.filter((outcome) => outcome.forced);
 
   return {
     p25: at(0.25),
@@ -326,7 +339,10 @@ export const summarizeReadyYears = (
     p75: at(0.75),
     p90: at(0.9),
     neverReady: share(sorted.filter((year) => !Number.isFinite(year)).length),
-    forcedOut: share(outcomes.filter(({ forced }) => forced).length),
+    forcedOut: share(forced.length),
+    ranOutWhileWorking: share(outcomes.filter((outcome) => outcome.ranOutWhileWorking).length),
     successRate: share(outcomes.filter(({ succeeded }) => succeeded).length),
+    readySuccessRate: successRateOf(outcomes.filter(({ readyYear }) => readyYear !== undefined)),
+    forcedSuccessRate: successRateOf(forced),
   };
 };
