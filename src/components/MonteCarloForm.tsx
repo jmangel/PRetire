@@ -6,6 +6,7 @@ import ScenarioBar from './ScenarioBar';
 import { parseAtRetirement } from '../calculators/MonteCarloSimulation';
 import { JOB_FIELD_NAMES, JOB_FIELDS, JobField } from '../calculators/MonteCarlo';
 import {
+  RestoreResult,
   SavedScenarios,
   loadScenarios,
   mergeScenarios,
@@ -91,6 +92,24 @@ const downloadJson = (fileName: string, data: unknown) => {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+};
+
+/** One sentence saying what restoring a backup did, leaving out what didn't happen. */
+const describeRestore = (
+  { added, updated, keptNewer, unchanged, renamed }: Omit<RestoreResult<unknown>, 'saved'>,
+  fileName: string
+) => {
+  const scenarios = (n: number) => `${n} scenario${n === 1 ? '' : 's'}`;
+  const parts = [
+    added > 0 && `added ${scenarios(added)}`,
+    updated > 0 && `updated ${scenarios(updated)} with newer copies`,
+    keptNewer > 0 && `kept ${scenarios(keptNewer)} saved here because ${keptNewer === 1 ? 'it was' : 'they were'} newer than the backup`,
+    renamed > 0 && `added "(restored)" to ${renamed === 1 ? 'one name' : `${renamed} names`} another scenario already had`,
+  ].filter(Boolean);
+  if (parts.length > 0) return `From ${fileName}: ${parts.join('; ')}.`;
+  return unchanged > 0
+    ? `Everything in ${fileName} is already saved here.`
+    : `Nothing to restore from ${fileName}: it has no saved scenarios.`;
 };
 
 const defaultAssetClasses = [
@@ -633,8 +652,26 @@ const MonteCarloForm = ({
         const parsed = JSON.parse(String(content));
         const restored = scenariosFromBackup(parsed, isMonteCarloSettings);
         if (restored) {
-          if (updateSavedScenarios(mergeScenarios(savedScenarios, restored))) {
-            showMessage(`Restored ${restored.length} saved scenario(s) from ${file.name}.`);
+          let result: RestoreResult<MonteCarloSettings> | undefined;
+          let replacedPicked: string | undefined;
+          const stored = updateSavedScenarios((current) => {
+            result = mergeScenarios(current, restored);
+            // If the backup's newer copy replaced the picked scenario, the form
+            // still shows the old settings, and Save would write them over
+            // the restored copy. So it's unpicked until the user picks it again.
+            const before = current.scenarios.find((scenario) => scenario.id === selectedScenarioId);
+            const after = result.saved.scenarios.find((scenario) => scenario.id === selectedScenarioId);
+            if (before && after && after.savedAt !== before.savedAt) replacedPicked = after.name;
+            return result.saved;
+          });
+          if (stored && result) {
+            if (replacedPicked) setSelectedScenarioId(null);
+            showMessage(
+              describeRestore(result, file.name) +
+                (replacedPicked
+                  ? ` The backup had a newer copy of "${replacedPicked}", so it's no longer picked; pick it again to load the restored settings.`
+                  : '')
+            );
           }
           return;
         }

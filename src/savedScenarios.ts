@@ -101,18 +101,66 @@ export const scenariosFromBackup = <Settings,>(
   return candidate.scenarios.filter((scenario) => isSavedScenario(scenario, isSettings));
 };
 
+/** What restoring a backup did, for telling the user. */
+export type RestoreResult<Settings> = {
+  saved: SavedScenarios<Settings>;
+  /** Scenarios that weren't saved here before. */
+  added: number;
+  /** Scenarios saved here that the backup's newer copy replaced. */
+  updated: number;
+  /** Scenarios whose copy here was newer than the backup's, so it was kept. */
+  keptNewer: number;
+  /** Scenarios already saved here exactly as in the backup. */
+  unchanged: number;
+  /** Restored scenarios renamed because another scenario here had the same name. */
+  renamed: number;
+};
+
 /**
- * Add a backup's scenarios to the saved ones. A scenario with the same ID is
- * replaced by the backup's copy, so restoring the same file twice doesn't
- * duplicate anything.
+ * Add a backup's scenarios to the saved ones. Scenarios are matched by ID,
+ * never by name: restoring a backup into the browser it came from updates
+ * what's there, and restoring it twice changes nothing. When both copies of
+ * a scenario exist, the more recently saved one wins. A restored scenario
+ * whose name another scenario here already has gets " (restored)" added,
+ * so two different scenarios never share a name in the list.
  */
 export const mergeScenarios = <Settings,>(
   saved: SavedScenarios<Settings>,
   restored: Array<SavedScenario<Settings>>
-): SavedScenarios<Settings> => {
-  const restoredIds = new Set(restored.map((scenario) => scenario.id));
-  return {
-    ...saved,
-    scenarios: [...saved.scenarios.filter((scenario) => !restoredIds.has(scenario.id)), ...restored],
+): RestoreResult<Settings> => {
+  const scenarios = [...saved.scenarios];
+  const result = { added: 0, updated: 0, keptNewer: 0, unchanged: 0, renamed: 0 };
+
+  // A name no other scenario here uses (the scenario being replaced, if
+  // any, doesn't count).
+  const uniqueName = (name: string, replacingId?: string) => {
+    const taken = new Set(
+      scenarios.filter((scenario) => scenario.id !== replacingId).map((scenario) => scenario.name)
+    );
+    if (!taken.has(name)) return name;
+    let candidate = `${name} (restored)`;
+    for (let n = 2; taken.has(candidate); n++) candidate = `${name} (restored ${n})`;
+    return candidate;
   };
+
+  restored.forEach((scenario) => {
+    const index = scenarios.findIndex((existing) => existing.id === scenario.id);
+    if (index === -1) {
+      const name = uniqueName(scenario.name);
+      if (name !== scenario.name) result.renamed++;
+      scenarios.push({ ...scenario, name });
+      result.added++;
+    } else if (scenarios[index].savedAt > scenario.savedAt) {
+      result.keptNewer++;
+    } else if (scenarios[index].savedAt === scenario.savedAt) {
+      result.unchanged++;
+    } else {
+      const name = uniqueName(scenario.name, scenario.id);
+      if (name !== scenario.name) result.renamed++;
+      scenarios[index] = { ...scenario, name };
+      result.updated++;
+    }
+  });
+
+  return { saved: { ...saved, scenarios }, ...result };
 };

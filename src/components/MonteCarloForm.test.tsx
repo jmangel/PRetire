@@ -373,7 +373,7 @@ describe('MonteCarloForm saved scenarios', () => {
 
   test('export all writes a backup that import restores', async () => {
     const readExport = captureExport();
-    const { form } = renderForm();
+    renderForm();
     saveAs('One');
     saveAs('Two');
     fireEvent.click(screen.getByText('Export all scenarios'));
@@ -381,11 +381,74 @@ describe('MonteCarloForm saved scenarios', () => {
     expect(backup.scenarios.map((scenario: any) => scenario.name)).toEqual(['One', 'Two']);
     expect(screen.getByText(/Last backed up: (?!never)/)).toBeInTheDocument();
 
+    // The browser clears the site's data; the next visit starts empty.
+    cleanup();
     window.localStorage.clear();
+    const { form } = renderForm();
+    expect(optionNames()).toEqual([]);
     importSettings(form, backup);
-    expect(await screen.findByText(/Restored 2 saved scenario/)).toBeInTheDocument();
+    expect(await screen.findByText(/added 2 scenarios/)).toBeInTheDocument();
+    expect(optionNames()).toEqual(['One', 'Two']);
     const stored = JSON.parse(window.localStorage.getItem('pretire.savedScenarios.v1')!);
     expect(stored.scenarios.map((scenario: any) => scenario.name)).toEqual(['One', 'Two']);
+  });
+
+  test('restoring a backup says what it did, and never doubles up names', async () => {
+    const readExport = captureExport();
+    const { form } = renderForm();
+    saveAs('Lean');
+    fireEvent.click(screen.getByText('Export all scenarios'));
+    const backup = await readExport();
+
+    importSettings(form, backup);
+    expect(await screen.findByText(/Everything in scenario\.json is already saved here/)).toBeInTheDocument();
+
+    // A different scenario with the same name, as if from another browser.
+    importSettings(form, {
+      ...backup,
+      scenarios: [{ ...backup.scenarios[0], id: 'from-elsewhere' }],
+    });
+    expect(await screen.findByText(/added 1 scenario; added "\(restored\)" to one name/)).toBeInTheDocument();
+    expect(optionNames()).toEqual(['Lean', 'Lean (restored)']);
+  });
+
+  test('restoring a newer copy of the picked scenario unpicks it, so Save cannot overwrite it', async () => {
+    const readExport = captureExport();
+    const { form } = renderForm();
+    fireEvent.change(field(form, 'startingBalance'), { target: { value: '500000' } });
+    saveAs('Plan');
+    fireEvent.click(screen.getByText('Export all scenarios'));
+    const backup = await readExport();
+    // The backup's copy is newer, as if saved later in another browser.
+    backup.scenarios[0] = {
+      ...backup.scenarios[0],
+      savedAt: '2099-01-01T00:00:00.000Z',
+      settings: { ...backup.scenarios[0].settings, startingBalance: '777' },
+    };
+
+    importSettings(form, backup);
+    expect(await screen.findByText(/newer copy of "Plan", so it's no longer picked/)).toBeInTheDocument();
+    expect(scenarioSelect().value).toBe('');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(field(form, 'startingBalance').value).toBe('500000');
+
+    fireEvent.change(scenarioSelect(), { target: { value: scenarioSelect().options[1].value } });
+    expect(field(form, 'startingBalance').value).toBe('777');
+  });
+
+  test('a restore the browser refuses shows an error and changes nothing', async () => {
+    const readExport = captureExport();
+    const { form } = renderForm();
+    saveAs('Plan');
+    fireEvent.click(screen.getByText('Export all scenarios'));
+    const backup = await readExport();
+    jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+
+    importSettings(form, { ...backup, scenarios: [{ ...backup.scenarios[0], id: 'elsewhere', name: 'New' }] });
+    expect(await screen.findByText(/Couldn't save: this browser is blocking or out of storage/)).toBeInTheDocument();
+    expect(optionNames()).toEqual(['Plan']);
   });
 });
 
