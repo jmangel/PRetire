@@ -242,6 +242,19 @@ describe('CustomTooltip', () => {
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     expect(container.querySelectorAll('svg')).toHaveLength(12);
   });
+
+  // Recharts hides an inactive tooltip with visibility: hidden on its
+  // wrapper. A swatch set to visible would override that and stay on screen.
+  test('never marks a color key visible, so a hidden tooltip hides it too', () => {
+    const { container } = render(
+      <div style={{ visibility: 'hidden' }}>
+        <CustomTooltip label="2031" tooltipData={tooltipData} lineColors={{ median: '#123456', deterministic: '#0d6efd' }} />
+      </div>
+    );
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
+    const swatches = Array.from(container.querySelectorAll('svg'));
+    expect(swatches.every((swatch) => getComputedStyle(swatch).visibility === 'hidden')).toBe(true);
+  });
 });
 
 describe('collectBalancesByYear', () => {

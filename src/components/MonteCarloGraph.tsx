@@ -181,10 +181,17 @@ export const visibleYValuesFor = (
 const READY_LINE_COLOR = '#198754';
 const DETERMINISTIC_COLOR = '#0d6efd';
 
-/** A short sample of a line's stroke, so tooltip rows can be matched to the chart. */
+/**
+ * A short sample of a line's stroke, so tooltip rows can be matched to the
+ * chart. The dashed sample uses the steady-returns line's own dash. Solid
+ * samples are drawn thicker than their 1px lines on purpose, so the color is
+ * easy to see. Without a color it still takes up space, to keep rows
+ * aligned. Only ever set visibility to hidden: Recharts hides the whole
+ * tooltip with visibility, and a child set to visible would show through it.
+ */
 const LineSwatch = ({ color, dashed }: { color?: string, dashed?: boolean }) => (
-  <svg width="16" height="8" className="me-1" aria-hidden="true" style={{ visibility: color ? 'visible' : 'hidden' }}>
-    <line x1="0" y1="4" x2="16" y2="4" stroke={color} strokeWidth={dashed ? 2 : 3} strokeDasharray={dashed ? '4 2' : undefined} />
+  <svg width="16" height="8" className="me-1" aria-hidden="true" style={color ? undefined : { visibility: 'hidden' }}>
+    <line x1="0" y1="4" x2="16" y2="4" stroke={color} strokeWidth={dashed ? 2 : 3} strokeDasharray={dashed ? '6 4' : undefined} />
   </svg>
 );
 
