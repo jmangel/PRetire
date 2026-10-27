@@ -124,6 +124,11 @@ export const useSavedScenarios = <Settings,>(
   const openSaveAs = () =>
     setDialog({ kind: 'saveAs', tags: selected?.tags ?? emptyTags(), copiedFrom: hasTags(selected?.tags) ? selected?.name : undefined });
 
+  const openEditTags = (id: string) => {
+    const scenario = saved.scenarios.find((candidate) => candidate.id === id);
+    if (scenario) setDialog({ kind: 'editTags', scenarioId: id, name: scenario.name, tags: scenario.tags ?? emptyTags() });
+  };
+
   /**
    * Another scenario with exactly these dimension tags, and how its settings
    * differ from the ones being saved: the form's when saving a new scenario,
@@ -279,6 +284,7 @@ export const useSavedScenarios = <Settings,>(
     vocabulary,
     dialog,
     openSaveAs,
+    openEditTags,
     closeDialog: () => setDialog(null),
     findTwin,
     selectedId,

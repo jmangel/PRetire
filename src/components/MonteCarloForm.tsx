@@ -590,6 +590,7 @@ const MonteCarloForm = ({
         onSave={savedScenarios.save}
         onSaveAs={savedScenarios.openSaveAs}
         onRename={savedScenarios.rename}
+        onEditTags={savedScenarios.openEditTags}
         onDelete={savedScenarios.remove}
         onExportAll={savedScenarios.exportAll}
       />

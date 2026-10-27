@@ -792,6 +792,66 @@ describe('MonteCarloForm scenario tags', () => {
     expect(screen.queryByText(/Same tags as/)).toBeNull();
   });
 
+  test("edits a saved scenario's tags, shown under the dropdown", () => {
+    renderForm();
+    openSaveAs('Plan');
+    typeTag('Household: Single');
+    pressEnter();
+    clickSave();
+    const firstSavedAt = stored()[0].savedAt;
+    expect(screen.getByLabelText('Tags of Plan')).toHaveTextContent('Household: Single');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    expect(screen.getByText('Edit tags for "Plan"')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Name')).toBeNull();
+    typeTag('Household: Married');
+    pressEnter();
+    typeTag('favorite');
+    pressEnter();
+    fireEvent.click(screen.getByRole('button', { name: 'Save tags' }));
+
+    expect(stored()[0].tags).toEqual({ dimensions: { Household: 'Married' }, labels: ['favorite'] });
+    expect(stored()[0].savedAt >= firstSavedAt).toBe(true);
+    expect(screen.getByLabelText('Tags of Plan')).toHaveTextContent('Household: Married');
+    expect(screen.getByRole('status')).toHaveTextContent('Saved the tags for "Plan".');
+  });
+
+  test('editing tags compares with other scenarios, not the one being edited', () => {
+    const { form } = renderForm();
+    fireEvent.change(field(form, 'startingBalance'), { target: { value: '100' } });
+    openSaveAs('One');
+    typeTag('Household: Single');
+    pressEnter();
+    clickSave();
+    fireEvent.change(field(form, 'startingBalance'), { target: { value: '200' } });
+    openSaveAs('Two');
+    typeTag('Household: Married');
+    pressEnter();
+    clickSave();
+
+    // Two is picked. Its own tags don't count as a match...
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    expect(screen.queryByText(/Same tags as/)).toBeNull();
+    // ...but changing them to One's does, comparing the two scenarios' own settings.
+    typeTag('Household: Single');
+    pressEnter();
+    expect(screen.getByText('Same tags as "One".')).toBeInTheDocument();
+    expect(screen.getByText('Starting balance: $200 vs $100')).toBeInTheDocument();
+  });
+
+  test('removing every tag leaves the scenario untagged', () => {
+    renderForm();
+    openSaveAs('Plan');
+    typeTag('idea');
+    pressEnter();
+    clickSave();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    fireEvent.click(screen.getByLabelText('Remove tag idea'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save tags' }));
+    expect(stored()[0].tags).toBeUndefined();
+    expect(screen.getByLabelText('Tags of Plan')).toHaveTextContent('No tags');
+  });
+
   test('Cancel saves nothing, and a name is needed to save', () => {
     renderForm();
     openSaveAs();
