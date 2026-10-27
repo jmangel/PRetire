@@ -512,6 +512,11 @@ const MonteCarloForm = ({
       applySettings(scenario.settings, { run: true });
     },
     onNamed: setExportFileName,
+    // The export file keeps following the scenario it was named for.
+    onRenamed: (oldName, newName) =>
+      setExportFileName((current) => (current === oldName ? newName : current)),
+    onDeleted: (name) =>
+      setExportFileName((current) => (current === name ? 'pretire-montecarlo-settings' : current)),
     showMessage,
     showError: (message) => {
       setImportMessage(null);
@@ -577,6 +582,7 @@ const MonteCarloForm = ({
         scenarios={savedScenarios.scenarios}
         selectedId={savedScenarios.selectedId}
         lastBackupAt={savedScenarios.lastBackupAt}
+        notice={savedScenarios.notice}
         onSelect={savedScenarios.select}
         onSave={savedScenarios.save}
         onSaveAs={savedScenarios.saveAs}

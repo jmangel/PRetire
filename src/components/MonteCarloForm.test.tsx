@@ -409,6 +409,35 @@ describe('MonteCarloForm saved scenarios', () => {
     expect(incomesWhenRun[1]).toBe('25000');
   });
 
+  test("shows what the scenario bar did right under it", () => {
+    renderForm();
+    saveAs('Near the bar');
+    expect(screen.getByRole('status')).toHaveTextContent('Saved "Near the bar".');
+  });
+
+  test('the export file name follows a rename, so deleting afterwards still resets it', () => {
+    jest.spyOn(window, 'confirm').mockReturnValue(true);
+    renderForm();
+    saveAs('Old name');
+    const exportName = screen.getByPlaceholderText('pretire-montecarlo-settings') as HTMLInputElement;
+    fireEvent.click(screen.getByText('Rename'));
+    fireEvent.change(screen.getByPlaceholderText('Scenario name'), { target: { value: 'New name' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    expect(exportName.value).toBe('New name');
+    fireEvent.click(screen.getByText('Delete'));
+    expect(exportName.value).toBe('pretire-montecarlo-settings');
+  });
+
+  test("deleting a scenario stops using its name for the export file", () => {
+    jest.spyOn(window, 'confirm').mockReturnValue(true);
+    renderForm();
+    saveAs('Old plan');
+    const exportName = screen.getByPlaceholderText('pretire-montecarlo-settings') as HTMLInputElement;
+    expect(exportName.value).toBe('Old plan');
+    fireEvent.click(screen.getByText('Delete'));
+    expect(exportName.value).toBe('pretire-montecarlo-settings');
+  });
+
   test('saves over, renames, and deletes the picked scenario', () => {
     jest.spyOn(window, 'confirm').mockReturnValue(true);
     const { form } = renderForm();

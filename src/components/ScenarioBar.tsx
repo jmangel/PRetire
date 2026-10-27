@@ -1,5 +1,6 @@
 import { KeyboardEvent, useEffect, useState } from 'react';
 import { Button, Col, Form, InputGroup, Row } from 'react-bootstrap';
+import { ScenarioNotice } from './useSavedScenarios';
 
 type NameMode = 'saveAs' | 'rename';
 
@@ -13,6 +14,7 @@ const ScenarioBar = ({
   scenarios,
   selectedId,
   lastBackupAt,
+  notice,
   onSelect,
   onSave,
   onSaveAs,
@@ -23,6 +25,7 @@ const ScenarioBar = ({
   scenarios: Array<{ id: string; name: string }>;
   selectedId: string | null;
   lastBackupAt?: string;
+  notice?: ScenarioNotice | null;
   onSelect: (id: string | null) => void;
   onSave: () => void;
   onSaveAs: (name: string) => void;
@@ -136,6 +139,13 @@ const ScenarioBar = ({
           {scenarios.length > 0 && ` Last backed up: ${formatBackupDate(lastBackupAt)}.`}
         </Form.Text>
       </Col>
+      {notice && (
+        <Col xs={12}>
+          <div className={notice.isError ? 'text-danger' : 'text-success'} role={notice.isError ? 'alert' : 'status'}>
+            {notice.text}
+          </div>
+        </Col>
+      )}
     </Row>
   );
 };

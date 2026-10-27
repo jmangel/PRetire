@@ -53,11 +53,19 @@ export type ScenarioFormHooks<Settings> = {
   readSettings: () => Settings | null;
   /** Fill the form with a scenario's settings and run it. */
   loadScenario: (scenario: SavedScenario<Settings>) => void;
-  /** A scenario was saved under a new name, or its name changed. */
+  /** A scenario was saved under a new name. */
   onNamed: (name: string) => void;
+  /** A scenario's name changed. */
+  onRenamed: (oldName: string, newName: string) => void;
+  /** The scenario with this name was deleted. */
+  onDeleted: (name: string) => void;
+  /** Show a message by the Import button, where restoring a backup starts. */
   showMessage: (message: string) => void;
   showError: (message: string) => void;
 };
+
+/** A message about the last thing done with the scenario bar, shown right under it. */
+export type ScenarioNotice = { text: string; isError: boolean };
 
 /**
  * The scenarios saved in this browser, which one is picked, and everything
@@ -71,6 +79,9 @@ export const useSavedScenarios = <Settings,>(
 ) => {
   const [saved, setSaved] = useState<SavedScenarios<Settings>>(() => loadScenarios(isSettings));
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<ScenarioNotice | null>(null);
+  const tell = (text: string) => setNotice({ text, isError: false });
+  const warn = (text: string) => setNotice({ text, isError: true });
 
   // Another tab saved, renamed or deleted a scenario: show the same list here.
   // If the picked scenario is gone, nothing is picked anymore.
@@ -88,10 +99,13 @@ export const useSavedScenarios = <Settings,>(
   // Saved scenarios only change through here, so what's shown always matches
   // what's stored. The change is applied to what's in storage now. Returns
   // false, with an error shown, if the browser refused.
-  const update = (change: (current: SavedScenarios<Settings>) => SavedScenarios<Settings>) => {
+  const update = (
+    change: (current: SavedScenarios<Settings>) => SavedScenarios<Settings>,
+    showError: (message: string) => void = warn
+  ) => {
     const next = change(loadScenarios(isSettings));
     if (!storeScenarios(next)) {
-      form.showError(STORAGE_REFUSED);
+      showError(STORAGE_REFUSED);
       return false;
     }
     setSaved(next);
@@ -105,7 +119,7 @@ export const useSavedScenarios = <Settings,>(
     const scenario = saved.scenarios.find((candidate) => candidate.id === id);
     if (!scenario) return;
     form.loadScenario(scenario);
-    form.showMessage(`Loaded "${scenario.name}".`);
+    tell(`Loaded "${scenario.name}".`);
   };
 
   const save = () => {
@@ -119,7 +133,7 @@ export const useSavedScenarios = <Settings,>(
         ? current.scenarios.map((scenario) => (scenario.id === updated.id ? updated : scenario))
         : [...current.scenarios, updated],
     }));
-    if (stored) form.showMessage(`Saved "${updated.name}".`);
+    if (stored) tell(`Saved "${updated.name}".`);
   };
 
   const saveAs = (name: string) => {
@@ -131,7 +145,7 @@ export const useSavedScenarios = <Settings,>(
     requestPersistentStorage();
     setSelectedId(created.id);
     form.onNamed(name);
-    form.showMessage(`Saved "${name}".`);
+    tell(`Saved "${name}".`);
   };
 
   const rename = (name: string) => {
@@ -142,7 +156,9 @@ export const useSavedScenarios = <Settings,>(
         scenario.id === selected.id ? { ...scenario, name } : scenario
       ),
     }));
-    if (stored) form.showMessage(`Renamed "${selected.name}" to "${name}".`);
+    if (!stored) return;
+    form.onRenamed(selected.name, name);
+    tell(`Renamed "${selected.name}" to "${name}".`);
   };
 
   // Deleting leaves the form as it is, so the settings aren't lost if the
@@ -155,7 +171,8 @@ export const useSavedScenarios = <Settings,>(
     }));
     if (!stored) return;
     setSelectedId(null);
-    form.showMessage(`Deleted "${selected.name}".`);
+    form.onDeleted(selected.name);
+    tell(`Deleted "${selected.name}".`);
   };
 
   const exportAll = () => {
@@ -167,10 +184,10 @@ export const useSavedScenarios = <Settings,>(
     const exported = `Exported ${current.scenarios.length} saved scenario(s) as ${fileName}.`;
     const recorded = update((latest) => ({ ...latest, lastBackupAt: now.toISOString() }));
     if (recorded) {
-      form.showMessage(`${exported} Import it to restore them.`);
+      tell(`${exported} Import it to restore them.`);
     } else {
       // The file was still saved; only the "Last backed up" date wasn't.
-      form.showError(
+      warn(
         `${exported} Couldn't record the backup date: this browser is blocking or out of storage for this site.`
       );
     }
@@ -179,6 +196,7 @@ export const useSavedScenarios = <Settings,>(
   const restore = (restored: Array<SavedScenario<Settings>>, fileName: string) => {
     let result: RestoreResult<Settings> | undefined;
     let replacedPicked: string | undefined;
+    setNotice(null);
     const stored = update((current) => {
       result = mergeScenarios(current, restored);
       // If the backup's newer copy replaced the picked scenario, the form
@@ -188,7 +206,7 @@ export const useSavedScenarios = <Settings,>(
       const after = result.saved.scenarios.find((scenario) => scenario.id === selectedId);
       if (before && after && after.savedAt !== before.savedAt) replacedPicked = after.name;
       return result.saved;
-    });
+    }, form.showError);
     if (!stored || !result) return;
     if (replacedPicked) setSelectedId(null);
     form.showMessage(
@@ -202,6 +220,7 @@ export const useSavedScenarios = <Settings,>(
   return {
     scenarios: saved.scenarios,
     lastBackupAt: saved.lastBackupAt,
+    notice,
     selectedId,
     selected,
     select,
