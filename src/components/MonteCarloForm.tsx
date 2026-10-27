@@ -15,6 +15,7 @@ import {
 } from '../calculators/MonteCarlo';
 import { JobSettings, MonteCarloSettings, migrateSettings } from '../calculators/Settings';
 import ScenarioTagsDialog from './ScenarioTagsDialog';
+import ScenarioLibrary from './ScenarioLibrary';
 import { describeDifferences } from '../settingsDifferences';
 import { scenariosFromBackup } from '../savedScenarios';
 import { downloadJson, useSavedScenarios } from './useSavedScenarios';
@@ -591,9 +592,22 @@ const MonteCarloForm = ({
         onSaveAs={savedScenarios.openSaveAs}
         onRename={savedScenarios.rename}
         onEditTags={savedScenarios.openEditTags}
+        libraryOpen={savedScenarios.libraryOpen}
+        onToggleLibrary={savedScenarios.toggleLibrary}
         onDelete={savedScenarios.remove}
         onExportAll={savedScenarios.exportAll}
       />
+      {savedScenarios.libraryOpen && (
+        <div id="scenario_library">
+          <ScenarioLibrary
+            scenarios={savedScenarios.scenarios}
+            vocabulary={savedScenarios.vocabulary}
+            selectedId={savedScenarios.selectedId}
+            onLoad={savedScenarios.select}
+            onEditTags={savedScenarios.openEditTags}
+          />
+        </div>
+      )}
       <ScenarioTagsDialog
         mode={savedScenarios.dialog}
         vocabulary={savedScenarios.vocabulary}

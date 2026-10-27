@@ -3,7 +3,7 @@
    field's name attribute (the same names parseJobs reads), so they select
    fields by name rather than by label or role. */
 import { useState } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import MonteCarloForm, { axisDollarFormatter, compactDollarFormatter } from './MonteCarloForm';
 import { JOB_FIELD_NAMES, parseJobs } from '../calculators/MonteCarlo';
 
@@ -858,6 +858,120 @@ describe('MonteCarloForm scenario tags', () => {
     expect(screen.getByRole('button', { name: 'Save scenario' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(window.localStorage.getItem('pretire.savedScenarios.v1')).toBeNull();
+  });
+});
+
+describe('MonteCarloForm scenario library', () => {
+  const settings = {
+    startingBalance: '1', monthlyExpenses: '0', endYear: '2100', jobs: [], life_events: [],
+    inflation: { averageAnnualReturnPercentage: '2', standardDeviationPercentage: '1' }, asset_classes: [],
+  };
+  const seed = (scenarios: Array<[string, Record<string, string>, string[]?]>) =>
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify({
+      scenarios: scenarios.map(([name, dimensions, labels = []], i) => ({
+        id: `s${i}`, name, savedAt: '2026-10-01T00:00:00.000Z', settings: { ...settings, startingBalance: String(i) },
+        ...(Object.keys(dimensions).length || labels.length ? { tags: { dimensions, labels } } : {}),
+      })),
+    }));
+  const sample = () => seed([
+    ['SB single', { Household: 'Single', Location: 'Santa Barbara' }, ['favorite']],
+    ['Austin married', { Household: 'Married', Location: 'Austin' }],
+    ['Austin single', { Household: 'Single', Location: 'Austin' }],
+    ['Lisbon idea', { Location: 'Lisbon' }, ['idea']],
+    ['Untagged', {}],
+  ]);
+  const library = () => screen.getByLabelText('Scenario library');
+  const shownNames = () =>
+    within(library()).queryAllByLabelText(/^Scenario /).map((row) => row.getAttribute('aria-label')!.replace('Scenario ', ''));
+  const openLibrary = () => fireEvent.click(screen.getByRole('button', { name: /^Library/ }));
+  // Each filter's menu holds its own checkboxes, so look for the value inside it.
+  const toggleFilter = (dimension: string, value: string) => {
+    const chip = within(library()).getByRole('button', { name: new RegExp(`^Filter by ${dimension}:`) });
+    fireEvent.click(chip);
+    fireEvent.click(within(chip.parentElement!).getByLabelText(value));
+  };
+  const groupHeadings = () =>
+    within(library()).queryAllByText(/^(Household|Location): /, { selector: 'div' }).map((h) => h.textContent);
+
+  test('opens and closes from the scenario bar, listing every scenario with its tags', () => {
+    sample();
+    renderForm();
+    expect(screen.queryByLabelText('Scenario library')).toBeNull();
+    openLibrary();
+    expect(shownNames()).toEqual(['SB single', 'Austin married', 'Austin single', 'Lisbon idea', 'Untagged']);
+    expect(within(library()).getByText('Showing 5 of 5 scenarios')).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Scenario Untagged')).getByText('No tags')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Hide library/ }));
+    expect(screen.queryByLabelText('Scenario library')).toBeNull();
+  });
+
+  test('filters: any value within a dimension, every dimension, "(none)", and labels', () => {
+    sample();
+    renderForm();
+    openLibrary();
+    toggleFilter('Location', 'Austin');
+    toggleFilter('Location', 'Lisbon');
+    expect(shownNames()).toEqual(['Austin married', 'Austin single', 'Lisbon idea']);
+    toggleFilter('Household', 'Single');
+    expect(shownNames()).toEqual(['Austin single']);
+
+    fireEvent.click(within(library()).getAllByRole('button', { name: 'Clear filters' })[0]);
+    toggleFilter('Household', '(none)');
+    expect(shownNames()).toEqual(['Lisbon idea', 'Untagged']);
+    toggleFilter('Tag', 'idea');
+    expect(shownNames()).toEqual(['Lisbon idea']);
+  });
+
+  test('says when nothing matches, with a way back', () => {
+    sample();
+    renderForm();
+    openLibrary();
+    toggleFilter('Tag', 'favorite');
+    toggleFilter('Location', 'Austin');
+    expect(within(library()).getByText(/No scenarios match these filters/)).toBeInTheDocument();
+    fireEvent.click(within(library()).getAllByRole('button', { name: 'Clear filters' })[0]);
+    expect(shownNames()).toHaveLength(5);
+  });
+
+  test('groups by one or two dimensions, in either order', () => {
+    sample();
+    renderForm();
+    openLibrary();
+    fireEvent.change(screen.getByLabelText('Group by'), { target: { value: 'Location' } });
+    expect(groupHeadings()).toEqual(['Location: Austin 2', 'Location: Lisbon 1', 'Location: Santa Barbara 1', 'Location: (none) 1']);
+
+    fireEvent.change(screen.getByLabelText('then'), { target: { value: 'Household' } });
+    expect(groupHeadings()).toEqual([
+      'Location: Austin 2', 'Household: Married 1', 'Household: Single 1',
+      'Location: Lisbon 1', 'Household: (none) 1',
+      'Location: Santa Barbara 1', 'Household: Single 1',
+      'Location: (none) 1', 'Household: (none) 1',
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Flip order' }));
+    expect(screen.getByLabelText('Group by')).toHaveValue('Household');
+    expect(groupHeadings().slice(0, 3)).toEqual(['Household: Married 1', 'Location: Austin 1', 'Household: Single 2']);
+  });
+
+  test('Load picks the scenario and runs it; Edit tags edits that row', () => {
+    sample();
+    const { submit, form } = renderForm();
+    openLibrary();
+    fireEvent.click(within(screen.getByLabelText('Scenario Austin single')).getByRole('button', { name: 'Load' }));
+    expect(screen.getByLabelText('Saved scenarios')).toHaveDisplayValue('Austin single');
+    expect((form.querySelector('[name="startingBalance"]') as HTMLInputElement).value).toBe('2');
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(within(screen.getByLabelText('Scenario Austin single')).getByText('picked')).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByLabelText('Scenario Lisbon idea')).getByRole('button', { name: 'Edit tags' }));
+    expect(screen.getByText('Edit tags for "Lisbon idea"')).toBeInTheDocument();
+  });
+
+  test('with nothing saved, says how to start', () => {
+    renderForm();
+    openLibrary();
+    expect(within(library()).getByText(/No saved scenarios yet/)).toBeInTheDocument();
+    expect(within(library()).getByText('Tag scenarios to filter them.')).toBeInTheDocument();
   });
 });
 

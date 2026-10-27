@@ -85,6 +85,7 @@ export const useSavedScenarios = <Settings,>(
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState<ScenarioNotice | null>(null);
   const [dialog, setDialog] = useState<ScenarioDialogMode | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const tell = (text: string) => setNotice({ text, isError: false });
   const warn = (text: string) => setNotice({ text, isError: true });
 
@@ -283,6 +284,8 @@ export const useSavedScenarios = <Settings,>(
     notice,
     vocabulary,
     dialog,
+    libraryOpen,
+    toggleLibrary: () => setLibraryOpen((open) => !open),
     openSaveAs,
     openEditTags,
     closeDialog: () => setDialog(null),

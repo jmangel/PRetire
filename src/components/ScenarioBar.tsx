@@ -21,6 +21,8 @@ const ScenarioBar = ({
   onSaveAs,
   onRename,
   onEditTags,
+  libraryOpen,
+  onToggleLibrary,
   onDelete,
   onExportAll,
 }: {
@@ -34,6 +36,8 @@ const ScenarioBar = ({
   onSaveAs: () => void;
   onRename: (name: string) => void;
   onEditTags: (id: string) => void;
+  libraryOpen: boolean;
+  onToggleLibrary: () => void;
   onDelete: () => void;
   onExportAll: () => void;
 }) => {
@@ -140,6 +144,15 @@ const ScenarioBar = ({
           </Button>
           <Button variant="outline-secondary" onClick={onExportAll} disabled={scenarios.length === 0}>
             Export all scenarios
+          </Button>
+          <Button
+            variant={libraryOpen ? 'secondary' : 'outline-secondary'}
+            onClick={onToggleLibrary}
+            aria-expanded={libraryOpen}
+            aria-controls="scenario_library"
+          >
+            {libraryOpen ? 'Hide library' : 'Library'}
+            {scenarios.length > 0 && <span className="ms-1 badge text-bg-light">{scenarios.length}</span>}
           </Button>
         </Col>
       )}
