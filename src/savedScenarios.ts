@@ -1,12 +1,16 @@
 // Scenarios saved in this browser's localStorage. Nothing here is ever sent
 // anywhere: it's the same settings the JSON export holds, kept under a name.
 
+import { ScenarioTags, cleanTags } from './scenarioTags';
+
 export type SavedScenario<Settings> = {
   id: string;
   name: string;
   /** When the scenario was last saved, as an ISO timestamp. */
   savedAt: string;
   settings: Settings;
+  /** Missing on scenarios saved before tags existed, which is the same as no tags. */
+  tags?: ScenarioTags;
 };
 
 export type SavedScenarios<Settings> = {
@@ -40,7 +44,9 @@ export const loadScenarios = <Settings,>(
     const parsed = JSON.parse(raw);
     if (!parsed || !Array.isArray(parsed.scenarios)) return empty();
     return {
-      scenarios: parsed.scenarios.filter((scenario: any) => isSavedScenario(scenario, isSettings)),
+      scenarios: parsed.scenarios
+        .filter((scenario: any) => isSavedScenario(scenario, isSettings))
+        .map(withCleanTags),
       ...(typeof parsed.lastBackupAt === 'string' ? { lastBackupAt: parsed.lastBackupAt } : {}),
     };
   } catch {
@@ -56,6 +62,14 @@ export const storeScenarios = <Settings,>(saved: SavedScenarios<Settings>): bool
   } catch {
     return false;
   }
+};
+
+// Tags that aren't usable (hand-edited, say) are dropped rather than losing
+// the whole scenario.
+const withCleanTags = <Settings,>(scenario: SavedScenario<Settings>): SavedScenario<Settings> => {
+  const { tags, ...rest } = scenario;
+  const cleaned = cleanTags(tags);
+  return cleaned ? { ...rest, tags: cleaned } : rest;
 };
 
 const isSavedScenario = <Settings,>(
@@ -98,7 +112,9 @@ export const scenariosFromBackup = <Settings,>(
   if (!candidate || candidate.pretireScenariosBackup !== 1 || !Array.isArray(candidate.scenarios)) {
     return null;
   }
-  return candidate.scenarios.filter((scenario) => isSavedScenario(scenario, isSettings));
+  return candidate.scenarios
+    .filter((scenario) => isSavedScenario(scenario, isSettings))
+    .map(withCleanTags);
 };
 
 /** What restoring a backup did, for telling the user. */

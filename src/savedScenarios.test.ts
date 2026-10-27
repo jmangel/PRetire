@@ -129,3 +129,22 @@ describe('backups', () => {
     expect(result.renamed).toBe(0);
   });
 });
+
+describe('tags', () => {
+  test('are kept when stored and loaded, and scenarios without them load as before', () => {
+    const tagged = { ...scenario('a'), tags: { dimensions: { Household: 'Married' }, labels: ['favorite'] } };
+    storeScenarios({ scenarios: [tagged, scenario('b')] });
+    expect(loadScenarios(isSettings).scenarios).toEqual([tagged, scenario('b')]);
+  });
+
+  test('unusable tags are dropped without losing the scenario', () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ scenarios: [{ ...scenario('a'), tags: 'Household: Married' }] }));
+    expect(loadScenarios(isSettings).scenarios).toEqual([scenario('a')]);
+  });
+
+  test('travel in backups', () => {
+    const tagged = { ...scenario('a'), tags: { dimensions: { Location: 'Austin' }, labels: [] } };
+    const backup = JSON.parse(JSON.stringify(toBackup({ scenarios: [tagged] })));
+    expect(scenariosFromBackup(backup, isSettings)).toEqual([tagged]);
+  });
+});
