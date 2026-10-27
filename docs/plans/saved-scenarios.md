@@ -23,13 +23,18 @@ owner until shared).
 
 ## Phases
 
-### A. Save, pick and back up scenarios (#31)
+### A. Save, pick and back up scenarios (done, #31)
 
 Scenario bar above the form: pick, Save, Save as new, Rename, Delete, Export
 all scenarios. Import also restores a backup. The bar says where scenarios
 live and when the last backup was made.
 
-### B. Tags and the library
+### B. Tags and the library (done)
+
+As built: tags are stored with each scenario (optional, so older scenarios
+load as untagged) and travel in backups. Save as new opens a dialog; Rename
+stays inline. The library opens from a "Library" button in the scenario bar.
+The saved-scenario code moved into a `useSavedScenarios` hook.
 
 - A Save as dialog with a tag editor, pre-filled from the scenario you
   started from, that suggests existing dimensions and values as you type.
@@ -59,12 +64,27 @@ live and when the last backup was made.
   asks which to start from and says which tag each would change. With none,
   it starts from the current form. Only the tags change; the user still edits
   the settings to match before saving.
+- Library rows show each scenario's stored result summary too.
+
+#### Follow-up: Split by
+
+A grid shows two dimensions. For a third, either pin one value in the filter
+bar, or use **Split by**: one small grid per value of the third dimension,
+side by side, all with the same rows and columns so they compare at a glance.
+Empty cells inside a split keep the split's tag when creating from a
+neighbor. Past three dimensions, more grids stop being readable; the
+library's filters handle that better. Mocked in the Compare grid view.
 
 ### D. Manage tags
 
 Rename a dimension or value everywhere it's used (e.g. "SB" to "Santa
 Barbara"), merge two values, and remove ones no scenario uses. Deferred until
 there are enough tags for it to matter.
+
+## Other follow-ups
+
+- Check the shape of each item in imported settings, so a hand-edited file
+  can't crash the form (single-file import already had this weakness).
 
 ## Open questions
 
