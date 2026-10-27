@@ -11,6 +11,7 @@ import {
   toBackup,
   STORAGE_KEY,
 } from '../savedScenarios';
+import { ScenarioTags, hasTags } from '../scenarioTags';
 
 /** Have the browser save `data` as a JSON file. */
 export const downloadJson = (fileName: string, data: unknown) => {
@@ -125,21 +126,31 @@ export const useSavedScenarios = <Settings,>(
   const save = () => {
     const settings = form.readSettings();
     if (!selected || !settings) return;
-    const updated = { ...selected, settings, savedAt: new Date().toISOString() };
-    // If another tab deleted it meanwhile, saving puts it back.
+    const savedAt = new Date().toISOString();
+    // Only the settings change, on the copy in storage, so a rename or tag
+    // edit another tab just made stays. If another tab deleted it
+    // meanwhile, saving puts it back.
     const stored = update((current) => ({
       ...current,
-      scenarios: current.scenarios.some((scenario) => scenario.id === updated.id)
-        ? current.scenarios.map((scenario) => (scenario.id === updated.id ? updated : scenario))
-        : [...current.scenarios, updated],
+      scenarios: current.scenarios.some((scenario) => scenario.id === selected.id)
+        ? current.scenarios.map((scenario) =>
+            scenario.id === selected.id ? { ...scenario, settings, savedAt } : scenario
+          )
+        : [...current.scenarios, { ...selected, settings, savedAt }],
     }));
-    if (stored) tell(`Saved "${updated.name}".`);
+    if (stored) tell(`Saved "${selected.name}".`);
   };
 
-  const saveAs = (name: string) => {
+  const saveAs = (name: string, tags?: ScenarioTags) => {
     const settings = form.readSettings();
     if (!settings) return;
-    const created = { id: newScenarioId(), name, savedAt: new Date().toISOString(), settings };
+    const created: SavedScenario<Settings> = {
+      id: newScenarioId(),
+      name,
+      savedAt: new Date().toISOString(),
+      settings,
+      ...(hasTags(tags) ? { tags } : {}),
+    };
     const stored = update((current) => ({ ...current, scenarios: [...current.scenarios, created] }));
     if (!stored) return;
     requestPersistentStorage();
@@ -159,6 +170,22 @@ export const useSavedScenarios = <Settings,>(
     if (!stored) return;
     form.onRenamed(selected.name, name);
     tell(`Renamed "${selected.name}" to "${name}".`);
+  };
+
+  // Editing tags counts as a save, so a backup's older copy won't undo it.
+  const setTags = (id: string, tags: ScenarioTags) => {
+    const scenario = saved.scenarios.find((candidate) => candidate.id === id);
+    if (!scenario) return;
+    const savedAt = new Date().toISOString();
+    const stored = update((current) => ({
+      ...current,
+      scenarios: current.scenarios.map((candidate) => {
+        if (candidate.id !== id) return candidate;
+        const { tags: _old, ...rest } = candidate;
+        return hasTags(tags) ? { ...rest, tags, savedAt } : { ...rest, savedAt };
+      }),
+    }));
+    if (stored) tell(`Saved the tags for "${scenario.name}".`);
   };
 
   // Deleting leaves the form as it is, so the settings aren't lost if the
@@ -226,6 +253,7 @@ export const useSavedScenarios = <Settings,>(
     select,
     save,
     saveAs,
+    setTags,
     rename,
     remove,
     exportAll,

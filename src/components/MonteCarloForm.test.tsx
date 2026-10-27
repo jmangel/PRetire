@@ -510,6 +510,24 @@ describe('MonteCarloForm saved scenarios', () => {
     expect(scenarioSelect().value).toBe('');
   });
 
+  test("Save keeps a rename or tags another tab gave the scenario", () => {
+    const { form } = renderForm();
+    saveAs('Mine');
+    const stored = JSON.parse(window.localStorage.getItem('pretire.savedScenarios.v1')!);
+    stored.scenarios[0] = {
+      ...stored.scenarios[0],
+      name: 'Renamed elsewhere',
+      tags: { dimensions: { Household: 'Married' }, labels: [] },
+    };
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify(stored));
+
+    fireEvent.change(field(form, 'startingBalance'), { target: { value: '42' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    const [saved] = JSON.parse(window.localStorage.getItem('pretire.savedScenarios.v1')!).scenarios;
+    expect(saved).toMatchObject({ name: 'Renamed elsewhere', tags: { dimensions: { Household: 'Married' } } });
+    expect(saved.settings.startingBalance).toBe('42');
+  });
+
   test('Save puts back a picked scenario that another tab deleted', () => {
     renderForm();
     saveAs('Keep me');
