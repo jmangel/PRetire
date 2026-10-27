@@ -14,6 +14,8 @@ import {
   parseRetirementMode,
 } from '../calculators/MonteCarlo';
 import { JobSettings, MonteCarloSettings, migrateSettings } from '../calculators/Settings';
+import ScenarioTagsDialog from './ScenarioTagsDialog';
+import { describeDifferences } from '../settingsDifferences';
 import { scenariosFromBackup } from '../savedScenarios';
 import { downloadJson, useSavedScenarios } from './useSavedScenarios';
 
@@ -522,6 +524,7 @@ const MonteCarloForm = ({
       setImportMessage(null);
       setImportError(message);
     },
+    describeDifferences,
   });
 
   const handleImportClick = () => {
@@ -585,10 +588,18 @@ const MonteCarloForm = ({
         notice={savedScenarios.notice}
         onSelect={savedScenarios.select}
         onSave={savedScenarios.save}
-        onSaveAs={savedScenarios.saveAs}
+        onSaveAs={savedScenarios.openSaveAs}
         onRename={savedScenarios.rename}
         onDelete={savedScenarios.remove}
         onExportAll={savedScenarios.exportAll}
+      />
+      <ScenarioTagsDialog
+        mode={savedScenarios.dialog}
+        vocabulary={savedScenarios.vocabulary}
+        findTwin={savedScenarios.findTwin}
+        onSaveAs={savedScenarios.saveAs}
+        onSaveTags={savedScenarios.setTags}
+        onClose={savedScenarios.closeDialog}
       />
 
       <Card border="secondary" className="m-2 bg-light">

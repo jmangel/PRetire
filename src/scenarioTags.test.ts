@@ -114,6 +114,12 @@ describe('suggestTags', () => {
     ]);
   });
 
+  test("leaves out the value the scenario already has", () => {
+    expect(suggestTags('Location: ', vocabulary, tags({ Location: 'Austin' })).map((s) => s.text))
+      .toEqual(['Location: Lisbon', 'Location: Santa Barbara']);
+    expect(suggestTags('location: austin', vocabulary, tags({ Location: 'Austin' }))).toEqual([]);
+  });
+
   test('without a colon, suggests dimensions and labels that start with it, then a new label', () => {
     expect(suggestTags('i', vocabulary, emptyTags()).map((s) => [s.text, s.isNew])).toEqual([['idea', false], ['i', true]]);
     expect(suggestTags('ho', vocabulary, emptyTags())[0]).toMatchObject({ text: 'Household: ', completesDimension: true });

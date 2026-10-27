@@ -322,11 +322,20 @@ describe('MonteCarloForm saved scenarios', () => {
   const scenarioSelect = () => screen.getByLabelText('Saved scenarios') as HTMLSelectElement;
   const optionNames = () => Array.from(scenarioSelect().options).slice(1).map((option) => option.text);
 
-  const saveAs = (name: string) => {
+  // Save as new opens a dialog with a name and tags.
+  const saveAs = (name: string, tags: string[] = []) => {
     fireEvent.click(screen.getByText('Save as new…'));
-    fireEvent.change(screen.getByPlaceholderText('Scenario name'), { target: { value: name } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: name } });
+    tags.forEach((tag) => addTagText(tag));
+    fireEvent.click(screen.getByRole('button', { name: 'Save scenario' }));
   };
+  const tagInput = () => screen.getByLabelText('Tags');
+  // Typing a whole tag and pressing Enter adds it (the top suggestion is that tag).
+  const addTagText = (text: string) => {
+    fireEvent.change(tagInput(), { target: { value: text } });
+    fireEvent.keyDown(tagInput(), { key: 'Enter' });
+  };
+
 
   test('saves the form under a name, in this browser only', () => {
     const { form } = renderForm();
@@ -339,10 +348,10 @@ describe('MonteCarloForm saved scenarios', () => {
     expect(stored.scenarios[0].settings.startingBalance).toBe('750000');
   });
 
-  test('Enter in the name field saves the name instead of running the simulation', () => {
+  test('Enter in the name field saves the scenario instead of running the simulation', () => {
     renderForm();
     fireEvent.click(screen.getByText('Save as new…'));
-    const nameInput = screen.getByPlaceholderText('Scenario name');
+    const nameInput = screen.getByLabelText('Name');
     fireEvent.change(nameInput, { target: { value: 'Single' } });
 
     // Enter's default in a form field is submitting the form; false means
@@ -673,6 +682,122 @@ describe('MonteCarloForm saved scenarios', () => {
     importSettings(form, { ...backup, scenarios: [{ ...backup.scenarios[0], id: 'elsewhere', name: 'New' }] });
     expect(await screen.findByText(/Couldn't save: this browser is blocking or out of storage/)).toBeInTheDocument();
     expect(optionNames()).toEqual(['Plan']);
+  });
+});
+
+describe('MonteCarloForm scenario tags', () => {
+  const field = (form: HTMLFormElement, name: string) =>
+    form.querySelector(`[name="${name}"]`) as HTMLInputElement;
+  const tagInput = () => screen.getByLabelText('Tags');
+  const typeTag = (text: string) => fireEvent.change(tagInput(), { target: { value: text } });
+  const pressEnter = () => fireEvent.keyDown(tagInput(), { key: 'Enter' });
+  const openSaveAs = (name?: string) => {
+    fireEvent.click(screen.getByText('Save as new…'));
+    if (name) fireEvent.change(screen.getByLabelText('Name'), { target: { value: name } });
+  };
+  const clickSave = () => fireEvent.click(screen.getByRole('button', { name: 'Save scenario' }));
+  const stored = () => JSON.parse(window.localStorage.getItem('pretire.savedScenarios.v1')!).scenarios;
+  const suggestionTexts = () => screen.queryAllByRole('option').map((option) => option.textContent);
+
+  test('saves a new scenario with dimension tags and labels', () => {
+    renderForm();
+    openSaveAs('Austin, married');
+    typeTag('Household: Married');
+    pressEnter();
+    typeTag('favorite');
+    pressEnter();
+    clickSave();
+
+    expect(stored()[0]).toMatchObject({
+      name: 'Austin, married',
+      tags: { dimensions: { Household: 'Married' }, labels: ['favorite'] },
+    });
+  });
+
+  test('Enter in the tag field adds the tag without saving or running anything', () => {
+    renderForm();
+    openSaveAs('Plan');
+    typeTag('Household: Single');
+    expect(pressEnter()).toBe(false);
+    expect(screen.getByLabelText('Remove tag Household: Single')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(window.localStorage.getItem('pretire.savedScenarios.v1')).toBeNull();
+  });
+
+  test('suggests dimensions and values already in use', () => {
+    renderForm();
+    openSaveAs('First');
+    typeTag('Household: Married');
+    pressEnter();
+    clickSave();
+
+    openSaveAs('Second');
+    // The new dialog starts from First's tags; clear them to start fresh.
+    fireEvent.click(screen.getByLabelText('Remove tag Household: Married'));
+    typeTag('hou');
+    expect(suggestionTexts()).toContain('Household: …');
+    fireEvent.mouseDown(screen.getByRole('option', { name: 'Household: …' }));
+    expect(tagInput()).toHaveValue('Household: ');
+    typeTag('Household: m');
+    fireEvent.mouseDown(screen.getByRole('option', { name: 'Household: Married' }));
+    expect(screen.getByLabelText('Remove tag Household: Married')).toBeInTheDocument();
+    expect(tagInput()).toHaveValue('');
+  });
+
+  test("starts from the picked scenario's tags, and saves a tag that was typed but not added", () => {
+    renderForm();
+    openSaveAs('Base');
+    typeTag('Location: Austin');
+    pressEnter();
+    clickSave();
+
+    openSaveAs('Variant');
+    expect(screen.getByText('Tags copied from "Base".')).toBeInTheDocument();
+    typeTag('Household: Married');
+    clickSave();
+    expect(stored()[1].tags).toEqual({ dimensions: { Location: 'Austin', Household: 'Married' }, labels: [] });
+  });
+
+  test('removes tags with their buttons or Backspace', () => {
+    renderForm();
+    openSaveAs('Plan');
+    typeTag('Household: Single');
+    pressEnter();
+    typeTag('Location: Austin');
+    pressEnter();
+    typeTag('idea');
+    pressEnter();
+
+    fireEvent.click(screen.getByLabelText('Remove tag Household: Single'));
+    fireEvent.keyDown(tagInput(), { key: 'Backspace' });
+    clickSave();
+    expect(stored()[0].tags).toEqual({ dimensions: { Location: 'Austin' }, labels: [] });
+  });
+
+  test('says when the tags match another scenario, and lists how their settings differ', () => {
+    const { form } = renderForm();
+    fireEvent.change(field(form, 'startingBalance'), { target: { value: '500000' } });
+    openSaveAs('Austin, married');
+    typeTag('Household: Married');
+    pressEnter();
+    clickSave();
+
+    fireEvent.change(field(form, 'startingBalance'), { target: { value: '900000' } });
+    openSaveAs('Austin, married, bigger');
+    expect(screen.getByText('Same tags as "Austin, married".')).toBeInTheDocument();
+    expect(screen.getByText('Starting balance: $900,000 vs $500,000')).toBeInTheDocument();
+
+    typeTag('Housing: Buy');
+    pressEnter();
+    expect(screen.queryByText(/Same tags as/)).toBeNull();
+  });
+
+  test('Cancel saves nothing, and a name is needed to save', () => {
+    renderForm();
+    openSaveAs();
+    expect(screen.getByRole('button', { name: 'Save scenario' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(window.localStorage.getItem('pretire.savedScenarios.v1')).toBeNull();
   });
 });
 

@@ -173,10 +173,13 @@ export const suggestTags = (
     if (!dimensionText) return [];
     const known = vocabulary.dimensions.find((d) => sameText(d.name, dimensionText));
     const dimension = known?.name ?? dimensionText;
+    const current = Object.entries(tags.dimensions).find(([name]) => sameText(name, dimension))?.[1];
     const suggestions: TagSuggestion[] = (known?.values ?? [])
-      .filter((value) => startsWith(value, valueText))
+      .filter((value) => startsWith(value, valueText) && !(current && sameText(current, value)))
       .map((value) => ({ text: `${dimension}: ${value}`, label: `${dimension}: ${value}`, isNew: false }));
-    if (valueText && !suggestions.some((s) => sameText(s.text, `${dimension}: ${valueText}`))) {
+    const alreadySet = current !== undefined && sameText(current, valueText);
+    const offered = suggestions.some((s) => sameText(s.text, `${dimension}: ${valueText}`));
+    if (valueText && !alreadySet && !offered) {
       suggestions.push({ text: `${dimension}: ${valueText}`, label: `${dimension}: ${valueText}`, isNew: true });
     }
     return suggestions;

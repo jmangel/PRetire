@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   RestoreResult,
   SavedScenario,
@@ -11,7 +11,8 @@ import {
   toBackup,
   STORAGE_KEY,
 } from '../savedScenarios';
-import { ScenarioTags, hasTags } from '../scenarioTags';
+import { ScenarioTags, emptyTags, hasTags, sameDimensionTags, tagVocabulary } from '../scenarioTags';
+import { ScenarioDialogMode, TagTwin } from './ScenarioTagsDialog';
 
 /** Have the browser save `data` as a JSON file. */
 export const downloadJson = (fileName: string, data: unknown) => {
@@ -63,6 +64,8 @@ export type ScenarioFormHooks<Settings> = {
   /** Show a message by the Import button, where restoring a backup starts. */
   showMessage: (message: string) => void;
   showError: (message: string) => void;
+  /** How two scenarios' settings differ, in words. */
+  describeDifferences: (a: Settings, b: Settings) => string[];
 };
 
 /** A message about the last thing done with the scenario bar, shown right under it. */
@@ -81,6 +84,7 @@ export const useSavedScenarios = <Settings,>(
   const [saved, setSaved] = useState<SavedScenarios<Settings>>(() => loadScenarios(isSettings));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState<ScenarioNotice | null>(null);
+  const [dialog, setDialog] = useState<ScenarioDialogMode | null>(null);
   const tell = (text: string) => setNotice({ text, isError: false });
   const warn = (text: string) => setNotice({ text, isError: true });
 
@@ -114,6 +118,27 @@ export const useSavedScenarios = <Settings,>(
   };
 
   const selected = saved.scenarios.find((scenario) => scenario.id === selectedId);
+  const vocabulary = useMemo(() => tagVocabulary(saved.scenarios), [saved.scenarios]);
+
+  // Start from the picked scenario's tags, so "the same plan but married" is one change.
+  const openSaveAs = () =>
+    setDialog({ kind: 'saveAs', tags: selected?.tags ?? emptyTags(), copiedFrom: hasTags(selected?.tags) ? selected?.name : undefined });
+
+  /**
+   * Another scenario with exactly these dimension tags, and how its settings
+   * differ from the ones being saved: the form's when saving a new scenario,
+   * the scenario's own when editing its tags.
+   */
+  const findTwin = (tags: ScenarioTags, mode: ScenarioDialogMode): TagTwin | null => {
+    if (Object.keys(tags.dimensions).length === 0) return null;
+    const editingId = mode.kind === 'editTags' ? mode.scenarioId : undefined;
+    const twin = saved.scenarios.find((scenario) => scenario.id !== editingId && sameDimensionTags(scenario.tags, tags));
+    if (!twin) return null;
+    const ours = editingId
+      ? saved.scenarios.find((scenario) => scenario.id === editingId)?.settings
+      : form.readSettings();
+    return { name: twin.name, differences: ours ? form.describeDifferences(ours, twin.settings) : [] };
+  };
 
   const select = (id: string | null) => {
     setSelectedId(id);
@@ -153,6 +178,7 @@ export const useSavedScenarios = <Settings,>(
     };
     const stored = update((current) => ({ ...current, scenarios: [...current.scenarios, created] }));
     if (!stored) return;
+    setDialog(null);
     requestPersistentStorage();
     setSelectedId(created.id);
     form.onNamed(name);
@@ -185,7 +211,9 @@ export const useSavedScenarios = <Settings,>(
         return hasTags(tags) ? { ...rest, tags, savedAt } : { ...rest, savedAt };
       }),
     }));
-    if (stored) tell(`Saved the tags for "${scenario.name}".`);
+    if (!stored) return;
+    setDialog(null);
+    tell(`Saved the tags for "${scenario.name}".`);
   };
 
   // Deleting leaves the form as it is, so the settings aren't lost if the
@@ -248,6 +276,11 @@ export const useSavedScenarios = <Settings,>(
     scenarios: saved.scenarios,
     lastBackupAt: saved.lastBackupAt,
     notice,
+    vocabulary,
+    dialog,
+    openSaveAs,
+    closeDialog: () => setDialog(null),
+    findTwin,
     selectedId,
     selected,
     select,
