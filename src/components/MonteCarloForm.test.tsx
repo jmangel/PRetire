@@ -841,6 +841,129 @@ describe('MonteCarloForm scenario tags', () => {
     expect(screen.queryByText(/Same tags as/)).toBeNull();
   });
 
+  test("edits a saved scenario's tags, shown under the dropdown", () => {
+    renderForm();
+    openSaveAs('Plan');
+    typeTag('Household: Single');
+    pressEnter();
+    clickSave();
+    expect(screen.getByLabelText('Tags of Plan')).toHaveTextContent('Household: Single');
+    // An older save time, so the edit has to move it forward.
+    const earlier = '2020-01-01T00:00:00.000Z';
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify({ scenarios: [{ ...stored()[0], savedAt: earlier }] }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    expect(screen.getByText('Edit tags for "Plan"')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Name')).toBeNull();
+    typeTag('Household: Married');
+    pressEnter();
+    typeTag('favorite');
+    pressEnter();
+    fireEvent.click(screen.getByRole('button', { name: 'Save tags' }));
+
+    expect(stored()[0].tags).toEqual({ dimensions: { Household: 'Married' }, labels: ['favorite'] });
+    expect(stored()[0].savedAt > earlier).toBe(true);
+    expect(screen.getByLabelText('Tags of Plan')).toHaveTextContent('Household: Married');
+    expect(screen.getByRole('status')).toHaveTextContent('Saved the tags for "Plan".');
+  });
+
+  test('Edit tags closes, saying why, when another tab deletes the scenario', () => {
+    renderForm();
+    openSaveAs('Plan');
+    clickSave();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    typeTag('favorite');
+
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify({ scenarios: [] }));
+    fireEvent(window, new StorageEvent('storage', { key: 'pretire.savedScenarios.v1' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByText(`"Plan" was deleted in another tab, so its tags weren't saved.`)).toHaveAttribute('role', 'alert');
+    expect(stored()).toEqual([]);
+  });
+
+  test("Save tags says so when another tab deleted the scenario before this tab heard", () => {
+    renderForm();
+    openSaveAs('Plan');
+    clickSave();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    typeTag('favorite');
+    // Deleted in storage, with no storage event yet.
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify({ scenarios: [] }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save tags' }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByText(`"Plan" was deleted in another tab, so its tags weren't saved.`)).toHaveAttribute('role', 'alert');
+    expect(stored()).toEqual([]);
+  });
+
+  test('a tag edit the browser refuses keeps the dialog open and says why', () => {
+    renderForm();
+    openSaveAs('Plan');
+    clickSave();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    typeTag('favorite');
+    jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save tags' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent(/Couldn't save: this browser is blocking or out of storage/);
+    expect(stored()[0].tags).toBeUndefined();
+  });
+
+  test("an edited tag gets the spelling another tab saved, and doesn't change that tab's", () => {
+    renderForm();
+    openSaveAs('Mine');
+    clickSave();
+    // Another tab tagged a scenario after this one, with no storage event yet.
+    const other = { ...stored()[0], id: 'other', name: 'Other', tags: { dimensions: { Household: 'Married' }, labels: [] } };
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify({ scenarios: [stored()[0], other] }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    typeTag('household: married');
+    pressEnter();
+    fireEvent.click(screen.getByRole('button', { name: 'Save tags' }));
+    expect(stored().map((s: any) => s.tags)).toEqual([
+      { dimensions: { Household: 'Married' }, labels: [] },
+      { dimensions: { Household: 'Married' }, labels: [] },
+    ]);
+  });
+
+  test('editing tags compares with other scenarios, not the one being edited', () => {
+    const { form } = renderForm();
+    fireEvent.change(field(form, 'startingBalance'), { target: { value: '100' } });
+    openSaveAs('One');
+    typeTag('Household: Single');
+    pressEnter();
+    clickSave();
+    fireEvent.change(field(form, 'startingBalance'), { target: { value: '200' } });
+    openSaveAs('Two');
+    typeTag('Household: Married');
+    pressEnter();
+    clickSave();
+
+    // Two is picked. Its own tags don't count as a match...
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    expect(screen.queryByText(/Same tags as/)).toBeNull();
+    // ...but changing them to One's does, comparing the two scenarios' own settings.
+    typeTag('Household: Single');
+    pressEnter();
+    expect(screen.getByText('Same tags as "One".')).toBeInTheDocument();
+    expect(screen.getByText('Starting balance: $200 vs $100')).toBeInTheDocument();
+  });
+
+  test('removing every tag leaves the scenario untagged', () => {
+    renderForm();
+    openSaveAs('Plan');
+    typeTag('idea');
+    pressEnter();
+    clickSave();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    fireEvent.click(screen.getByLabelText('Remove tag idea'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save tags' }));
+    expect(stored()[0].tags).toBeUndefined();
+    expect(screen.getByLabelText('Tags of Plan')).toHaveTextContent('No tags');
+  });
+
   test('Cancel saves nothing, and a name is needed to save', () => {
     renderForm();
     openSaveAs();

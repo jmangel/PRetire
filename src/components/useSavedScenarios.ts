@@ -47,6 +47,8 @@ const describeRestore = (
     : `Nothing to restore from ${fileName}: it has no saved scenarios.`;
 };
 
+const deletedElsewhere = (name: string) => `"${name}" was deleted in another tab, so its tags weren't saved.`;
+
 const STORAGE_REFUSED = "Couldn't save: this browser is blocking or out of storage for this site.";
 
 /** What the saved scenarios need from the form they save and load. */
@@ -135,6 +137,23 @@ export const useSavedScenarios = <Settings,>(
     setDialog({ kind: 'saveAs', tags: selected?.tags ?? emptyTags(), copiedFrom: hasTags(selected?.tags) ? selected?.name : undefined });
   };
 
+  const openEditTags = (id: string) => {
+    const scenario = saved.scenarios.find((candidate) => candidate.id === id);
+    if (!scenario) return;
+    setNotice(null);
+    setDialog({ kind: 'editTags', scenarioId: id, name: scenario.name, tags: scenario.tags ?? emptyTags() });
+  };
+
+  // Another tab deleted the scenario whose tags are being edited.
+  const editingGone =
+    dialog?.kind === 'editTags' && !saved.scenarios.some((scenario) => scenario.id === dialog.scenarioId);
+  const editingName = dialog?.kind === 'editTags' ? dialog.name : '';
+  useEffect(() => {
+    if (!editingGone) return;
+    setDialog(null);
+    setNotice({ text: deletedElsewhere(editingName), isError: true });
+  }, [editingGone, editingName]);
+
   /**
    * Another scenario with exactly these dimension tags, and how its settings
    * differ from the ones being saved: the form's when saving a new scenario,
@@ -214,17 +233,23 @@ export const useSavedScenarios = <Settings,>(
     const scenario = saved.scenarios.find((candidate) => candidate.id === id);
     if (!scenario) return;
     const savedAt = new Date().toISOString();
-    const stored = update((current) => ({
-      ...current,
-      scenarios: current.scenarios.map((candidate) => {
-        if (candidate.id !== id) return candidate;
-        const { tags: _old, ...rest } = candidate;
-        return hasTags(tags) ? { ...rest, tags, savedAt } : { ...rest, savedAt };
-      }),
-    }));
+    // Another tab may have deleted it just before this tab heard about it.
+    let gone = false;
+    const stored = update((current) => {
+      gone = !current.scenarios.some((candidate) => candidate.id === id);
+      return {
+        ...current,
+        scenarios: current.scenarios.map((candidate) => {
+          if (candidate.id !== id) return candidate;
+          const { tags: _old, ...rest } = candidate;
+          return hasTags(tags) ? { ...rest, tags, savedAt } : { ...rest, savedAt };
+        }),
+      };
+    });
     if (!stored) return;
     setDialog(null);
-    tell(`Saved the tags for "${scenario.name}".`);
+    if (gone) warn(deletedElsewhere(scenario.name));
+    else tell(`Saved the tags for "${scenario.name}".`);
   };
 
   // Deleting leaves the form as it is, so the settings aren't lost if the
@@ -290,6 +315,7 @@ export const useSavedScenarios = <Settings,>(
     vocabulary,
     dialog,
     openSaveAs,
+    openEditTags,
     closeDialog: () => setDialog(null),
     findTwin,
     selectedId,

@@ -1,6 +1,8 @@
 import { KeyboardEvent, useEffect, useState } from 'react';
 import { Button, Col, Form, InputGroup, Row } from 'react-bootstrap';
 import { ScenarioNotice } from './useSavedScenarios';
+import { ScenarioTags } from '../scenarioTags';
+import { TagChips } from './TagEditor';
 
 
 const formatBackupDate = (iso?: string) =>
@@ -18,10 +20,11 @@ const ScenarioBar = ({
   onSave,
   onSaveAs,
   onRename,
+  onEditTags,
   onDelete,
   onExportAll,
 }: {
-  scenarios: Array<{ id: string; name: string }>;
+  scenarios: Array<{ id: string; name: string; tags?: ScenarioTags }>;
   selectedId: string | null;
   lastBackupAt?: string;
   notice?: ScenarioNotice | null;
@@ -30,6 +33,7 @@ const ScenarioBar = ({
   /** Opens the Save as dialog. */
   onSaveAs: () => void;
   onRename: (name: string) => void;
+  onEditTags: (id: string) => void;
   onDelete: () => void;
   onExportAll: () => void;
 }) => {
@@ -92,6 +96,11 @@ const ScenarioBar = ({
             ))}
           </Form.Select>
         </Form.Group>
+        {selected && (
+          <div className="mt-1" aria-label={`Tags of ${selected.name}`}>
+            <TagChips tags={selected.tags} />
+          </div>
+        )}
       </Col>
       {renaming ? (
         <Col xs={12} md={6}>
@@ -122,6 +131,9 @@ const ScenarioBar = ({
           </Button>
           <Button variant="outline-secondary" onClick={startRenaming} disabled={!selected}>
             Rename
+          </Button>
+          <Button variant="outline-secondary" onClick={() => selected && onEditTags(selected.id)} disabled={!selected}>
+            Edit tags
           </Button>
           <Button variant="outline-danger" onClick={handleDelete} disabled={!selected}>
             Delete
