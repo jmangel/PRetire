@@ -3,8 +3,17 @@ import { Button, Card, Col, Form, InputGroup, Nav, Row } from 'react-bootstrap';
 import { FetcherWithComponents } from 'react-router-dom';
 import HasManyRows from './HasManyRows';
 import ScenarioBar from './ScenarioBar';
-import { parseAtRetirement } from '../calculators/MonteCarloSimulation';
-import { JOB_FIELD_NAMES, JOB_FIELDS, JobField } from '../calculators/MonteCarlo';
+import { parseAtRetirement } from '../calculators/PlanInputs';
+import {
+  JOB_FIELD_NAMES,
+  JOB_FIELDS,
+  MAX_CONFIDENCE,
+  MIN_CONFIDENCE,
+  RetirementMode,
+  parseConfidence,
+  parseRetirementMode,
+} from '../calculators/MonteCarlo';
+import { JobSettings, MonteCarloSettings, migrateSettings } from '../calculators/Settings';
 import {
   RestoreResult,
   SavedScenarios,
@@ -20,37 +29,7 @@ import {
 
 const NUM_SETTINGS_TABS = 4;
 
-// One exported income source: switches are saved as booleans, every other
-// field as text.
-type JobSettings = {
-  [K in Exclude<JobField, 'atRetirement'>]: typeof JOB_FIELDS[K] extends 'boolean' ? boolean : string;
-} & {
-  // Missing in settings files saved before this option existed.
-  atRetirement?: string;
-};
-
-type MonteCarloSettings = {
-  startingBalance: string;
-  monthlyExpenses: string;
-  endYear: string;
-  jobs: JobSettings[];
-  life_events: Array<{
-    name: string;
-    date: string;
-    balanceChange: string;
-    monthlyExpensesChange: string;
-  }>;
-  inflation: {
-    averageAnnualReturnPercentage: string;
-    standardDeviationPercentage: string;
-  };
-  asset_classes: Array<{
-    name: string;
-    allocationPercentage: string;
-    averageAnnualReturnPercentage: string;
-    standardDeviationPercentage: string;
-  }>;
-};
+const LIFE_EVENT_FIELDS = ['name', 'date', 'balanceChange', 'monthlyExpensesChange'];
 
 /** Short dollar amounts for the graph, like $856K or $1.46B. */
 export const compactDollarFormatter = (val: number) =>
@@ -213,6 +192,44 @@ const AssetClassRow = ({
   );
 };
 
+/**
+ * The desired success rate's field. It edits the page's success rate, which
+ * the results slider shares. While typing, the field can hold text that isn't
+ * a valid rate yet (like "8" on the way to "85"); the rate only changes once
+ * it is one, and the field shows the rate again when it loses focus.
+ */
+const SuccessRateField = ({
+  confidence,
+  setConfidence,
+}: {
+  confidence: number;
+  setConfidence: (confidence: number) => void;
+}) => {
+  const [text, setText] = useState(String(confidence));
+  // Follow changes made elsewhere, like the results slider or an import.
+  useEffect(() => {
+    setText((current) => (Number(current) === confidence ? current : String(confidence)));
+  }, [confidence]);
+
+  return (
+    <Form.Control
+      type="number"
+      step={1}
+      min={MIN_CONFIDENCE}
+      max={MAX_CONFIDENCE}
+      value={text}
+      onChange={(event) => {
+        setText(event.target.value);
+        const value = Number(event.target.value);
+        if (event.target.value !== '' && value >= MIN_CONFIDENCE && value <= MAX_CONFIDENCE) {
+          setConfidence(parseConfidence(value));
+        }
+      }}
+      onBlur={() => setText(String(confidence))}
+    />
+  );
+};
+
 const isMonteCarloSettings = (settings: unknown): settings is MonteCarloSettings => {
   if (!settings || typeof settings !== 'object') return false;
   const candidate = settings as MonteCarloSettings;
@@ -233,13 +250,27 @@ const isMonteCarloSettings = (settings: unknown): settings is MonteCarloSettings
 
 const MonteCarloForm = ({
   fetcher,
+  confidence,
+  setConfidence,
 }: {
   fetcher: FetcherWithComponents<any>;
+  /** The desired success rate (a percentage), shared with the results. */
+  confidence: number;
+  setConfidence: (confidence: number) => void;
 }) => {
   const running = fetcher.state === 'submitting';
 
   const [numJobs, setNumJobs] = useState(1);
   const [numLifeEvents, setNumLifeEvents] = useState(1);
+  const [retirementMode, setRetirementMode] = useState<RetirementMode>('ready');
+  // A fixed-date plan can't run without its date: otherwise work income
+  // would just keep going to the end year.
+  const [hasRetirementDate, setHasRetirementDate] = useState(false);
+  const missingRetirementDate = retirementMode === 'date' && !hasRetirementDate;
+  // Which life events happen at retirement, by row. Their date field is
+  // read-only while the switch is on (not disabled: disabled fields are left
+  // out of the form data, which would shift every later row's date).
+  const [lifeEventsAtRetirement, setLifeEventsAtRetirement] = useState<boolean[]>([]);
   const [numAssetClasses, setNumAssetClasses] = useState(2);
   const [activeSettingsTab, setActiveSettingsTab] = useState(0);
   const [exportFileName, setExportFileName] = useState('pretire-montecarlo-settings');
@@ -317,6 +348,11 @@ const MonteCarloForm = ({
       startingBalance: getSettingValue('startingBalance'),
       monthlyExpenses: getSettingValue('monthlyExpenses'),
       endYear: getSettingValue('endYear'),
+      retirement: {
+        mode: retirementMode,
+        confidence: getSettingValue('retirement[confidence]'),
+        date: getSettingValue('retirement[date]'),
+      },
       jobs: collectRepeatedGroup('jobs', JOB_FIELD_NAMES).map((row) => ({
         ...(Object.fromEntries(
           JOB_FIELD_NAMES.map((field) => [
@@ -326,16 +362,12 @@ const MonteCarloForm = ({
         ) as JobSettings),
         atRetirement: parseAtRetirement(String(row.atRetirement)),
       })),
-      life_events: collectRepeatedGroup('life_events', [
-        'name',
-        'date',
-        'balanceChange',
-        'monthlyExpensesChange',
-      ]).map((row) => ({
+      life_events: collectRepeatedGroup('life_events', LIFE_EVENT_FIELDS).map((row, index) => ({
         name: String(row.name),
         date: String(row.date),
         balanceChange: String(row.balanceChange),
         monthlyExpensesChange: String(row.monthlyExpensesChange),
+        atRetirement: Boolean(lifeEventsAtRetirement[index]),
       })),
       inflation: {
         averageAnnualReturnPercentage: getSettingValue(
@@ -412,13 +444,7 @@ const MonteCarloForm = ({
         atRetirement: parseAtRetirement(job.atRetirement),
       })));
 
-    setRepeatedGroup(form, 'life_events', [
-      'name',
-      'date',
-      'balanceChange',
-      'monthlyExpensesChange',
-    ],
-    settings.life_events);
+    setRepeatedGroup(form, 'life_events', LIFE_EVENT_FIELDS, settings.life_events);
 
     setRepeatedGroup(form, 'asset_classes', [
       'name',
@@ -431,6 +457,7 @@ const MonteCarloForm = ({
     setFieldValue(form, 'startingBalance', settings.startingBalance);
     setFieldValue(form, 'monthlyExpenses', settings.monthlyExpenses);
     setFieldValue(form, 'endYear', settings.endYear);
+    setFieldValue(form, 'retirement[date]', settings.retirement?.date ?? '');
     setFieldValue(
       form,
       'inflation[averageAnnualReturnPercentage]',
@@ -444,15 +471,30 @@ const MonteCarloForm = ({
   };
 
   // Fill the form, then run the simulation if the settings asked for it.
+  // The run waits for the next render: the retirement setting and success
+  // rate are React state, and the form only submits them once rendered.
+  const [runRequests, setRunRequests] = useState(0);
   const fillFormAndMaybeRun = (form: HTMLFormElement, settings: MonteCarloSettings) => {
     fillForm(form, settings);
     if (runAfterFill.current) {
       runAfterFill.current = false;
-      fetcher.submit(form);
+      setRunRequests((count) => count + 1);
     }
   };
+  useEffect(() => {
+    if (runRequests === 0) return;
+    const form = document.getElementById('monte-carlo-form') as HTMLFormElement | null;
+    if (form) fetcher.submit(form);
+    // Runs once per request; fetcher changes on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runRequests]);
 
-  const applySettings = (settings: MonteCarloSettings, { run = false } = {}) => {
+  const applySettings = (imported: MonteCarloSettings, { run = false } = {}) => {
+    const settings = migrateSettings(imported);
+    setRetirementMode(parseRetirementMode(settings.retirement?.mode));
+    setConfidence(parseConfidence(settings.retirement?.confidence));
+    setHasRetirementDate(Boolean(settings.retirement?.date));
+    setLifeEventsAtRetirement(settings.life_events.map((event) => Boolean(event.atRetirement)));
     const targetJobs = Math.max(settings.jobs.length, 1);
     const targetLifeEvents = Math.max(settings.life_events.length, 1);
     const targetAssetClasses = Math.max(settings.asset_classes.length, 1);
@@ -793,6 +835,71 @@ const MonteCarloForm = ({
                 </InputGroup>
               </Form.Group>
             </Col>
+            <Col xs={12} className="mt-3">
+              <Form.Group>
+                <Form.Label as="legend" className="fs-6 mb-1">When do you retire?</Form.Label>
+                <Form.Check
+                  type="radio"
+                  id="retirement_mode_ready"
+                  name="retirement[mode]"
+                  value="ready"
+                  label="As soon as I'm ready"
+                  checked={retirementMode === 'ready'}
+                  onChange={() => setRetirementMode('ready')}
+                />
+                <Row className="align-items-center g-2">
+                  <Col xs="auto">
+                    <Form.Check
+                      type="radio"
+                      id="retirement_mode_date"
+                      name="retirement[mode]"
+                      value="date"
+                      label="On a date:"
+                      checked={retirementMode === 'date'}
+                      onChange={() => setRetirementMode('date')}
+                    />
+                  </Col>
+                  <Col xs="auto">
+                    <Form.Control
+                      type="date"
+                      name="retirement[date]"
+                      aria-label="Retirement date"
+                      size="sm"
+                      disabled={retirementMode !== 'date'}
+                      isInvalid={missingRetirementDate}
+                      onChange={(event) => setHasRetirementDate(event.target.value !== '')}
+                    />
+                  </Col>
+                </Row>
+                {missingRetirementDate && (
+                  <div className="text-danger small">
+                    Pick a retirement date, or choose "As soon as I'm ready".
+                  </div>
+                )}
+                <Form.Text className="text-muted">
+                  Retiring when ready, each simulated future keeps working
+                  until its savings reach the ready line, then retires. Work
+                  income stops when you retire; other income (like Social
+                  Security) keeps its own dates.
+                </Form.Text>
+              </Form.Group>
+            </Col>
+            <Col xs={12} sm={6} md={4} className="mt-3">
+              <Form.Group controlId="retirement_confidence">
+                <Form.Label>Desired success rate</Form.Label>
+                <InputGroup>
+                  <SuccessRateField confidence={confidence} setConfidence={setConfidence} />
+                  <InputGroup.Text>%</InputGroup.Text>
+                </InputGroup>
+                {/* What's submitted and exported: always a valid rate. */}
+                <input type="hidden" name="retirement[confidence]" value={confidence} />
+                <Form.Text className="text-muted">
+                  The chance of never running out you want before you
+                  retire. You're ready once your savings give at least this.
+                  You can also adjust it with the slider in the results.
+                </Form.Text>
+              </Form.Group>
+            </Col>
           </Row>
 
           {/* Jobs/Income Sources */}
@@ -868,21 +975,22 @@ const MonteCarloForm = ({
                         <Form.Control type="date" name="jobs[][endDate]" />
                       </InputGroup>
                       <Form.Text className="text-muted">
-                        (leave empty if you'll work to the grave; income is prorated, so
-                        this is your first day not working)
+                        (for work income, only if it ends before you retire,
+                        like a job change; income is prorated, so this is the
+                        first day without it)
                       </Form.Text>
                     </Form.Group>
                   </Col>
                   <Col xs={12} sm={6} md={3} lg={2} className="flex-grow-1">
                     <Form.Group>
-                      <Form.Label>At retirement, this income</Form.Label>
+                      <Form.Label>Type of income</Form.Label>
                       <Form.Select name="jobs[][atRetirement]" defaultValue="stops">
-                        <option value="stops">Stops</option>
-                        <option value="unaffected">Keeps its own dates</option>
+                        <option value="stops">Work income</option>
+                        <option value="unaffected">Other income</option>
                       </Form.Select>
                       <Form.Text className="text-muted">
-                        Use "Keeps its own dates" for Social Security,
-                        pensions, or rental income
+                        Work income stops when you retire. Other income (Social
+                        Security, pensions, rent) follows its own dates.
                       </Form.Text>
                     </Form.Group>
                   </Col>
@@ -916,9 +1024,34 @@ const MonteCarloForm = ({
                         <Form.Control
                           type="date"
                           name="life_events[][date]"
+                          readOnly={Boolean(lifeEventsAtRetirement[index])}
+                          className={lifeEventsAtRetirement[index] ? 'bg-body-secondary' : undefined}
                           autoFocus
                         />
                       </InputGroup>
+                      <Form.Check
+                        type="switch"
+                        id={`life_event_at_retirement_${index}`}
+                        name="life_events[][atRetirement]"
+                        // Submits the row index, like the jobs' inflation
+                        // switches, so each switch stays with its own row.
+                        value={String(index)}
+                        label="At retirement"
+                        checked={Boolean(lifeEventsAtRetirement[index])}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          setLifeEventsAtRetirement((previous) => {
+                            const next = [...previous];
+                            next[index] = checked;
+                            return next;
+                          });
+                        }}
+                      />
+                      {lifeEventsAtRetirement[index] && (
+                        <Form.Text className="text-muted">
+                          Happens on the retirement date instead
+                        </Form.Text>
+                      )}
                     </Form.Group>
                   </Col>
                   <Col xs={12} lg={4} className="flex-grow-1">
@@ -1076,9 +1209,14 @@ const MonteCarloForm = ({
           </Col>
         )}
         <Col>
-          <Button variant="primary" type="submit" disabled={running}>
+          <Button variant="primary" type="submit" disabled={running || missingRetirementDate}>
             {running ? 'Running, please wait' : 'Run Simulation'}
           </Button>
+          {missingRetirementDate && (
+            <Form.Text className="text-danger ms-2">
+              Pick a retirement date on Basic Settings first.
+            </Form.Text>
+          )}
         </Col>
       </Row>
     </>

@@ -1,17 +1,18 @@
 /* eslint-disable testing-library/no-container, testing-library/no-node-access --
    The chart's SVG lines have no roles or labels to query by, so these tests
    find them by Recharts' class names and the ready line's color. */
-import { ReactElement } from 'react';
+import { ReactElement, useState } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import MonteCarloResultsCard, { keepWorkingChartLastYear, SLIDER_SETTLE_MS } from './MonteCarloResultsCard';
+import MonteCarloResultsCard, { SLIDER_SETTLE_MS } from './MonteCarloResultsCard';
 import { ReadyLineSeries } from './MonteCarloGraph';
-import MonteCarloSimulation, { AssetClass, Inflation, Job } from '../calculators/MonteCarloSimulation';
-import { computeReadyLine, readyLineAt } from '../calculators/ReadyLine';
+import { AssetClass, Inflation, Job, MonteCarloResult } from '../calculators/PlanInputs';
+import { readyLineAt, readyOutcomes, summarizeReadyYears } from '../calculators/ReadyLine';
+import { MonteCarloResponse, RetirementMode, simulatePlan } from '../calculators/MonteCarlo';
 
 // The real chart, wrapped so tests can read the ready line it was given. Its
 // "Ready line (N%)" label only reaches the page in the hover tooltip. (A
 // plain function rather than jest.fn, which the test setup resets.)
-const mockGraphProps: Array<{ readyLine?: ReadyLineSeries }> = [];
+const mockGraphProps: Array<{ readyLine?: ReadyLineSeries; results: MonteCarloResult[] }> = [];
 jest.mock('./MonteCarloGraph', () => {
   const actual = jest.requireActual('./MonteCarloGraph');
   return {
@@ -43,48 +44,55 @@ class ResizeObserverStub {
 (global as any).ResizeObserver = ResizeObserverStub;
 
 const startYear = new Date().getFullYear() + 1;
-const inputs = {
-  startingBalance: 200000,
-  monthlyExpenses: -3000,
-  jobs: [
-    new Job({
-      name: '',
-      postTaxAnnualIncome: '70000',
-      adjustForInflation: 'on',
-      startDate: '',
-      endDate: `${startYear + 12}-07-01`,
-      atRetirement: 'stops',
-    }),
-  ],
-  lifeEvents: [],
-  assetClasses: [
-    new AssetClass({
-      name: 'Stocks',
-      allocationPercentage: 100,
-      averageAnnualReturnPercentage: 7,
-      standardDeviationPercentage: 15,
-    }),
-  ],
-  inflation: new Inflation({ averageAnnualReturnPercentage: 2.5, standardDeviationPercentage: 1 }),
-  endYear: startYear + 40,
+const response = (mode: RetirementMode = 'date') =>
+  simulatePlan({
+    startingBalance: 200000,
+    monthlyExpenses: -3000,
+    jobs: [
+      new Job({
+        name: '',
+        postTaxAnnualIncome: '70000',
+        adjustForInflation: 'on',
+        startDate: '',
+        endDate: '',
+        atRetirement: 'stops',
+      }),
+    ],
+    lifeEvents: [],
+    assetClasses: [
+      new AssetClass({
+        name: 'Stocks',
+        allocationPercentage: 100,
+        averageAnnualReturnPercentage: 7,
+        standardDeviationPercentage: 15,
+      }),
+    ],
+    inflation: new Inflation({ averageAnnualReturnPercentage: 2.5, standardDeviationPercentage: 1 }),
+    startYear,
+    endYear: startYear + 40,
+    mode,
+    confidence: 90,
+    plannedRetirement: mode === 'date' ? new Date(`${startYear + 12}-07-01`) : undefined,
+    futures: 20,
+    sequences: 200,
+  });
+
+// The page shares the desired success rate between the form and the
+// results; this stands in for it.
+const CardWithSuccessRate = ({ data }: { data: MonteCarloResponse }) => {
+  const [confidence, setConfidence] = useState(90);
+  return (
+    <MonteCarloResultsCard
+      fetcher={{ data, state: 'idle' } as any}
+      confidence={confidence}
+      setConfidence={setConfidence}
+    />
+  );
 };
 
-const response = () => {
-  const simulate = () =>
-    new MonteCarloSimulation(
-      inputs.startingBalance, inputs.monthlyExpenses, inputs.jobs, inputs.lifeEvents,
-      inputs.assetClasses, inputs.inflation, inputs.endYear
-    );
-  return {
-    results: [...Array(20)].map(() => simulate().run()),
-    deterministicResult: simulate().runDeterministic(),
-    readyLine: computeReadyLine({ ...inputs, futures: 20, sequences: 200 }),
-  };
-};
-
-const renderCard = () => {
-  const data = response();
-  return { data, ...render(<MonteCarloResultsCard fetcher={{ data, state: 'idle' } as any} />) };
+const renderCard = (mode: RetirementMode = 'date') => {
+  const data = response(mode);
+  return { data, ...render(<CardWithSuccessRate data={data} />) };
 };
 // The ready line the chart was last drawn with.
 const chartReadyLine = (): ReadyLineSeries => {
@@ -105,23 +113,20 @@ const otherLineColors = (container: HTMLElement) =>
     .map((line) => line.getAttribute('stroke'))
     .filter((stroke) => stroke !== '#198754');
 const moveSlider = (value: number) =>
-  fireEvent.change(screen.getByLabelText(/Confidence you won't run out/), { target: { value: String(value) } });
+  fireEvent.change(screen.getByLabelText(/Desired success rate/), { target: { value: String(value) } });
 
-describe('keepWorkingChartLastYear', () => {
-  test('shows five years past when 9 in 10 are ready', () => {
-    expect(keepWorkingChartLastYear(2100, 2050, 2045)).toBe(2055);
+describe('where the ready line stops', () => {
+  test('with a fixed date, at the retirement year', () => {
+    renderCard('date');
+    expect(chartReadyLine().lastYear).toBe(startYear + 12);
   });
 
-  test('uses the planned retirement when it is later than that', () => {
-    expect(keepWorkingChartLastYear(2100, 2040, 2046)).toBe(2051);
-  });
+  test('retiring when ready, at the year 9 in 10 futures are ready', () => {
+    const { data } = renderCard('ready');
+    const p90 = summarizeReadyYears(readyOutcomes(data.readyLine!, readyLineAt(data.readyLine!, 0.9))).p90;
 
-  test('shows everything when more than 1 in 10 are never ready', () => {
-    expect(keepWorkingChartLastYear(2100, undefined, 2046)).toBe(2100);
-  });
-
-  test('never goes past the end year', () => {
-    expect(keepWorkingChartLastYear(2052, 2050, 2045)).toBe(2052);
+    expect(p90).toBeDefined();
+    expect(chartReadyLine().lastYear).toBe(p90);
   });
 });
 
@@ -147,7 +152,7 @@ describe('confidence slider', () => {
       jest.advanceTimersByTime(SLIDER_SETTLE_MS);
     });
     const before = readyLinePath(container);
-    expect(screen.getByText(/the chart updates once you stop moving the slider/)).toBeInTheDocument();
+    expect(screen.getByText(/chart updates once you stop moving the slider/i)).toBeInTheDocument();
 
     // Several quick steps, like arrow-key presses: the summary follows each
     // one, but the chart doesn't redraw yet.
@@ -156,7 +161,7 @@ describe('confidence slider', () => {
       jest.advanceTimersByTime(SLIDER_SETTLE_MS - 50);
     });
     moveSlider(70);
-    expect(screen.getByText("Confidence you won't run out: 70%")).toBeInTheDocument();
+    expect(screen.getByText("Desired success rate: 70%")).toBeInTheDocument();
     act(() => {
       jest.advanceTimersByTime(SLIDER_SETTLE_MS - 1);
     });
@@ -172,31 +177,30 @@ describe('confidence slider', () => {
     expectLabelMatchesLine(data, 70);
   });
 
-  test('with keep-working futures shown, the zoom also waits until the slider is still', () => {
+  test('retiring when ready, the futures wait until the slider is still, even in the percentiles view', () => {
     jest.useFakeTimers();
-    const { data } = renderCard();
-    fireEvent.click(screen.getByLabelText('Only show percentiles?'));
-    fireEvent.click(screen.getByLabelText('Keep working until ready'));
-    act(() => {
-      jest.advanceTimersByTime(SLIDER_SETTLE_MS);
-    });
-    const before = chartReadyLine().chartLastYear;
-    expect(before).toBeDefined();
+    const { data } = renderCard('ready');
+    const chartResults = () => mockGraphProps[mockGraphProps.length - 1].results;
+    expect(chartResults()).toBe(data.results);
+    expect(screen.getByText(/chart updates once you stop moving the slider/i)).toBeInTheDocument();
 
-    // The zoom follows when 9 in 10 are ready, which moves with the
-    // confidence. Reading the live value would redraw on every step.
     moveSlider(50);
     act(() => {
       jest.advanceTimersByTime(SLIDER_SETTLE_MS - 1);
     });
-    expect(chartReadyLine().chartLastYear).toBe(before);
+    expect(chartResults()).toBe(data.results);
     expectLabelMatchesLine(data, 90);
 
+    // Once still, every future is replayed at the new confidence: a lower
+    // line means retiring sooner, so fewer years of work income.
     act(() => {
       jest.advanceTimersByTime(1);
     });
-    expect(chartReadyLine().chartLastYear).not.toBe(before);
+    expect(chartResults()).not.toBe(data.results);
     expectLabelMatchesLine(data, 50);
+    const finalBalances = (results: MonteCarloResult[]) =>
+      results.reduce((sum, result) => sum + result[result.length - 1].inflationAdjustedBalance, 0);
+    expect(finalBalances(chartResults())).toBeLessThan(finalBalances(data.results));
   });
 
   test('switching views while the slider is settling keeps the label and line together', () => {
@@ -221,6 +225,33 @@ describe('confidence slider', () => {
     expectLabelMatchesLine(data, 70);
     fireEvent.click(screen.getByLabelText('Only show percentiles?'));
     expectLabelMatchesLine(data, 60);
+  });
+
+  test('a new run never draws at a rate other than the one on screen, even if the slider moved during the run', () => {
+    jest.useFakeTimers();
+    const first = response('ready');
+    const { rerender } = render(<CardWithSuccessRate data={first} />);
+
+    // Moved while a run (submitted at 90%) is still going.
+    moveSlider(75);
+    act(() => {
+      jest.advanceTimersByTime(SLIDER_SETTLE_MS);
+    });
+    const drawnBefore = mockGraphProps.length;
+
+    const second = response('ready'); // made at 90%
+    rerender(<CardWithSuccessRate data={second} />);
+    act(() => {
+      jest.advanceTimersByTime(SLIDER_SETTLE_MS);
+    });
+
+    // The slider stays where it was put, and every chart drawn for the new
+    // results uses it: nothing flashes back to 90%.
+    expect(screen.getByText('Desired success rate: 75%')).toBeInTheDocument();
+    const labels = mockGraphProps.slice(drawnBefore).map((props) => props.readyLine?.label);
+    expect(labels.length).toBeGreaterThan(0);
+    expect(new Set(labels)).toEqual(new Set(['Ready line (75%)']));
+    expectLabelMatchesLine(second, 75);
   });
 
   test("moving the slider doesn't recolor the other lines", () => {
@@ -252,7 +283,7 @@ describe('chart scale', () => {
       balance: year.balance * 100,
       inflationAdjustedBalance: year.inflationAdjustedBalance * 100,
     }));
-    const { container } = render(<MonteCarloResultsCard fetcher={{ data, state: 'idle' } as any} />);
+    const { container } = render(<CardWithSuccessRate data={data} />);
     const minMaxSwitch = screen.getByLabelText('Exclude min/max from graph?');
     expect(minMaxSwitch).toBeChecked();
     const linesWithout = lineCount(container);
@@ -262,5 +293,17 @@ describe('chart scale', () => {
 
     expect(lineCount(container)).toBe(linesWithout + 2);
     expect(topYTick(container)).toBeGreaterThan(topWithout);
+  });
+
+  test('the log scale is off by default, and on has a tick at each power of ten', () => {
+    const { container } = renderCard('ready');
+    expect(screen.getByLabelText('Log scale?')).not.toBeChecked();
+
+    fireEvent.click(screen.getByLabelText('Log scale?'));
+
+    const ticks = Array.from(container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'))
+      .map((tick) => tick.textContent);
+    expect(ticks.length).toBeGreaterThan(2);
+    ticks.forEach((tick) => expect(tick).toMatch(/^(≤ )?\$(1|10|100)[KMBT]?$/));
   });
 });

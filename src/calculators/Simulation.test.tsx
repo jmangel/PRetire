@@ -1,7 +1,16 @@
-import MonteCarloSimulation, { LifeEvent } from './MonteCarloSimulation';
-import { AssetClass, Inflation, Job, fractionOfYearActive } from './MonteCarloSimulation';
+import {
+  AssetClass,
+  Inflation,
+  Job,
+  LifeEvent,
+  fractionOfYearActive,
+  jobsIncome,
+  lifeEventsBalanceChange,
+  lifeEventsMonthlyExpensesChange,
+} from './PlanInputs';
+import { simulateOne } from './simulateOne';
 
-describe('MonteCarloSimulation', () => {
+describe('simulating one future', () => {
   describe('single asset class', () => {
     const allCashAssetClasses = [
       new AssetClass({
@@ -87,7 +96,7 @@ describe('MonteCarloSimulation', () => {
               }),
             ];
 
-            const yearlyResults = new MonteCarloSimulation(
+            const yearlyResults = simulateOne(
               startingBalance,
               monthlyExpenses,
               jobs,
@@ -95,7 +104,7 @@ describe('MonteCarloSimulation', () => {
               assetClasses,
               inflation,
               new Date().getFullYear() + 100
-            ).run();
+            );
 
             expect(yearlyResults.length).toBe(100);
 
@@ -149,7 +158,7 @@ describe('MonteCarloSimulation', () => {
               }),
             ];
 
-            const yearlyResults = new MonteCarloSimulation(
+            const yearlyResults = simulateOne(
               startingBalance,
               monthlyExpenses,
               jobs,
@@ -157,7 +166,7 @@ describe('MonteCarloSimulation', () => {
               assetClasses,
               inflation,
               new Date().getFullYear() + 100
-            ).run();
+            );
 
             expect(yearlyResults.length).toBe(100);
 
@@ -216,7 +225,7 @@ describe('MonteCarloSimulation', () => {
               }),
             ];
 
-            const yearlyResults = new MonteCarloSimulation(
+            const yearlyResults = simulateOne(
               startingBalance,
               monthlyExpenses,
               jobs,
@@ -224,7 +233,7 @@ describe('MonteCarloSimulation', () => {
               assetClasses,
               inflation,
               new Date().getFullYear() + 100
-            ).run();
+            );
 
             expect(yearlyResults.length).toBe(100);
 
@@ -265,7 +274,7 @@ describe('MonteCarloSimulation', () => {
             );
           });
 
-          test('runDeterministic follows average return and inflation rates', () => {
+          test('average markets follow the average return and inflation rates', () => {
             const startingBalance = 100;
             const monthlyExpenses = 0;
             const jobs: any[] = [];
@@ -283,15 +292,17 @@ describe('MonteCarloSimulation', () => {
               standardDeviationPercentage: 5,
             });
 
-            const yearlyResults = new MonteCarloSimulation(
+            const yearlyResults = simulateOne(
               startingBalance,
               monthlyExpenses,
               jobs,
               lifeEvents,
               assetClasses,
               inflation,
-              new Date().getFullYear() + 2
-            ).runDeterministic();
+              new Date().getFullYear() + 2,
+              undefined,
+              { average: true }
+            );
 
             expect(yearlyResults.length).toBe(2);
             expect(yearlyResults[0].balance).toBeCloseTo(110);
@@ -310,7 +321,7 @@ describe('MonteCarloSimulation', () => {
 
             const startingBalance = 100000;
 
-            const yearlyResults = new MonteCarloSimulation(
+            const yearlyResults = simulateOne(
               startingBalance,
               0,
               [],
@@ -325,7 +336,7 @@ describe('MonteCarloSimulation', () => {
               assetClasses,
               inflation,
               startingYear + 100
-            ).run();
+            );
 
             expect(yearlyResults.length).toBe(100);
 
@@ -430,7 +441,7 @@ describe('MonteCarloSimulation', () => {
         //     averageAnnualReturnPercentage: 3,
         //     standardDeviationPercentage: 0,
         //   });
-        //   const yearlyResults = new MonteCarloSimulation(
+        //   const yearlyResults = simulateOne(
         //     startingBalance,
         //     monthlyExpenses,
         //     jobs,
@@ -438,7 +449,7 @@ describe('MonteCarloSimulation', () => {
         //     assetClasses,
         //     inflation,
         //     endingYear
-        //   ).run();
+        //   );
 
         //   expect(yearlyResults.length).toBe(100);
         //   console.warn(yearlyResults[0]);
@@ -474,19 +485,7 @@ describe('fractionOfYearActive', () => {
   });
 });
 
-describe('MonteCarloSimulation.jobsIncome', () => {
-  const cash = [
-    new AssetClass({
-      name: 'Cash',
-      standardDeviationPercentage: 0,
-      averageAnnualReturnPercentage: 0,
-      allocationPercentage: 100,
-    }),
-  ];
-  const noInflation = new Inflation({
-    averageAnnualReturnPercentage: 0,
-    standardDeviationPercentage: 0,
-  });
+describe('jobsIncome', () => {
   const job = (
     postTaxAnnualIncome: string,
     startDate: string,
@@ -500,69 +499,58 @@ describe('MonteCarloSimulation.jobsIncome', () => {
       startDate,
       endDate,
     });
-  const simulation = (jobs: Job[]) =>
-    new MonteCarloSimulation(0, 0, jobs, [], cash, noInflation, 2100);
 
   test('switching jobs mid-year does not pay both salaries for that year', () => {
-    const sim = simulation([
-      job('100000', '', '2030-03-02'),
-      job('120000', '2030-03-02', ''),
-    ]);
+    const jobs = [job('100000', '', '2030-03-02'), job('120000', '2030-03-02', '')];
     const before = 60 / 365;
 
-    expect(sim.jobsIncome(2029)).toBeCloseTo(100000, 6);
-    expect(sim.jobsIncome(2030)).toBeCloseTo(100000 * before + 120000 * (1 - before), 6);
-    expect(sim.jobsIncome(2031)).toBeCloseTo(120000, 6);
+    expect(jobsIncome(jobs, 2029)).toBeCloseTo(100000, 6);
+    expect(jobsIncome(jobs, 2030)).toBeCloseTo(100000 * before + 120000 * (1 - before), 6);
+    expect(jobsIncome(jobs, 2031)).toBeCloseTo(120000, 6);
   });
 
   test('a job ending partway through a year only pays for the part worked', () => {
-    const sim = simulation([job('120000', '', '2046-07-02')]);
+    const jobs = [job('120000', '', '2046-07-02')];
 
-    expect(sim.jobsIncome(2046)).toBeCloseTo(120000 * (182 / 365), 6);
-    expect(sim.jobsIncome(2047)).toBe(0);
+    expect(jobsIncome(jobs, 2046)).toBeCloseTo(120000 * (182 / 365), 6);
+    expect(jobsIncome(jobs, 2047)).toBe(0);
   });
 
   test('inflation adjustment applies to the prorated income', () => {
-    const sim = simulation([job('120000', '', '2046-07-02', 'on')]);
-
-    expect(sim.jobsIncome(2046, 1.5)).toBeCloseTo(120000 * (182 / 365) * 1.5, 6);
+    expect(jobsIncome([job('120000', '', '2046-07-02', 'on')], 2046, 1.5)).toBeCloseTo(120000 * (182 / 365) * 1.5, 6);
   });
 
   test('a job with an unparseable date is skipped instead of producing NaN', () => {
-    const sim = simulation([job('100000', '', 'not-a-date'), job('50000', '', '')]);
-
-    expect(sim.jobsIncome(2030)).toBe(50000);
+    expect(jobsIncome([job('100000', '', 'not-a-date'), job('50000', '', '')], 2030)).toBe(50000);
   });
 });
 
-describe('MonteCarloSimulation life event year', () => {
+describe('life event year', () => {
   // Dates from <input type="date"> parse as UTC midnight, so a local-time year
   // check shifts boundary dates into the wrong year west or east of UTC.
-  const lifeEvent = (date: string) =>
+  const lifeEvent = (date: string, atRetirement = false) =>
     new LifeEvent({
       name: '',
       balanceChange: '1000',
       monthlyExpensesChange: '10',
       date,
+      atRetirement,
     });
-  const simulation = (lifeEvents: LifeEvent[]) =>
-    new MonteCarloSimulation(
-      0,
-      0,
-      [],
-      lifeEvents,
-      [],
-      new Inflation({ averageAnnualReturnPercentage: 0, standardDeviationPercentage: 0 }),
-      2100
-    );
 
   test.each(['2030-01-01', '2030-12-31'])('%s applies in 2030 in any time zone', (date) => {
-    const sim = simulation([lifeEvent(date)]);
+    const events = [lifeEvent(date)];
 
-    expect(sim.lifeEventsBalanceChange(2029)).toBe(0);
-    expect(sim.lifeEventsBalanceChange(2030)).toBe(1000);
-    expect(sim.lifeEventsBalanceChange(2031)).toBe(0);
-    expect(sim.lifeEventsMonthlyExpensesChange(2030)).toBe(10);
+    expect(lifeEventsBalanceChange(events, 2029)).toBe(0);
+    expect(lifeEventsBalanceChange(events, 2030)).toBe(1000);
+    expect(lifeEventsBalanceChange(events, 2031)).toBe(0);
+    expect(lifeEventsMonthlyExpensesChange(events, 2030)).toBe(10);
+  });
+
+  test('at-retirement events are left to the futures simulation, whatever their date', () => {
+    const events = [lifeEvent('2030-06-01', true)];
+
+    expect(lifeEventsBalanceChange(events, 2030)).toBe(0);
+    expect(lifeEventsMonthlyExpensesChange(events, 2030)).toBe(0);
   });
 });
 

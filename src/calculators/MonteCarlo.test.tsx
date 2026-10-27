@@ -1,4 +1,4 @@
-import { parseJobs } from './MonteCarlo';
+import run, { parseConfidence, parseJobs, parseLifeEvents, parseRetirementMode } from './MonteCarlo';
 
 const jobsFormData = (
   jobs: Array<{ income: string; adjustForInflation: boolean; atRetirement?: string }>
@@ -61,5 +61,66 @@ describe('parseJobs', () => {
     );
 
     expect(jobs.map((job) => job.atRetirement)).toEqual(['stops', 'unaffected']);
+  });
+});
+
+describe('parseLifeEvents', () => {
+  test('keeps each "At retirement" switch on its own life event', () => {
+    const formData = new FormData();
+    ['House', 'Insurance'].forEach((name) => {
+      formData.append('life_events[][name]', name);
+      formData.append('life_events[][balanceChange]', '-1000');
+      formData.append('life_events[][monthlyExpensesChange]', '0');
+      formData.append('life_events[][date]', '');
+    });
+    formData.append('life_events[][atRetirement]', '1');
+
+    expect(parseLifeEvents(formData).map((event) => event.atRetirement)).toEqual([false, true]);
+    expect(parseLifeEvents(formData).map((event) => event.balanceChange)).toEqual([-1000, -1000]);
+  });
+});
+
+describe('retirement settings', () => {
+  test('anything but "date" means retiring when ready', () => {
+    expect(parseRetirementMode('date')).toBe('date');
+    expect(parseRetirementMode('ready')).toBe('ready');
+    expect(parseRetirementMode(null)).toBe('ready');
+  });
+
+  test('confidence stays within the slider range', () => {
+    expect(parseConfidence('80')).toBe(80);
+    expect(parseConfidence('120')).toBe(99);
+    expect(parseConfidence('10')).toBe(50);
+    expect(parseConfidence('')).toBe(90);
+    expect(parseConfidence(undefined)).toBe(90);
+  });
+});
+
+describe('run', () => {
+  test('a fixed-date plan without a date retires when ready instead', async () => {
+    const formData = new FormData();
+    formData.append('startingBalance', '100000');
+    formData.append('monthlyExpenses', '-4000');
+    formData.append('endYear', String(new Date().getFullYear() + 6));
+    formData.append('retirement[mode]', 'date');
+    formData.append('retirement[date]', '');
+    formData.append('retirement[confidence]', '90');
+    formData.append('jobs[][name]', 'Job');
+    formData.append('jobs[][postTaxAnnualIncome]', '90000');
+    formData.append('jobs[][adjustForInflation]', '0');
+    formData.append('jobs[][startDate]', '');
+    formData.append('jobs[][endDate]', '');
+    formData.append('jobs[][atRetirement]', 'stops');
+    formData.append('inflation[averageAnnualReturnPercentage]', '3');
+    formData.append('inflation[standardDeviationPercentage]', '1');
+    formData.append('asset_classes[][name]', 'Stocks');
+    formData.append('asset_classes[][averageAnnualReturnPercentage]', '7');
+    formData.append('asset_classes[][standardDeviationPercentage]', '15');
+    formData.append('asset_classes[][allocationPercentage]', '100');
+
+    const response = await run(formData);
+
+    expect(response.mode).toBe('ready');
+    expect(response.readyLine?.plannedRetirement).toBeUndefined();
   });
 });

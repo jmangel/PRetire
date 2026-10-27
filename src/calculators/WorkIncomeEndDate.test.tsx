@@ -1,6 +1,6 @@
-import { Job, plannedRetirementDate } from './MonteCarloSimulation';
+import { Job, workIncomeEndDate } from './PlanInputs';
 
-describe('plannedRetirementDate', () => {
+describe('workIncomeEndDate', () => {
   const job = (
     postTaxAnnualIncome: string,
     endDate: string,
@@ -22,7 +22,7 @@ describe('plannedRetirementDate', () => {
       job('30000', '', 'unaffected'), // e.g. Social Security, no end date
     ];
 
-    expect(plannedRetirementDate(jobs)).toEqual(new Date('2044-07-01'));
+    expect(workIncomeEndDate(jobs)).toEqual(new Date('2044-07-01'));
   });
 
   test('defaults to "stops" when the option is missing (older settings files)', () => {
@@ -33,15 +33,15 @@ describe('plannedRetirementDate', () => {
   test('ignores blank and $0 income rows', () => {
     const jobs = [job('95000', '2044-07-01'), job('0', ''), job('', '')];
 
-    expect(plannedRetirementDate(jobs)).toEqual(new Date('2044-07-01'));
+    expect(workIncomeEndDate(jobs)).toEqual(new Date('2044-07-01'));
   });
 
   test('is undefined when some work income has no end date', () => {
-    expect(plannedRetirementDate([job('95000', '2044-07-01'), job('40000', '')])).toBeUndefined();
+    expect(workIncomeEndDate([job('95000', '2044-07-01'), job('40000', '')])).toBeUndefined();
   });
 
   test('is undefined when no income stops at retirement', () => {
-    expect(plannedRetirementDate([job('30000', '', 'unaffected')])).toBeUndefined();
-    expect(plannedRetirementDate([])).toBeUndefined();
+    expect(workIncomeEndDate([job('30000', '', 'unaffected')])).toBeUndefined();
+    expect(workIncomeEndDate([])).toBeUndefined();
   });
 });

@@ -1,6 +1,9 @@
 import { ReactElement } from 'react';
 import { render, screen } from '@testing-library/react';
 import MonteCarloGraph, {
+  clampForLogScale,
+  logScaleTicks,
+  logTickLabel,
   collectBalancesByYear,
   computeBaseTooltipData,
   computeYearExtents,
@@ -12,7 +15,7 @@ import MonteCarloGraph, {
   visibleLineKeysFor,
   visibleYValuesFor,
 } from './MonteCarloGraph';
-import { MonteCarloResult } from '../calculators/MonteCarloSimulation';
+import { MonteCarloResult } from '../calculators/PlanInputs';
 
 // ResponsiveContainer measures its parent, which is always 0x0 in jsdom, so
 // give the chart a fixed size to make it render.
@@ -50,13 +53,6 @@ describe('mergeReadyLine', () => {
     expect(merged[4].median).toBe(20340);
   });
 
-  test('crops the chart to chartLastYear', () => {
-    const merged = mergeReadyLine(data, line({ chartLastYear: 2032 }));
-
-    expect(merged.map((entry) => entry.year)).toEqual([2030, 2031, 2032]);
-    expect(merged.map((entry) => entry.readyLine)).toEqual([100, 101, 102]);
-  });
-
   test('leaves out values that are not finite', () => {
     const merged = mergeReadyLine(data, line({ values: [100, Infinity, 102, NaN, 104] }));
 
@@ -88,13 +84,13 @@ describe('computeBaseTooltipData', () => {
 });
 
 describe('mergeTooltipReadyLine', () => {
-  test("adds each shown year's ready-line value and drops years cropped from the chart", () => {
+  test("adds the ready-line value for each year it's drawn", () => {
     const base = computeBaseTooltipData({ series: rawData });
-    const chartData = mergeReadyLine(rawData, line({ values: [100, 101, 102], chartLastYear: 2031, lastYear: 2030 }));
+    const chartData = mergeReadyLine(rawData, line({ values: [100, 101, 102], lastYear: 2030 }));
 
     const data = mergeTooltipReadyLine(base, chartData);
 
-    expect(Object.keys(data)).toEqual(['2030', '2031']);
+    expect(Object.keys(data)).toEqual(['2030', '2031', '2032']);
     expect(data[2030]).toMatchObject({ readyLine: 100, max: 30 });
     expect(data[2031]).not.toHaveProperty('readyLine');
   });
@@ -119,11 +115,11 @@ describe('computeYearExtents and visibleYValuesFor', () => {
     expect(extents).toEqual({ 2030: [20, 20], 2031: [25, 25], 2032: [40, 40] });
   });
 
-  test('also fit the ready line, only for years still on the chart', () => {
+  test("also fit the ready line, only where it's drawn", () => {
     const extents = computeYearExtents(rawData, { excludeMinMax: false, onlyShowDeterministicLine: true });
-    const chartData = mergeReadyLine(rawData, line({ values: [500, 600, 700], chartLastYear: 2031 }));
+    const chartData = mergeReadyLine(rawData, line({ values: [500, 600, 700], lastYear: 2031 }));
 
-    expect(visibleYValuesFor(chartData, extents)).toEqual([20, 20, 500, 25, 25, 600]);
+    expect(visibleYValuesFor(chartData, extents)).toEqual([20, 20, 500, 25, 25, 600, 40, 40]);
   });
 });
 
@@ -353,5 +349,34 @@ describe('toPercentilesEntry', () => {
     expect(entry.median).toBe(20);
     expect(entry.max).toBe(30);
     expect(entry.deterministic).toBe(999);
+  });
+});
+
+describe('log scale', () => {
+  test('raises values below the floor to it, leaving the year alone', () => {
+    expect(clampForLogScale([{ year: 2030, series1: -5000, series2: 200, series3: 25000 }])).toEqual([
+      { year: 2030, series1: 1000, series2: 1000, series3: 25000 },
+    ]);
+  });
+
+  test('ticks run from the power of ten at or below the lowest value to the one at or above the highest', () => {
+    expect(logScaleTicks([42000, 3500000])).toEqual([[10000, 100000, 1000000, 10000000], [10000, 10000000]]);
+    // Never below the floor, and always at least two ticks.
+    expect(logScaleTicks([-5000, 0, 1000])).toEqual([[1000, 10000], [1000, 10000]]);
+    expect(logScaleTicks([])).toEqual([[1000, 10000], [1000, 10000]]);
+  });
+
+  test('a huge range thins to every few powers of ten instead of crowding the axis', () => {
+    const [ticks, domain] = logScaleTicks([5000, 3e18]); // up to quintillions
+    expect(ticks.length).toBeLessThanOrEqual(8);
+    expect(ticks[0]).toBe(1000);
+    expect(domain[1]).toBeGreaterThanOrEqual(3e18);
+  });
+
+  test('labels ticks compactly', () => {
+    expect([1000, 1e5, 1e6, 1e9, 1e12].map((value) => logTickLabel(value))).toEqual([
+      '≤ $1K', '$100K', '$1M', '$1B', '$1T',
+    ]);
+    expect(logTickLabel(1e18)).toBe('$1E18');
   });
 });
