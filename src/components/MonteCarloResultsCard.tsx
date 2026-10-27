@@ -221,14 +221,14 @@ const MonteCarloResultsCard = ({
             <Form.Group>
               <Form.Check
                 type="switch"
-                label="Only show deterministic average trajectory"
+                label="Only show steady-returns path?"
                 id="only_show_deterministic_line"
                 checked={onlyShowDeterministicLine}
                 onChange={(e) => setOnlyShowDeterministicLine(e.target.checked)}
                 disabled={!deterministicResult}
               />
               <Form.Text>
-                (Hides other lines so you can compare the Monte Carlo envelope against an isolated average path.)
+                (Every year gets exactly the average return and inflation, with no ups and downs (no volatility; standard deviation treated as 0). It usually ends above the median, since real swings drag down growth.)
               </Form.Text>
             </Form.Group>
           </Col>

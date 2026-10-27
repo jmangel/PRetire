@@ -12,6 +12,7 @@ import MonteCarloGraph, {
   mergeTooltipReadyLine,
   ReadyLineSeries,
   toPercentilesEntry,
+  visibleLineKeysFor,
   visibleYValuesFor,
 } from './MonteCarloGraph';
 import { MonteCarloResult } from '../calculators/PlanInputs';
@@ -59,7 +60,7 @@ describe('mergeReadyLine', () => {
   });
 });
 
-// Two futures' balances per year, plus the average path.
+// Two futures' balances per year, plus the steady-returns path.
 const rawData = [
   { year: 2030, series1: 10, series2: 30, deterministic: 20 },
   { year: 2031, series1: 15, series2: 45, deterministic: 25 },
@@ -71,7 +72,7 @@ const percentileData = rawData.map(({ year, deterministic }) => ({
 }));
 
 describe('computeBaseTooltipData', () => {
-  test('computes percentiles from raw futures, leaving out the average path', () => {
+  test('computes percentiles from raw futures, leaving out the steady-returns path', () => {
     const data = computeBaseTooltipData({ series: rawData });
 
     expect(data[2031]).toMatchObject({ year: 2031, min: 15, max: 45, median: 45, deterministic: 25 });
@@ -96,7 +97,7 @@ describe('mergeTooltipReadyLine', () => {
 });
 
 describe('computeYearExtents and visibleYValuesFor', () => {
-  test('fit all futures and the average path by default', () => {
+  test('fit all futures and the steady-returns path by default', () => {
     const extents = computeYearExtents(rawData, { excludeMinMax: false, onlyShowDeterministicLine: false });
 
     expect(extents[2032]).toEqual([5, 60]);
@@ -108,7 +109,7 @@ describe('computeYearExtents and visibleYValuesFor', () => {
     expect(extents[2030]).toEqual([0, 2030]);
   });
 
-  test('fit only the average path when that is all that is shown', () => {
+  test('fit only the steady-returns path when that is all that is shown', () => {
     const extents = computeYearExtents(rawData, { excludeMinMax: false, onlyShowDeterministicLine: true });
 
     expect(extents).toEqual({ 2030: [20, 20], 2031: [25, 25], 2032: [40, 40] });
@@ -172,6 +173,82 @@ describe('MonteCarloGraph', () => {
   });
 });
 
+describe('MonteCarloGraph lines and axis', () => {
+  const result = (balances: number[]): MonteCarloResult =>
+    balances.map((balance, k) => ({
+      year: 2030 + k,
+      balance,
+      inflationAdjustedBalance: balance,
+      inflation: 0,
+      monthlyExpenses: 0,
+      inflationAdjustedMonthlyExpenses: 0,
+    }));
+
+  test('draws the median darkest and thickest of the percentile lines', () => {
+    const { container } = render(
+      <MonteCarloGraph
+        results={[result([100, 200, 300]), result([150, 250, 350]), result([120, 220, 320])]}
+        inflationAdjusted
+        onlyShowPercentiles
+        excludeMinMax={false}
+        onlyShowDeterministicLine={false}
+      />
+    );
+    // Recharts' lines have no roles or labels, so find them by class name.
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
+    const curves = Array.from(container.querySelectorAll('.recharts-line-curve'));
+    const median = curves.find((curve) => curve.getAttribute('stroke') === '#104281');
+    expect(median).toBeDefined();
+    expect(median!.getAttribute('stroke-width')).toBe('2');
+    const others = curves.filter((curve) => curve !== median);
+    expect(others.every((curve) => curve.getAttribute('stroke-width') === '1')).toBe(true);
+  });
+
+  test('gives every y-axis tick its own label on a narrow range', () => {
+    const { container } = render(
+      <MonteCarloGraph
+        results={[result([1000000, 1004000, 1008000]), result([1001000, 1005000, 1009000])]}
+        inflationAdjusted
+        onlyShowPercentiles
+        excludeMinMax={false}
+        onlyShowDeterministicLine={false}
+      />
+    );
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
+    const labels = Array.from(container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'))
+      .map((tick) => tick.textContent);
+    expect(labels.length).toBeGreaterThan(2);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+});
+
+describe('visibleLineKeysFor', () => {
+  const percentileKeys = ['max', 'p90', 'p80', 'p70', 'p60', 'median', 'p40', 'p30', 'p20', 'p10', 'min', 'deterministic'];
+
+  test('draws every series, so every row gets a color key, by default', () => {
+    expect(visibleLineKeysFor(percentileKeys, { excludeMinMax: false, onlyShowDeterministicLine: false }))
+      .toEqual(percentileKeys);
+  });
+
+  test('leaves min and max without a line or key when they are excluded', () => {
+    const keys = visibleLineKeysFor(percentileKeys, { excludeMinMax: true, onlyShowDeterministicLine: false });
+    expect(keys).not.toContain('min');
+    expect(keys).not.toContain('max');
+    expect(keys).toContain('median');
+    expect(keys).toContain('deterministic');
+  });
+
+  test('keys only the steady-returns path when it is shown alone', () => {
+    expect(visibleLineKeysFor(percentileKeys, { excludeMinMax: true, onlyShowDeterministicLine: true }))
+      .toEqual(['deterministic']);
+  });
+
+  test("keys no percentile rows when every future is drawn, since they aren't lines", () => {
+    expect(visibleLineKeysFor(['series1', 'series2', 'deterministic'], { excludeMinMax: true, onlyShowDeterministicLine: false }))
+      .toEqual(['series1', 'series2', 'deterministic']);
+  });
+});
+
 describe('CustomTooltip', () => {
   const tooltipData = computeBaseTooltipData({ series: rawData });
 
@@ -191,8 +268,37 @@ describe('CustomTooltip', () => {
       />
     );
 
-    expect(screen.getByText('Ready line (90%): $1,000.00')).toBeInTheDocument();
+    expect(screen.getByText('Ready line (90%): $1K')).toBeInTheDocument();
     expect(screen.queryByText('Ready line: not shown after planned retirement')).not.toBeInTheDocument();
+  });
+  test('gives a color key only to the rows drawn as lines', () => {
+    const { container } = render(
+      <CustomTooltip label="2031" tooltipData={tooltipData} lineColors={{ median: '#123456', deterministic: '#0d6efd' }} />
+    );
+
+    // The swatches are decorative SVG, hidden from accessibility queries, so
+    // their strokes can only be read from the DOM.
+    const strokeOf = (text: string) =>
+      // eslint-disable-next-line testing-library/no-node-access
+      screen.getByText(text, { exact: false }).querySelector('line')?.getAttribute('stroke');
+    expect(strokeOf('Median:')).toBe('#123456');
+    expect(strokeOf('Steady-returns path:')).toBe('#0d6efd');
+    expect(strokeOf('Max:')).toBeFalsy();
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
+    expect(container.querySelectorAll('svg')).toHaveLength(12);
+  });
+
+  // Recharts hides an inactive tooltip with visibility: hidden on its
+  // wrapper. A swatch set to visible would override that and stay on screen.
+  test('never marks a color key visible, so a hidden tooltip hides it too', () => {
+    const { container } = render(
+      <div style={{ visibility: 'hidden' }}>
+        <CustomTooltip label="2031" tooltipData={tooltipData} lineColors={{ median: '#123456', deterministic: '#0d6efd' }} />
+      </div>
+    );
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
+    const swatches = Array.from(container.querySelectorAll('svg'));
+    expect(swatches.every((swatch) => getComputedStyle(swatch).visibility === 'hidden')).toBe(true);
   });
 });
 
@@ -209,7 +315,7 @@ describe('collectBalancesByYear', () => {
 
   test('gives one entry per year, in first-seen order, with every value', () => {
     const entries = collectBalancesByYear(
-      // Futures covering different years, and an average path with a year
+      // Futures covering different years, and a steady-returns path with a year
       // (2033) that no future has.
       [result([2030, 2031], 1000), result([2031, 2032], 2000)],
       result([2030, 2031, 2032, 2033], 3000),
@@ -224,7 +330,7 @@ describe('collectBalancesByYear', () => {
     ]);
   });
 
-  test('reads the requested balance and works without an average path', () => {
+  test('reads the requested balance and works without a steady-returns path', () => {
     expect(collectBalancesByYear([result([2030], 1000)], undefined, 'inflationAdjustedBalance')).toEqual([
       { year: 2030, series1: 3030.5 },
     ]);
@@ -232,11 +338,11 @@ describe('collectBalancesByYear', () => {
 });
 
 describe('toPercentilesEntry', () => {
-  test('a year only the average path has keeps just its value', () => {
+  test('a year only the steady-returns path has keeps just its value', () => {
     expect(toPercentilesEntry({ year: 2033, deterministic: 5033 })).toEqual({ year: 2033, deterministic: 5033 });
   });
 
-  test("summarizes the futures' balances and leaves the average path out of them", () => {
+  test("summarizes the futures' balances and leaves the steady-returns path out of them", () => {
     const entry = toPercentilesEntry({ year: 2031, series1: 10, series2: 30, series3: 20, deterministic: 999 });
 
     expect(entry.min).toBe(10);

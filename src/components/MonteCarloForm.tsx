@@ -2,6 +2,7 @@ import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { Button, Card, Col, Form, InputGroup, Nav, Row } from 'react-bootstrap';
 import { FetcherWithComponents } from 'react-router-dom';
 import HasManyRows from './HasManyRows';
+import ScenarioBar from './ScenarioBar';
 import { parseAtRetirement } from '../calculators/PlanInputs';
 import {
   JOB_FIELD_NAMES,
@@ -13,13 +14,82 @@ import {
   parseRetirementMode,
 } from '../calculators/MonteCarlo';
 import { JobSettings, MonteCarloSettings, migrateSettings } from '../calculators/Settings';
+import {
+  RestoreResult,
+  SavedScenarios,
+  loadScenarios,
+  mergeScenarios,
+  newScenarioId,
+  requestPersistentStorage,
+  scenariosFromBackup,
+  storeScenarios,
+  toBackup,
+  STORAGE_KEY,
+} from '../savedScenarios';
 
 const NUM_SETTINGS_TABS = 4;
 
 const LIFE_EVENT_FIELDS = ['name', 'date', 'balanceChange', 'monthlyExpensesChange'];
 
-export const dollarFormatter = (val: number) =>
-  val.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+/** Short dollar amounts for the graph, like $856K or $1.46B. */
+export const compactDollarFormatter = (val: number) =>
+  val.toLocaleString('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumSignificantDigits: 3 });
+
+const DOLLAR_UNITS: Array<[number, string]> = [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']];
+
+/**
+ * Labels for evenly spaced y-axis ticks. Every tick uses the largest tick's
+ * unit and enough decimals to show the step between ticks, so neighboring
+ * labels never round to the same text: $1.000M, $1.025M, $1.050M rather
+ * than $1M, $1.03M, $1.05M.
+ */
+export const axisDollarFormatter = (ticks: number[]): ((val: number) => string) => {
+  if (ticks.length < 2) return compactDollarFormatter;
+  const largest = Math.max(...ticks.map(Math.abs));
+  const [unit, suffix] = DOLLAR_UNITS.find(([size]) => largest >= size) ?? [1, ''];
+  const step = Math.abs(ticks[1] - ticks[0]) / unit;
+  let decimals = 0;
+  while (decimals < 6 && Math.abs(Math.round(step * 10 ** decimals) - step * 10 ** decimals) > 1e-6) {
+    decimals++;
+  }
+  return (val: number) =>
+    val === 0
+      ? '$0'
+      : `${val < 0 ? '-' : ''}$${(Math.abs(val) / unit).toFixed(decimals)}${suffix}`;
+};
+
+/** Have the browser save `data` as a JSON file. */
+const downloadJson = (fileName: string, data: unknown) => {
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: 'application/json;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+/** One sentence saying what restoring a backup did, leaving out what didn't happen. */
+const describeRestore = (
+  { added, updated, keptNewer, unchanged, renamed }: Omit<RestoreResult<unknown>, 'saved'>,
+  fileName: string
+) => {
+  const scenarios = (n: number) => `${n} scenario${n === 1 ? '' : 's'}`;
+  const parts = [
+    added > 0 && `added ${scenarios(added)}`,
+    updated > 0 && `updated ${scenarios(updated)} with newer copies`,
+    keptNewer > 0 && `kept ${scenarios(keptNewer)} saved here because ${keptNewer === 1 ? 'it was' : 'they were'} newer than the backup`,
+    renamed > 0 && `added "(restored)" to ${renamed === 1 ? 'one name' : `${renamed} names`} another scenario already had`,
+  ].filter(Boolean);
+  if (parts.length > 0) return `From ${fileName}: ${parts.join('; ')}.`;
+  return unchanged > 0
+    ? `Everything in ${fileName} is already saved here.`
+    : `Nothing to restore from ${fileName}: it has no saved scenarios.`;
+};
 
 const defaultAssetClasses = [
   // I basically used the most conservative stats I could find, ie. lowest
@@ -160,6 +230,24 @@ const SuccessRateField = ({
   );
 };
 
+const isMonteCarloSettings = (settings: unknown): settings is MonteCarloSettings => {
+  if (!settings || typeof settings !== 'object') return false;
+  const candidate = settings as MonteCarloSettings;
+  const hasArray = (value: unknown): value is unknown[] =>
+    Array.isArray(value);
+  if (!hasArray(candidate.jobs) || !hasArray(candidate.life_events)) return false;
+  if (!hasArray(candidate.asset_classes)) return false;
+  if (
+    !candidate.inflation ||
+    typeof candidate.inflation !== 'object' ||
+    typeof candidate.inflation.averageAnnualReturnPercentage !== 'string' ||
+    typeof candidate.inflation.standardDeviationPercentage !== 'string'
+  ) {
+    return false;
+  }
+  return true;
+};
+
 const MonteCarloForm = ({
   fetcher,
   confidence,
@@ -190,6 +278,27 @@ const MonteCarloForm = ({
   const [importError, setImportError] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const queuedImportSettings = useRef<MonteCarloSettings | null>(null);
+  // Set when the settings being applied should run as soon as they're in the form.
+  const runAfterFill = useRef(false);
+  const [savedScenarios, setSavedScenarios] = useState<SavedScenarios<MonteCarloSettings>>(
+    () => loadScenarios(isMonteCarloSettings)
+  );
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
+
+  // Another tab saved, renamed or deleted a scenario: show the same list here.
+  // If the picked scenario is gone, nothing is picked anymore.
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY && event.key !== null) return;
+      const latest = loadScenarios(isMonteCarloSettings);
+      setSavedScenarios(latest);
+      setSelectedScenarioId((id) =>
+        latest.scenarios.some((scenario) => scenario.id === id) ? id : null
+      );
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   const collectRepeatedGroup = (
     groupName: string,
@@ -326,24 +435,6 @@ const MonteCarloForm = ({
     });
   };
 
-  const validateSettings = (settings: unknown): settings is MonteCarloSettings => {
-    if (!settings || typeof settings !== 'object') return false;
-    const candidate = settings as MonteCarloSettings;
-    const hasArray = (value: unknown): value is unknown[] =>
-      Array.isArray(value);
-    if (!hasArray(candidate.jobs) || !hasArray(candidate.life_events)) return false;
-    if (!hasArray(candidate.asset_classes)) return false;
-    if (
-      !candidate.inflation ||
-      typeof candidate.inflation !== 'object' ||
-      typeof candidate.inflation.averageAnnualReturnPercentage !== 'string' ||
-      typeof candidate.inflation.standardDeviationPercentage !== 'string'
-    ) {
-      return false;
-    }
-    return true;
-  };
-
   // Fill every form field from imported settings. Used both when the row
   // counts already match and after new rows render.
   const fillForm = (form: HTMLFormElement, settings: MonteCarloSettings) => {
@@ -379,7 +470,26 @@ const MonteCarloForm = ({
     );
   };
 
-  const applySettings = (imported: MonteCarloSettings) => {
+  // Fill the form, then run the simulation if the settings asked for it.
+  // The run waits for the next render: the retirement setting and success
+  // rate are React state, and the form only submits them once rendered.
+  const [runRequests, setRunRequests] = useState(0);
+  const fillFormAndMaybeRun = (form: HTMLFormElement, settings: MonteCarloSettings) => {
+    fillForm(form, settings);
+    if (runAfterFill.current) {
+      runAfterFill.current = false;
+      setRunRequests((count) => count + 1);
+    }
+  };
+  useEffect(() => {
+    if (runRequests === 0) return;
+    const form = document.getElementById('monte-carlo-form') as HTMLFormElement | null;
+    if (form) fetcher.submit(form);
+    // Runs once per request; fetcher changes on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runRequests]);
+
+  const applySettings = (imported: MonteCarloSettings, { run = false } = {}) => {
     const settings = migrateSettings(imported);
     setRetirementMode(parseRetirementMode(settings.retirement?.mode));
     setConfidence(parseConfidence(settings.retirement?.confidence));
@@ -394,6 +504,7 @@ const MonteCarloForm = ({
       targetAssetClasses !== numAssetClasses;
 
     queuedImportSettings.current = settings;
+    runAfterFill.current = run;
     setNumJobs(targetJobs);
     setNumLifeEvents(targetLifeEvents);
     setNumAssetClasses(targetAssetClasses);
@@ -401,7 +512,7 @@ const MonteCarloForm = ({
     if (!needsRowUpdate) {
       const form = document.getElementById('monte-carlo-form') as HTMLFormElement | null;
       if (form) {
-        fillForm(form, settings);
+        fillFormAndMaybeRun(form, settings);
       }
       queuedImportSettings.current = null;
     }
@@ -417,10 +528,10 @@ const MonteCarloForm = ({
       return;
     }
 
-    fillForm(form, queuedImportSettings.current);
+    fillFormAndMaybeRun(form, queuedImportSettings.current);
     queuedImportSettings.current = null;
     // Runs only after the row counts change, once the new rows exist. The
-    // settings come from a ref, so fillForm doesn't need to be a dependency.
+    // settings come from a ref, so fillFormAndMaybeRun doesn't need to be a dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [numJobs, numLifeEvents, numAssetClasses]);
 
@@ -445,20 +556,121 @@ const MonteCarloForm = ({
       return;
     }
 
-    const blob = new Blob([JSON.stringify(settings, null, 2)], {
-      type: 'application/json;charset=utf-8',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = getExportFileName();
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const fileName = getExportFileName();
+    downloadJson(fileName, settings);
 
     setImportError(null);
-    setImportMessage(`Simulation settings exported locally as ${a.download}.`);
+    setImportMessage(`Simulation settings exported locally as ${fileName}.`);
+  };
+
+  // Saved scenarios only change through here, so what's shown always matches
+  // what's stored. A change given as a function is applied to what's in
+  // storage now, not to this tab's copy, so it can't undo what another tab
+  // saved since this one last read. Returns false, with an error shown, if
+  // the browser refused.
+  const updateSavedScenarios = (
+    change:
+      | SavedScenarios<MonteCarloSettings>
+      | ((current: SavedScenarios<MonteCarloSettings>) => SavedScenarios<MonteCarloSettings>)
+  ) => {
+    const next = typeof change === 'function' ? change(loadScenarios(isMonteCarloSettings)) : change;
+    if (!storeScenarios(next)) {
+      setImportMessage(null);
+      setImportError("Couldn't save: this browser is blocking or out of storage for this site.");
+      return false;
+    }
+    setSavedScenarios(next);
+    return true;
+  };
+
+  const showMessage = (message: string) => {
+    setImportError(null);
+    setImportMessage(message);
+  };
+
+  const selectedScenario = savedScenarios.scenarios.find(
+    (scenario) => scenario.id === selectedScenarioId
+  );
+
+  const handleSelectScenario = (id: string | null) => {
+    setSelectedScenarioId(id);
+    const scenario = savedScenarios.scenarios.find((candidate) => candidate.id === id);
+    if (!scenario) return;
+    setExportFileName(scenario.name);
+    applySettings(scenario.settings, { run: true });
+    showMessage(`Loaded "${scenario.name}".`);
+  };
+
+  const handleSaveScenario = () => {
+    const settings = buildSettings();
+    if (!selectedScenario || !settings) return;
+    const saved = { ...selectedScenario, settings, savedAt: new Date().toISOString() };
+    // If another tab deleted it meanwhile, saving puts it back.
+    const updated = updateSavedScenarios((current) => ({
+      ...current,
+      scenarios: current.scenarios.some((scenario) => scenario.id === saved.id)
+        ? current.scenarios.map((scenario) => (scenario.id === saved.id ? saved : scenario))
+        : [...current.scenarios, saved],
+    }));
+    if (updated) showMessage(`Saved "${saved.name}".`);
+  };
+
+  const handleSaveScenarioAs = (name: string) => {
+    const settings = buildSettings();
+    if (!settings) return;
+    const saved = { id: newScenarioId(), name, savedAt: new Date().toISOString(), settings };
+    const updated = updateSavedScenarios((current) => ({
+      ...current,
+      scenarios: [...current.scenarios, saved],
+    }));
+    if (!updated) return;
+    requestPersistentStorage();
+    setSelectedScenarioId(saved.id);
+    setExportFileName(name);
+    showMessage(`Saved "${name}".`);
+  };
+
+  const handleRenameScenario = (name: string) => {
+    if (!selectedScenario) return;
+    const updated = updateSavedScenarios((current) => ({
+      ...current,
+      scenarios: current.scenarios.map((scenario) =>
+        scenario.id === selectedScenario.id ? { ...scenario, name } : scenario
+      ),
+    }));
+    if (updated) showMessage(`Renamed "${selectedScenario.name}" to "${name}".`);
+  };
+
+  // Deleting leaves the form as it is, so the settings aren't lost if the
+  // user wants to save them again.
+  const handleDeleteScenario = () => {
+    if (!selectedScenario) return;
+    const updated = updateSavedScenarios((current) => ({
+      ...current,
+      scenarios: current.scenarios.filter((scenario) => scenario.id !== selectedScenario.id),
+    }));
+    if (!updated) return;
+    setSelectedScenarioId(null);
+    showMessage(`Deleted "${selectedScenario.name}".`);
+  };
+
+  const handleExportAllScenarios = () => {
+    const now = new Date();
+    const fileName = `pretire-scenarios-backup-${now.toISOString().slice(0, 10)}.json`;
+    // Back up what's in storage now, which includes other tabs' saves.
+    const current = loadScenarios(isMonteCarloSettings);
+    downloadJson(fileName, toBackup(current));
+    const exported = `Exported ${current.scenarios.length} saved scenario(s) as ${fileName}.`;
+    const recorded = updateSavedScenarios((latest) => ({ ...latest, lastBackupAt: now.toISOString() }));
+    if (recorded) {
+      showMessage(`${exported} Import it to restore them.`);
+    } else {
+      // The file was still saved; only the "Last backed up" date wasn't.
+      setImportMessage(null);
+      setImportError(
+        `${exported} Couldn't record the backup date: this browser is blocking or out of storage for this site.`
+      );
+    }
   };
 
   const handleImportClick = () => {
@@ -480,7 +692,32 @@ const MonteCarloForm = ({
       try {
         const content = reader.result;
         const parsed = JSON.parse(String(content));
-        if (!validateSettings(parsed)) {
+        const restored = scenariosFromBackup(parsed, isMonteCarloSettings);
+        if (restored) {
+          let result: RestoreResult<MonteCarloSettings> | undefined;
+          let replacedPicked: string | undefined;
+          const stored = updateSavedScenarios((current) => {
+            result = mergeScenarios(current, restored);
+            // If the backup's newer copy replaced the picked scenario, the form
+            // still shows the old settings, and Save would write them over
+            // the restored copy. So it's unpicked until the user picks it again.
+            const before = current.scenarios.find((scenario) => scenario.id === selectedScenarioId);
+            const after = result.saved.scenarios.find((scenario) => scenario.id === selectedScenarioId);
+            if (before && after && after.savedAt !== before.savedAt) replacedPicked = after.name;
+            return result.saved;
+          });
+          if (stored && result) {
+            if (replacedPicked) setSelectedScenarioId(null);
+            showMessage(
+              describeRestore(result, file.name) +
+                (replacedPicked
+                  ? ` The backup had a newer copy of "${replacedPicked}", so it's no longer picked; pick it again to load the restored settings.`
+                  : '')
+            );
+          }
+          return;
+        }
+        if (!isMonteCarloSettings(parsed)) {
           throw new Error('Invalid simulation settings file.');
         }
         applySettings(parsed);
@@ -510,6 +747,18 @@ const MonteCarloForm = ({
 
   return (
     <>
+      <ScenarioBar
+        scenarios={savedScenarios.scenarios}
+        selectedId={selectedScenarioId}
+        lastBackupAt={savedScenarios.lastBackupAt}
+        onSelect={handleSelectScenario}
+        onSave={handleSaveScenario}
+        onSaveAs={handleSaveScenarioAs}
+        onRename={handleRenameScenario}
+        onDelete={handleDeleteScenario}
+        onExportAll={handleExportAllScenarios}
+      />
+
       <Card border="secondary" className="m-2 bg-light">
         <Card.Header>
           <Nav
@@ -551,7 +800,7 @@ const MonteCarloForm = ({
                     type="number"
                     step="any"
                     name="startingBalance"
-                    placeholder="1000000"
+                    defaultValue={1000000}
                   />
                 </InputGroup>
               </Form.Group>
@@ -565,7 +814,7 @@ const MonteCarloForm = ({
                     type="number"
                     step="any"
                     name="monthlyExpenses"
-                    placeholder="-4000"
+                    defaultValue={-4000}
                   />
                 </InputGroup>
                 <Form.Text className="text-muted">
@@ -925,8 +1174,8 @@ const MonteCarloForm = ({
         </Col>
         <Col xs={12} md="auto">
           <Form.Text className="text-muted">
-            Save or restore your simulation fields locally. No settings are
-            stored in the cloud.
+            Export or import one scenario as a file, or import a backup of
+            all saved scenarios. Nothing is stored in the cloud.
           </Form.Text>
         </Col>
       </Row>

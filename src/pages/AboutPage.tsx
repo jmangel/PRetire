@@ -13,7 +13,7 @@ const AboutPage = () => (
     <h4>Your data stays with you</h4>
     <p>
       All computation is done in your browser and your data never leaves your device.
-      Export or import settings locally from a JSON file so you can save your scenarios privately.
+      Save named scenarios in this browser, or export them to a JSON file. Either way, they never leave your device.
     </p>
 
     <h4 className="mt-4">Fully configure your Monte Carlo simulations</h4>
