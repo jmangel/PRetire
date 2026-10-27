@@ -72,6 +72,7 @@ describe('parseTag', () => {
   test('refuses "(none)" as a value, since filters use it for no value', () => {
     expect(parseTag('Household: (none)', vocabulary)).toBeNull();
     expect(parseTag('Household: (NONE) ', vocabulary)).toBeNull();
+    expect(suggestTags('Household: (none)', vocabulary, emptyTags())).toEqual([]);
     expect(cleanTags({ dimensions: { Household: '(none)', Location: 'Austin' }, labels: [] }))
       .toEqual({ dimensions: { Location: 'Austin' }, labels: [] });
   });
@@ -120,6 +121,12 @@ describe('suggestTags', () => {
     expect(suggestTags('Pets: Dog', vocabulary, emptyTags())).toEqual([
       { text: 'Pets: Dog', label: 'Pets: Dog', isNew: true },
     ]);
+  });
+
+  test("leaves out the value the scenario already has", () => {
+    expect(suggestTags('Location: ', vocabulary, tags({ Location: 'Austin' })).map((s) => s.text))
+      .toEqual(['Location: Lisbon', 'Location: Santa Barbara']);
+    expect(suggestTags('location: austin', vocabulary, tags({ Location: 'Austin' }))).toEqual([]);
   });
 
   test('without a colon, suggests dimensions and labels that start with it, then a new label', () => {

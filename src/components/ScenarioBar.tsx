@@ -2,7 +2,6 @@ import { KeyboardEvent, useEffect, useState } from 'react';
 import { Button, Col, Form, InputGroup, Row } from 'react-bootstrap';
 import { ScenarioNotice } from './useSavedScenarios';
 
-type NameMode = 'saveAs' | 'rename';
 
 const formatBackupDate = (iso?: string) =>
   iso
@@ -28,12 +27,13 @@ const ScenarioBar = ({
   notice?: ScenarioNotice | null;
   onSelect: (id: string | null) => void;
   onSave: () => void;
-  onSaveAs: (name: string) => void;
+  /** Opens the Save as dialog. */
+  onSaveAs: () => void;
   onRename: (name: string) => void;
   onDelete: () => void;
   onExportAll: () => void;
 }) => {
-  const [nameMode, setNameMode] = useState<NameMode | null>(null);
+  const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
 
   const selected = scenarios.find((scenario) => scenario.id === selectedId);
@@ -41,20 +41,19 @@ const ScenarioBar = ({
   // A name being typed belongs to the scenario that was picked when the field
   // opened, so close it when the pick changes.
   useEffect(() => {
-    setNameMode(null);
+    setRenaming(false);
   }, [selectedId]);
 
-  const startNaming = (mode: NameMode) => {
-    setNameMode(mode);
-    setNameDraft(mode === 'rename' && selected ? selected.name : '');
+  const startRenaming = () => {
+    setRenaming(true);
+    setNameDraft(selected ? selected.name : '');
   };
 
   const confirmName = () => {
     const name = nameDraft.trim();
     if (!name) return;
-    if (nameMode === 'saveAs') onSaveAs(name);
-    if (nameMode === 'rename') onRename(name);
-    setNameMode(null);
+    onRename(name);
+    setRenaming(false);
   };
 
   // The name field sits inside the simulation form, where Enter would run
@@ -64,7 +63,7 @@ const ScenarioBar = ({
       event.preventDefault();
       confirmName();
     } else if (event.key === 'Escape') {
-      setNameMode(null);
+      setRenaming(false);
     }
   };
 
@@ -94,21 +93,21 @@ const ScenarioBar = ({
           </Form.Select>
         </Form.Group>
       </Col>
-      {nameMode ? (
+      {renaming ? (
         <Col xs={12} md={6}>
           <InputGroup>
             <Form.Control
               autoFocus
-              aria-label={nameMode === 'saveAs' ? 'New scenario name' : 'Scenario name'}
+              aria-label="Scenario name"
               placeholder="Scenario name"
               value={nameDraft}
               onChange={(event) => setNameDraft(event.target.value)}
               onKeyDown={handleNameKeyDown}
             />
             <Button variant="primary" onClick={confirmName} disabled={!nameDraft.trim()}>
-              {nameMode === 'saveAs' ? 'Save' : 'Rename'}
+              Rename
             </Button>
-            <Button variant="outline-secondary" onClick={() => setNameMode(null)}>
+            <Button variant="outline-secondary" onClick={() => setRenaming(false)}>
               Cancel
             </Button>
           </InputGroup>
@@ -118,10 +117,10 @@ const ScenarioBar = ({
           <Button variant="outline-primary" onClick={onSave} disabled={!selected}>
             Save
           </Button>
-          <Button variant="outline-primary" onClick={() => startNaming('saveAs')}>
+          <Button variant="outline-primary" onClick={onSaveAs}>
             Save as new…
           </Button>
-          <Button variant="outline-secondary" onClick={() => startNaming('rename')} disabled={!selected}>
+          <Button variant="outline-secondary" onClick={startRenaming} disabled={!selected}>
             Rename
           </Button>
           <Button variant="outline-danger" onClick={handleDelete} disabled={!selected}>
