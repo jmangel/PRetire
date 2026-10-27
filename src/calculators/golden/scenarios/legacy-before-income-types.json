@@ -1,0 +1,47 @@
+{
+  "startingBalance": "250000",
+  "monthlyExpenses": "-5000",
+  "endYear": "2090",
+  "jobs": [
+    {
+      "name": "Salary",
+      "postTaxAnnualIncome": "110000",
+      "adjustForInflation": true,
+      "startDate": "",
+      "endDate": "2041-06-30"
+    },
+    {
+      "name": "Social Security",
+      "postTaxAnnualIncome": "30000",
+      "adjustForInflation": true,
+      "startDate": "2058-01-01",
+      "endDate": ""
+    }
+  ],
+  "life_events": [
+    {
+      "name": "New roof",
+      "date": "2033-04-01",
+      "balanceChange": "-25000",
+      "monthlyExpensesChange": "0"
+    }
+  ],
+  "inflation": {
+    "averageAnnualReturnPercentage": "2.9",
+    "standardDeviationPercentage": "1.1343"
+  },
+  "asset_classes": [
+    {
+      "name": "S&P 500",
+      "allocationPercentage": "70",
+      "averageAnnualReturnPercentage": "9.9",
+      "standardDeviationPercentage": "19.7028"
+    },
+    {
+      "name": "US 10-yr Treasury Bonds",
+      "allocationPercentage": "30",
+      "averageAnnualReturnPercentage": "4.66",
+      "standardDeviationPercentage": "7.7"
+    }
+  ]
+}

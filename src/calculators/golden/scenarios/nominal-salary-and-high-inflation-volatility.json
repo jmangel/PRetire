@@ -1,0 +1,33 @@
+{
+  "startingBalance": "250000",
+  "monthlyExpenses": "-5000",
+  "endYear": "2090",
+  "retirement": {
+    "mode": "ready",
+    "confidence": "90",
+    "date": ""
+  },
+  "jobs": [
+    {
+      "name": "Contract work",
+      "postTaxAnnualIncome": "140000",
+      "adjustForInflation": false,
+      "startDate": "",
+      "endDate": "",
+      "atRetirement": "stops"
+    }
+  ],
+  "life_events": [],
+  "inflation": {
+    "averageAnnualReturnPercentage": "3.5",
+    "standardDeviationPercentage": "3"
+  },
+  "asset_classes": [
+    {
+      "name": "S&P 500",
+      "allocationPercentage": "100",
+      "averageAnnualReturnPercentage": "9.9",
+      "standardDeviationPercentage": "19.7028"
+    }
+  ]
+}

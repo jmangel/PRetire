@@ -1,0 +1,39 @@
+{
+  "startingBalance": "40000",
+  "monthlyExpenses": "-8500",
+  "endYear": "2090",
+  "retirement": {
+    "mode": "ready",
+    "confidence": "95",
+    "date": ""
+  },
+  "jobs": [
+    {
+      "name": "Salary",
+      "postTaxAnnualIncome": "100000",
+      "adjustForInflation": true,
+      "startDate": "",
+      "endDate": "",
+      "atRetirement": "stops"
+    }
+  ],
+  "life_events": [],
+  "inflation": {
+    "averageAnnualReturnPercentage": "2.9",
+    "standardDeviationPercentage": "1.1343"
+  },
+  "asset_classes": [
+    {
+      "name": "S&P 500",
+      "allocationPercentage": "90",
+      "averageAnnualReturnPercentage": "9.9",
+      "standardDeviationPercentage": "19.7028"
+    },
+    {
+      "name": "US 10-yr Treasury Bonds",
+      "allocationPercentage": "10",
+      "averageAnnualReturnPercentage": "4.66",
+      "standardDeviationPercentage": "7.7"
+    }
+  ]
+}

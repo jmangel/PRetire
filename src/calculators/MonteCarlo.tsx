@@ -44,7 +44,8 @@ export type MonteCarloResponse = {
 
 const FUTURES = 10000;
 
-const run = async (formData: FormData): Promise<MonteCarloResponse> => {
+/** The plan the form submitted, ready to simulate. */
+export const parsePlanInputs = (formData: FormData): PlanInputs => {
   const startingBalance = parseFloat(formData.get('startingBalance') as string) || 0;
 
   const monthlyExpenses = parseFloat(formData.get('monthlyExpenses') as string) || 0;
@@ -99,11 +100,14 @@ const run = async (formData: FormData): Promise<MonteCarloResponse> => {
     },
   ])[0]);
 
-  return simulatePlan({
+  return {
     startingBalance, monthlyExpenses, jobs, lifeEvents, assetClasses, inflation,
     startYear, endYear, mode, confidence, plannedRetirement,
-  });
+  };
 };
+
+const run = async (formData: FormData): Promise<MonteCarloResponse> =>
+  simulatePlan(parsePlanInputs(formData));
 
 type PlanInputs = {
   startingBalance: number;
