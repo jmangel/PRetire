@@ -1,4 +1,4 @@
-import { AssetClass, Inflation, Job, LifeEvent, fractionOfYearActive } from './PlanInputs';
+import { AssetClass, Inflation, Job, LifeEvent, fractionOfYearActive, workIncomeEndDate } from './PlanInputs';
 import { averageMarkets, buildCalendar, drawMarkets, endingBy, simulateFutures } from './Futures';
 
 const assets = (averageAnnualReturnPercentage: number, standardDeviationPercentage: number) => [
@@ -126,6 +126,26 @@ describe('simulateFutures', () => {
       // 2035): its balance change that year, its expense change from 2036.
       expect(byYear[2035]).toBeCloseTo(280000 - 12000 + 6000 - 1000, 6);
       expect(byYear[2036]).toBeCloseTo(byYear[2035] - 18000 + 6000, 6);
+    });
+
+    test('retiring when ready keeps a dated job to its end date and an open-ended one until ready', () => {
+      const jobs = [job('20000', { endDate: '2032-01-01' }), job('30000')];
+      const calendar = buildCalendar({
+        startingBalance: 0, monthlyExpenses: 0, jobs, lifeEvents: [], startYear, endYear,
+      });
+      // One job has no end date, so there's no forced retirement.
+      const workEnd = workIncomeEndDate(jobs);
+      expect(workEnd).toBeUndefined();
+      const line = Array(years - 1).fill(250000);
+      const { outcomes, results } = simulateFutures(flat, calendar, { kind: 'ready', line, workEnd }, { record: true });
+      const byYear = balances(results![0]);
+
+      // Both jobs through 2031, then only the open-ended one until ready.
+      expect(byYear[2031]).toBeCloseTo(2 * 50000, 6);
+      expect(byYear[2032]).toBeCloseTo(byYear[2031] + 30000, 6);
+      expect(outcomes[0].readyYear).toBe(2036); // 100k + 5 x $30k = $250k
+      expect(outcomes[0].forced).toBe(false);
+      expect(byYear[2037]).toBeCloseTo(byYear[2036], 6);
     });
 
     test("a future that isn't ready when work income ends retires then anyway", () => {
