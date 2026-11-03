@@ -98,14 +98,14 @@ const MonteCarloResultsCard = ({
     return {
       values: readyLineAt(readyLineData, chartConfidence / 100),
       startYear: readyLineData.startYear,
-      // Futures that retire on a fixed date are retired after it, so the line
-      // stops there. Retiring when ready, it stops once 9 in 10 are ready.
-      lastYear: retiresWhenReady
-        ? chartSummary?.p90
-        : readyLineData.plannedRetirement?.getUTCFullYear(),
+      // Futures that retire on a fixed date are all retired after it, so the
+      // line stops there. Retiring when ready, futures retire in different
+      // years, so the line runs to the end year: for a future that has
+      // already retired, it shows the balance needed to stay retired.
+      lastYear: retiresWhenReady ? undefined : readyLineData.plannedRetirement?.getUTCFullYear(),
       label: `Ready line (${chartConfidence}%)`,
     };
-  }, [readyLineData, inflationAdjusted, retiresWhenReady, chartSummary, chartConfidence]);
+  }, [readyLineData, inflationAdjusted, retiresWhenReady, chartConfidence]);
 
   const graph = useMemo(() => (
     <MonteCarloGraph

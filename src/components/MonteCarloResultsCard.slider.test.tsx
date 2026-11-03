@@ -6,7 +6,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import MonteCarloResultsCard, { SLIDER_SETTLE_MS } from './MonteCarloResultsCard';
 import { ReadyLineSeries } from './MonteCarloGraph';
 import { AssetClass, Inflation, Job, MonteCarloResult } from '../calculators/PlanInputs';
-import { readyLineAt, readyOutcomes, summarizeReadyYears } from '../calculators/ReadyLine';
+import { readyLineAt } from '../calculators/ReadyLine';
 import { MonteCarloResponse, RetirementMode, simulatePlan } from '../calculators/MonteCarlo';
 
 // The real chart, wrapped so tests can read the ready line it was given. Its
@@ -121,12 +121,9 @@ describe('where the ready line stops', () => {
     expect(chartReadyLine().lastYear).toBe(startYear + 12);
   });
 
-  test('retiring when ready, at the year 9 in 10 futures are ready', () => {
-    const { data } = renderCard('ready');
-    const p90 = summarizeReadyYears(readyOutcomes(data.readyLine!, readyLineAt(data.readyLine!, 0.9))).p90;
-
-    expect(p90).toBeDefined();
-    expect(chartReadyLine().lastYear).toBe(p90);
+  test('retiring when ready, not before the end year', () => {
+    renderCard('ready');
+    expect(chartReadyLine().lastYear).toBeUndefined();
   });
 });
 
