@@ -11,6 +11,17 @@ import { readyFutures, readyLineAt, readyOutcomes, summarizeReadyYears } from ".
 export const SLIDER_SETTLE_MS = 300;
 
 /**
+ * A success rate as a whole-number percentage. It never rounds to 100% while
+ * some runs failed, or to 0% while some succeeded.
+ */
+export const successPercent = (successes: number, total: number) => {
+  const rounded = Math.round((successes / total) * 100);
+  if (rounded === 100 && successes < total) return 99;
+  if (rounded === 0 && successes > 0) return 1;
+  return rounded;
+};
+
+/**
  * The value once it has stopped changing for delayMs. Covers mouse, touch,
  * and keyboard alike: arrow-key presses keep resetting the wait, just like
  * dragging does.
@@ -139,7 +150,7 @@ const MonteCarloResultsCard = ({
         <h3 className="my-1">
           {retiresWhenReady && readySummary && readyLineData
             ? readyHeadline(readySummary, readyLineData.endYear, workEndYear)
-            : `Your simulation succeeded ${successes.length}/${planResults.length} times (${Math.round(successes.length / planResults.length * 100)}%)`}
+            : `Your simulation succeeded ${successes.length}/${planResults.length} times (${successPercent(successes.length, planResults.length)}%)`}
         </h3>
       </Card.Header>
       <Card.Body>

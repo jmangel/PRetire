@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import MonteCarloForm from './MonteCarloForm';
-import MonteCarloResultsCard from './MonteCarloResultsCard';
+import MonteCarloResultsCard, { successPercent } from './MonteCarloResultsCard';
 import { AssetClass, Inflation, Job } from '../calculators/PlanInputs';
 import { MonteCarloResponse, RetirementMode, simulatePlan } from '../calculators/MonteCarlo';
 
@@ -117,5 +117,18 @@ describe('MonteCarloResultsCard', () => {
     fireEvent.click(screen.getByLabelText('Adjust for inflation?'));
 
     expect(screen.getByText('(Turn this on to see the ready line)')).toBeInTheDocument();
+  });
+});
+
+describe('successPercent', () => {
+  test('rounds to a whole number', () => {
+    expect(successPercent(8379, 10000)).toBe(84);
+    expect(successPercent(10000, 10000)).toBe(100);
+    expect(successPercent(0, 10000)).toBe(0);
+  });
+
+  test('shows 99% while some runs failed and 1% while some succeeded', () => {
+    expect(successPercent(9995, 10000)).toBe(99);
+    expect(successPercent(4, 1000)).toBe(1);
   });
 });

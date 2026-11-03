@@ -216,14 +216,21 @@ export const computeYearExtents = (
   return extents;
 };
 
-/** The y values the axis must fit: each visible year's extents plus its ready-line value. */
+/**
+ * The y values the axis must fit: each visible year's extents plus its
+ * ready-line value. On a log scale, ready-line values at or below the floor
+ * (they're drawn at the floor) are left out, so the line's $0 end point
+ * doesn't pull the axis down to the floor for every plan. The line then
+ * runs off the bottom of the chart in its last year.
+ */
 export const visibleYValuesFor = (
   chartData: Array<{ year: number; readyLine?: number }>,
-  yearExtents: Record<number, [number, number]>
+  yearExtents: Record<number, [number, number]>,
+  { logScale = false }: { logScale?: boolean } = {}
 ): number[] =>
   chartData.flatMap((entry) => [
     ...(yearExtents[entry.year] ?? []),
-    ...(entry.readyLine !== undefined ? [entry.readyLine] : []),
+    ...(entry.readyLine !== undefined && !(logScale && entry.readyLine <= LOG_SCALE_FLOOR) ? [entry.readyLine] : []),
   ]);
 
 // The ready line's and steady-returns path's fixed colors.
@@ -485,8 +492,8 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
   );
 
   const visibleYValues = useMemo(
-    () => visibleYValuesFor(chartData, yearExtents),
-    [chartData, yearExtents]
+    () => visibleYValuesFor(chartData, yearExtents, { logScale }),
+    [chartData, yearExtents, logScale]
   );
 
   const showPlannedRetirement =
