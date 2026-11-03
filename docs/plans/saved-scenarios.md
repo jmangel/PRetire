@@ -62,7 +62,22 @@ Three PRs, each usable on its own:
 - **C2. The grid.**
 - **C3. Create from a neighbor**, then **Split by** (below).
 
-#### C1. Result summaries
+#### C1. Result summaries (built)
+
+As built: the code is in `src/resultSummary.ts`, and `RESULTS_VERSION` is in
+`src/calculators/MonteCarlo.tsx`. Additions to what's below:
+
+- A plan with no work income, or whose work has already ended, has no ready
+  year to find. Its summary says `alreadyRetired: true`, shown as "already
+  retired" rather than "never ready".
+- A picked scenario can read back from the form a little differently from how
+  it was saved, and still be the same plan: an older file, or no income rows
+  where the form always shows a blank one. Picking runs it right away, so that
+  first run records how it reads back, and later runs that match it count as
+  runs of the saved scenario.
+- Results also depend on the year they're run in, since the simulation starts
+  next year. The fingerprint doesn't cover that, so a summary from last year
+  still shows as current until the scenario runs again.
 
 - **When one is stored.**
   - Saving stores a summary only if the results on the page came from
@@ -84,7 +99,8 @@ Three PRs, each usable on its own:
     date mode it's the share of runs that never go below zero, as the
     results headline shows.
   - `medianReadyYear` (ready mode only) is `summarizeReadyYears(...).median`.
-    Missing means the median future is never ready before the end year.
+    Missing means the median future is never ready before the end year,
+    unless `alreadyRetired`.
   - `plannedRetirementYear` (date mode only) is the year of
     `retirement.date`.
   - `confidence` is the desired success rate the summary used, so a grid can
@@ -112,7 +128,9 @@ Three PRs, each usable on its own:
   match the fingerprint of the scenario's current settings with the current
   `RESULTS_VERSION`. `savedAt` isn't used, because editing tags changes it. Out-of-date summaries still show,
   marked as such.
-- **Library rows** show the summary, e.g. "89% · ready 2040".
+- **Library rows** show the summary: "89% · ready 2040", "89% · never ready",
+  "89% · already retired" or "89% · retire 2045", with an "out of date" badge
+  when it is. A scenario without one says "Not run".
 
 #### C2. The grid
 
