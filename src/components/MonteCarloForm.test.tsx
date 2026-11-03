@@ -1115,7 +1115,7 @@ describe('MonteCarloForm scenario library', () => {
     window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify({
       scenarios: [
         { id: 'a', name: 'Current', savedAt: '2026-10-01T00:00:00.000Z', settings, summary: summary(settingsFingerprint(settings)) },
-        { id: 'b', name: 'Older', savedAt: '2026-10-01T00:00:00.000Z', settings, summary: summary(`0:${settingsFingerprint(settings).split(':')[1]}`) },
+        { id: 'b', name: 'Older', savedAt: '2026-10-01T00:00:00.000Z', settings, summary: summary(settingsFingerprint(settings).replace(/^\d+:/, '0:')) },
         { id: 'c', name: 'Never run', savedAt: '2026-10-01T00:00:00.000Z', settings },
       ],
     }));

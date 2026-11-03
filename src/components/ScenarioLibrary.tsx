@@ -112,7 +112,7 @@ const ScenarioLibrary = ({ scenarios, vocabulary, selectedId, onLoad, onEditTags
           <>
             <span className={scenario.result.current ? '' : 'text-muted'}>{scenario.result.text}</span>
             {!scenario.result.current && (
-              <Badge bg="warning-subtle" text="warning-emphasis" className="ms-1 fw-normal" title="The calculation changed since this ran. Run it again for current results.">
+              <Badge bg="warning-subtle" text="warning-emphasis" className="ms-1 fw-normal" title="From an earlier year or an older version of the calculation. Run it again for current results.">
                 out of date
               </Badge>
             )}

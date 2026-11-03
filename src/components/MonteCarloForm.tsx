@@ -13,6 +13,7 @@ import {
   RetirementMode,
   parseConfidence,
   parseRetirementMode,
+  simulationStartYear,
 } from '../calculators/MonteCarlo';
 import { JobSettings, MonteCarloSettings, migrateSettings } from '../calculators/Settings';
 import ScenarioTagsDialog from './ScenarioTagsDialog';
@@ -536,7 +537,7 @@ const MonteCarloForm = ({
       const ranThese =
         sameRun(run.settings, settings) ||
         (!!asLoaded && sameRun(loaded.current!.saved, settings) && sameRun(run.settings, asLoaded));
-      return ranThese ? summarizeRun(run.response, settings) : undefined;
+      return ranThese ? summarizeRun(run.response, settings, run.startYear) : undefined;
     },
   });
 
@@ -549,7 +550,7 @@ const MonteCarloForm = ({
   // They're read when the run starts: the page can't be edited while the
   // simulation runs.
   const runningSettings = useRef<MonteCarloSettings | null>(null);
-  const lastRun = useRef<{ settings: MonteCarloSettings; response: MonteCarloResponse } | null>(null);
+  const lastRun = useRef<{ settings: MonteCarloSettings; response: MonteCarloResponse; startYear: number } | null>(null);
   useEffect(() => {
     if (fetcher.state !== 'idle') {
       if (!runningSettings.current) {
@@ -565,7 +566,7 @@ const MonteCarloForm = ({
     const settings = runningSettings.current;
     runningSettings.current = null;
     if (!fetcher.data) return;
-    lastRun.current = { settings, response: fetcher.data as MonteCarloResponse };
+    lastRun.current = { settings, response: fetcher.data as MonteCarloResponse, startYear: simulationStartYear() };
     savedScenarios.noteRun();
     // Runs when a run starts or ends; the rest is read when it does.
     // eslint-disable-next-line react-hooks/exhaustive-deps
