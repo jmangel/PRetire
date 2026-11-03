@@ -26,6 +26,9 @@ export const parseConfidence = (value?: unknown): number => {
 
 export type MonteCarloResponse = {
   mode: RetirementMode;
+  /** The first and last simulated years. */
+  startYear: number;
+  endYear: number;
   /** The confidence (a percentage) the plan was run with. */
   confidence: number;
   /**
@@ -162,6 +165,8 @@ export const simulatePlan = ({
   if (mode === 'ready' && readyLine) {
     return {
       mode,
+      startYear,
+      endYear,
       confidence,
       ...readyFutures(readyLine, readyLineAt(readyLine, confidence / 100)),
       readyLine,
@@ -177,6 +182,8 @@ export const simulatePlan = ({
 
   return {
     mode,
+    startYear,
+    endYear,
     confidence,
     results: simulateFutures(markets, calendar, retirement, { record: true }).results!,
     deterministicResult: simulateFutures(average, calendar, retirement, { record: true }).results![0],

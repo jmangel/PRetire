@@ -90,7 +90,7 @@ describe('sameRun', () => {
 
 describe('summarizeRun', () => {
   const startYear = new Date().getFullYear() + 1;
-  const response = (mode: RetirementMode, { income = true } = {}) =>
+  const response = (mode: RetirementMode, { income = true, endYear = startYear + 40 } = {}) =>
     simulatePlan({
       startingBalance: 200000,
       monthlyExpenses: -3000,
@@ -101,7 +101,7 @@ describe('summarizeRun', () => {
       assetClasses: [new AssetClass({ name: 'Stocks', allocationPercentage: 100, averageAnnualReturnPercentage: 7, standardDeviationPercentage: 15 })],
       inflation: new Inflation({ averageAnnualReturnPercentage: 2.5, standardDeviationPercentage: 1 }),
       startYear,
-      endYear: startYear + 40,
+      endYear,
       mode,
       confidence: 90,
       plannedRetirement: mode === 'date' ? new Date(`${startYear + 12}-07-01`) : undefined,
@@ -113,7 +113,7 @@ describe('summarizeRun', () => {
     const run = response('ready');
     const at75 = settings({ retirement: { mode: 'ready', confidence: '75', date: '' } });
     const expected = summarizeReadyYears(readyOutcomes(run.readyLine!, readyLineAt(run.readyLine!, 0.75)));
-    expect(summarizeRun(run, at75, startYear)).toEqual({
+    expect(summarizeRun(run, at75)).toEqual({
       mode: 'ready',
       successRate: expected.successRate,
       ...(expected.median !== undefined ? { medianReadyYear: expected.median } : {}),
@@ -133,6 +133,19 @@ describe('summarizeRun', () => {
       confidence: 90,
       fingerprint: settingsFingerprint(dated),
     });
+  });
+
+  test('uses the year the run started in', () => {
+    const run = { ...response('date'), startYear: 2020 };
+    expect(summarizeRun(run, settings()).fingerprint).toBe(settingsFingerprint(settings(), 2020));
+  });
+
+  test('with no years left to retire in, there is no ready year, but that is not "already retired"', () => {
+    const run = response('ready', { endYear: startYear });
+    expect(run.readyLine).toBeUndefined();
+    const summary = summarizeRun(run, settings());
+    expect(summary.alreadyRetired).toBeUndefined();
+    expect(describeSummary(summary)).toMatch(/never ready$/);
   });
 
   test('with no work income, there is no ready year to find', () => {

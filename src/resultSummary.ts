@@ -17,7 +17,8 @@ export type ResultSummary = {
   medianReadyYear?: number;
   /**
    * When ready: true when there's no retirement year to find, because there's
-   * no work income or it has already ended.
+   * no work income or it has already ended. (With no years left to simulate,
+   * it's unset: never ready.)
    */
   alreadyRetired?: boolean;
   /** On a fixed date: that date's year. */
@@ -115,13 +116,9 @@ const confidenceOf = (settings: MonteCarloSettings, fallback: number) => {
  * The summary of a run for these settings, at their own desired success rate,
  * as the results card shows it.
  */
-export const summarizeRun = (
-  response: MonteCarloResponse,
-  settings: MonteCarloSettings,
-  /** The run's first simulated year. */
-  startYear = simulationStartYear()
-): ResultSummary => {
-  const fingerprint = settingsFingerprint(settings, startYear);
+export const summarizeRun = (response: MonteCarloResponse, settings: MonteCarloSettings): ResultSummary => {
+  // The year the run started in, not now: a run can finish after New Year.
+  const fingerprint = settingsFingerprint(settings, response.startYear);
   const confidence = confidenceOf(settings, response.confidence);
   if (response.mode === 'ready' && response.readyLine) {
     const ready = summarizeReadyYears(
@@ -138,7 +135,11 @@ export const summarizeRun = (
   const successes = response.results.filter((result) => result.every(({ balance }) => balance >= 0)).length;
   const successRate = response.results.length === 0 ? 0 : successes / response.results.length;
   if (response.mode === 'ready') {
-    return { mode: 'ready', successRate, alreadyRetired: true, confidence, fingerprint };
+    // No ready line with years left to retire in means there's no work
+    // income left. With none left (the end year is next year at the
+    // latest), no future is ready before the end year.
+    const yearsLeft = response.endYear > response.startYear;
+    return { mode: 'ready', successRate, ...(yearsLeft ? { alreadyRetired: true } : {}), confidence, fingerprint };
   }
   const date = migrateSettings(settings).retirement?.date;
   const year = date ? new Date(date).getUTCFullYear() : NaN;
