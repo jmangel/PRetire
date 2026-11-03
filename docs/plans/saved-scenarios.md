@@ -74,16 +74,22 @@ As built: the code is in `src/resultSummary.ts`, and `RESULTS_VERSION` is in
   it was saved, and still be the same plan: an older file, or no income rows
   where the form always shows a blank one. Picking runs it right away, so that
   first run records how it reads back, and later runs that match it count as
-  runs of the saved scenario.
+  runs of the saved scenario. The settings of every run are read as it's
+  submitted, so picking a scenario while another run is going still pairs
+  the results with the right settings.
+- A restore keeps results from the backup when the copy here, saved at the
+  same time, has none: running doesn't change `savedAt`.
 - Results also depend on the year they're run in, since the simulation starts
   next year. So the fingerprint includes the first simulated year, and every
   summary shows as out of date each January until its scenario runs again.
 
 - **When one is stored.**
   - Saving stores a summary only if the results on the page came from
-    exactly the settings being saved, meaning the same fingerprint. Otherwise
-    (the form was edited after the last run, or never ran) the scenario is
-    saved without a summary.
+    exactly the settings being saved. The one exception is the desired
+    success rate: the page replays the same futures at any rate, so the
+    summary is worked out at the saved rate and gets the saved settings'
+    fingerprint. Otherwise (the form was edited after the last run, or never
+    ran) the scenario is saved without a summary.
   - Running a picked scenario whose settings haven't been edited since it
     loaded also stores its summary: the Run button in the grid, and Run on
     the page. It changes only `summary`, not the settings, tags or
