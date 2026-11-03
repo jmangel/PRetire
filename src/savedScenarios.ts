@@ -179,6 +179,11 @@ export const mergeScenarios = <Settings,>(
     } else if (scenarios[index].savedAt > scenario.savedAt) {
       result.keptNewer++;
     } else if (scenarios[index].savedAt === scenario.savedAt) {
+      // Running a scenario keeps its results without changing savedAt, so
+      // the backup may have results this copy doesn't.
+      if (!scenarios[index].summary && scenario.summary) {
+        scenarios[index] = { ...scenarios[index], summary: scenario.summary };
+      }
       result.unchanged++;
     } else {
       const name = uniqueName(scenario.name, scenario.id);

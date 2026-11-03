@@ -193,4 +193,15 @@ describe('result summaries', () => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ scenarios: [{ ...scenario('a'), summary: { successRate: 'high' } }] }));
     expect(loadScenarios(isSettings).scenarios).toEqual([scenario('a')]);
   });
+
+  test("a restore adds a backup's results to the same save that has none here", () => {
+    const here = scenario('a');
+    const { saved, unchanged } = mergeScenarios({ scenarios: [here] }, [{ ...here, summary }]);
+    expect(unchanged).toBe(1);
+    expect(saved.scenarios[0].summary).toEqual(summary);
+
+    const other = { ...summary, successRate: 0.5 };
+    expect(mergeScenarios({ scenarios: [{ ...here, summary: other }] }, [{ ...here, summary }]).saved.scenarios[0].summary)
+      .toEqual(other);
+  });
 });

@@ -9,7 +9,6 @@ import {
   JOB_FIELDS,
   MAX_CONFIDENCE,
   MIN_CONFIDENCE,
-  MonteCarloResponse,
   RetirementMode,
   parseConfidence,
   parseRetirementMode,
@@ -21,7 +20,8 @@ import ScenarioLibrary from './ScenarioLibrary';
 import { describeDifferences } from '../settingsDifferences';
 import { scenariosFromBackup } from '../savedScenarios';
 import { downloadJson, useSavedScenarios } from './useSavedScenarios';
-import { describeSummary, isSummaryCurrent, sameRun, summarizeRun } from '../resultSummary';
+import { describeSummary, isSummaryCurrent } from '../resultSummary';
+import { useLastRun } from './useLastRun';
 
 const NUM_SETTINGS_TABS = 4;
 
@@ -427,7 +427,10 @@ const MonteCarloForm = ({
   useEffect(() => {
     if (runRequests === 0) return;
     const form = document.getElementById('monte-carlo-form') as HTMLFormElement | null;
-    if (form) fetcher.submit(form);
+    if (form) {
+      lastRun.submitted();
+      fetcher.submit(form);
+    }
     // Runs once per request; fetcher changes on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runRequests]);
@@ -511,10 +514,18 @@ const MonteCarloForm = ({
     setImportMessage(message);
   };
 
+  const lastRun = useLastRun({
+    fetcher,
+    formId: 'monte-carlo-form',
+    readSettings: buildSettings,
+    // Keeps the results with the picked scenario, if it ran as saved.
+    onRunFinished: () => savedScenarios.noteRun(),
+  });
+
   const savedScenarios = useSavedScenarios(isMonteCarloSettings, {
     readSettings: () => buildSettings(),
     loadScenario: (scenario) => {
-      loaded.current = { saved: scenario.settings };
+      lastRun.loaded(scenario.settings);
       setExportFileName(scenario.name);
       applySettings(scenario.settings, { run: true });
     },
@@ -530,57 +541,24 @@ const MonteCarloForm = ({
       setImportError(message);
     },
     describeDifferences,
-    summaryFor: (settings) => {
-      const run = lastRun.current;
-      if (!run) return undefined;
-      const asLoaded = loaded.current?.asLoaded;
-      const ranThese =
-        sameRun(run.settings, settings) ||
-        (!!asLoaded && sameRun(loaded.current!.saved, settings) && sameRun(run.settings, asLoaded));
-      return ranThese ? summarizeRun(run.response, settings, run.startYear) : undefined;
-    },
+    summaryFor: lastRun.summaryFor,
   });
 
-  // The picked scenario's settings as saved, and as the form reads them back
-  // once loaded. They can differ and still be the same plan: an older file,
-  // or no income rows where the form always shows one blank row.
-  const loaded = useRef<{ saved: MonteCarloSettings; asLoaded?: MonteCarloSettings } | null>(null);
-
-  // The settings the last run used, so its results can be saved with them.
-  // They're read when the run starts: the page can't be edited while the
-  // simulation runs.
-  const runningSettings = useRef<MonteCarloSettings | null>(null);
-  const lastRun = useRef<{ settings: MonteCarloSettings; response: MonteCarloResponse; startYear: number } | null>(null);
-  useEffect(() => {
-    if (fetcher.state !== 'idle') {
-      if (!runningSettings.current) {
-        runningSettings.current = buildSettings();
-        // Picking a scenario runs it right away, so its first run is the scenario as loaded.
-        if (loaded.current && !loaded.current.asLoaded && runningSettings.current) {
-          loaded.current.asLoaded = runningSettings.current;
-        }
-      }
-      return;
-    }
-    if (!runningSettings.current) return;
-    const settings = runningSettings.current;
-    runningSettings.current = null;
-    if (!fetcher.data) return;
-    lastRun.current = { settings, response: fetcher.data as MonteCarloResponse, startYear: simulationStartYear() };
-    savedScenarios.noteRun();
-    // Runs when a run starts or ends; the rest is read when it does.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetcher.state, fetcher.data]);
-
+  // Read on every render, so a tab left open over New Year marks last
+  // year's results as out of date.
+  const startYear = simulationStartYear();
   const libraryScenarios = useMemo(
     () =>
       savedScenarios.scenarios.map((scenario) => ({
         ...scenario,
         result: scenario.summary
-          ? { text: describeSummary(scenario.summary), current: isSummaryCurrent(scenario.summary, scenario.settings) }
+          ? {
+              text: describeSummary(scenario.summary),
+              current: isSummaryCurrent(scenario.summary, scenario.settings, startYear),
+            }
           : undefined,
       })),
-    [savedScenarios.scenarios]
+    [savedScenarios.scenarios, startYear]
   );
 
   const handleImportClick = () => {

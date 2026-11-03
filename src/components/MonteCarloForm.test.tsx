@@ -1138,12 +1138,17 @@ describe('MonteCarloForm result summaries', () => {
   // A fetcher the test drives: each run goes submitting, then idle with a
   // response. Half the futures run out of money; with no work income there's
   // no ready year, so a summary reads "50% · already retired".
-  const response = {
+  const startYear = new Date().getFullYear() + 1;
+  const response = (results = [[{ balance: 1 }], [{ balance: -1 }]]) => ({
     mode: 'ready',
+    startYear,
+    endYear: startYear + 40,
     confidence: 90,
-    results: [[{ balance: 1 }], [{ balance: -1 }]],
-    deterministicResult: [{ balance: 1 }],
-  };
+    results,
+    deterministicResult: results[0],
+  });
+  // Every future runs out of money: a different result from the default.
+  const allFail = [[{ balance: -1 }], [{ balance: -1 }]];
   const FormWithRuns = ({ fetcher }: { fetcher: any }) => {
     const [confidence, setConfidence] = useState(90);
     return <MonteCarloForm fetcher={fetcher} confidence={confidence} setConfidence={setConfidence} />;
@@ -1158,13 +1163,22 @@ describe('MonteCarloForm result summaries', () => {
     );
     const { container, rerender } = render(page());
     const form = container.querySelector('form') as HTMLFormElement;
-    const run = () => {
-      fetcher = { state: 'submitting', submit };
-      rerender(page());
-      fetcher = { state: 'idle', submit, data: { ...response } };
+    const setFetcher = (next: any) => {
+      fetcher = { submit, ...next };
       rerender(page());
     };
-    return { form, run };
+    // As the Run button does: submit the form, then the results come back.
+    const startRun = () => {
+      fireEvent.submit(form);
+      setFetcher({ state: 'submitting', data: fetcher.data });
+    };
+    const finishRun = (results?: Array<Array<{ balance: number }>>) =>
+      setFetcher({ state: 'idle', data: response(results) });
+    const run = (results?: Array<Array<{ balance: number }>>) => {
+      startRun();
+      finishRun(results);
+    };
+    return { form, run, startRun, finishRun, setFetcher, submit };
   };
   const balance = (form: HTMLFormElement) => form.querySelector('[name="startingBalance"]') as HTMLInputElement;
   const saveAs = (name: string) => {
@@ -1207,11 +1221,60 @@ describe('MonteCarloForm result summaries', () => {
     expect(stored()[0].summary).toEqual({ ...ranSummary, fingerprint: settingsFingerprint(stored()[0].settings) });
     expect(stored()[0].savedAt).toBe(savedAt);
 
-    // Edited and run again: those results aren't the saved scenario's.
+    // Edited and run again, with different results: those aren't the saved scenario's.
     const kept = stored()[0].summary;
     fireEvent.change(balance(form), { target: { value: '42' } });
-    run();
+    run(allFail);
     expect(stored()[0].summary).toEqual(kept);
+  });
+
+  test("picking a scenario during a run keeps that scenario's own results, not a later edited run's", async () => {
+    const { form, run, startRun, finishRun, submit } = renderWithRuns();
+    saveAs('First');
+    fireEvent.change(balance(form), { target: { value: '777' } });
+    saveAs('Second');
+    const select = screen.getByLabelText('Saved scenarios') as HTMLSelectElement;
+
+    // A run starts, and First is picked before it finishes. Picking submits
+    // again, which replaces the run in progress.
+    startRun();
+    fireEvent.change(select, { target: { value: stored()[0].id } });
+    await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
+    finishRun();
+    expect(stored()[0].summary).toEqual({ ...ranSummary, fingerprint: settingsFingerprint(stored()[0].settings) });
+    const kept = stored()[0].summary;
+
+    // Edited, then run with different results: not First's.
+    fireEvent.change(balance(form), { target: { value: '42' } });
+    run(allFail);
+    expect(stored()[0].summary).toEqual(kept);
+    expect(stored()[1].summary).toBeUndefined();
+  });
+
+  test('a run that fails keeps nothing', () => {
+    const { run, startRun, setFetcher } = renderWithRuns();
+    run();
+    saveAs('Plan');
+    const kept = stored()[0].summary;
+    // The run fails: no new results come back.
+    startRun();
+    setFetcher({ state: 'idle', data: undefined });
+    expect(stored()[0].summary).toEqual(kept);
+  });
+
+  test("a run doesn't bring back a scenario another tab deleted, or fail when the browser refuses", () => {
+    const { run } = renderWithRuns();
+    saveAs('Plan');
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify({ scenarios: [] }));
+    run();
+    expect(stored()).toEqual([]);
+
+    saveAs('Again');
+    jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+    run();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   test('an older saved scenario keeps its results when picked and run, though the form reads it back differently', async () => {
