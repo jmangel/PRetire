@@ -126,6 +126,23 @@ const YearCursor = ({ x = 0, y = 0, height = 0, step }: RectProps & { step: numb
   />
 );
 
+/**
+ * "Typically ready", above the plot beside the median's line. Centered on the
+ * line, it ran into the y-axis labels when the typical year is one of the
+ * first, so it starts at the line, or ends at it in the right part of the
+ * chart so it can't run off that side.
+ */
+const TypicalLabel = ({ viewBox, chartWidth }: { viewBox?: { x?: number; y?: number }; chartWidth: number }) => {
+  const x = viewBox?.x ?? 0;
+  const y = viewBox?.y ?? 0;
+  const fromLeft = x < chartWidth * 0.7;
+  return (
+    <text x={fromLeft ? x + 4 : x - 4} y={y - 6} textAnchor={fromLeft ? 'start' : 'end'} fill={MUTED} fontSize={12}>
+      Typically ready
+    </text>
+  );
+};
+
 type Props = {
   bars: ReadyYearBar[];
   summary: ReadyYearSummary;
@@ -212,7 +229,7 @@ const ReadyYearsPlot = ({ bars, summary, syncId, width = 0, height = 0 }: PlotPr
           x={median}
           stroke={MUTED}
           strokeDasharray="4 4"
-          label={{ value: 'Typically ready', position: 'top', fill: MUTED, fontSize: 12 }}
+          label={<TypicalLabel chartWidth={width} />}
         />
       )}
     </BarChart>
