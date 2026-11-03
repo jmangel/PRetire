@@ -153,18 +153,26 @@ const PaddedYears = ({ x = 0, y = 0, width = 0, height = 0, step }: RectProps & 
   />
 );
 
-/** The hover highlight behind a year: one year wide, centered on it. */
-const YearCursor = ({ x = 0, y = 0, height = 0, step }: RectProps & { step: number }) => (
-  <rect
-    className="ready-years-cursor"
-    x={x - step / 2}
-    y={y}
-    width={step}
-    height={height}
-    fill={MUTED}
-    fillOpacity={0.15}
-  />
-);
+/**
+ * The hover highlight behind a year: one year wide, centered on it. Outside
+ * a BarChart, Recharts hands the cursor the two ends of a vertical line at the
+ * hovered year (top, then bottom of the plot) rather than a rectangle.
+ */
+const YearCursor = ({ points, step }: { points?: { x: number; y: number }[]; step: number }) => {
+  if (!points || points.length < 2) return null;
+  const [top, bottom] = points;
+  return (
+    <rect
+      className="ready-years-cursor"
+      x={top.x - step / 2}
+      y={top.y}
+      width={step}
+      height={bottom.y - top.y}
+      fill={MUTED}
+      fillOpacity={0.15}
+    />
+  );
+};
 
 /**
  * "Typically ready", above the plot beside the median's line. Centered on the
