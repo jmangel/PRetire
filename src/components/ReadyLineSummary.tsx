@@ -1,5 +1,5 @@
 import { Form } from 'react-bootstrap';
-import { ReadyYearSummary } from '../calculators/ReadyLine';
+import { ReadyYearSummary, notReadyBreakdown } from '../calculators/ReadyLine';
 import { MAX_CONFIDENCE, MIN_CONFIDENCE, RetirementMode } from '../calculators/MonteCarlo';
 
 export const formatPlannedDate = (date: Date) =>
@@ -13,7 +13,7 @@ export const formatPlannedDate = (date: Date) =>
 const percent = (share: number) => Math.round(share * 100);
 
 type SentenceSummary = Pick<ReadyYearSummary, 'p25' | 'median' | 'p75' | 'p90' | 'neverReady'> &
-  Partial<Pick<ReadyYearSummary, 'forcedOut' | 'ranOutWhileWorking'>>;
+  Partial<Pick<ReadyYearSummary, 'forcedOut' | 'ranOutWhileWorking' | 'notReadyByEnd'>>;
 
 /** Plain-language description of when the futures are ready. */
 export const readySentences = (
@@ -21,14 +21,14 @@ export const readySentences = (
   endYear: number,
   workEndYear?: number
 ): { typical?: number; text: string[] } => {
-  const { p25, median, p75, p90, neverReady, forcedOut = 0, ranOutWhileWorking = 0 } = summary;
-  const forced = workEndYear !== undefined ? forcedOut : 0;
+  const { p25, median, p75, p90 } = summary;
+  // notReadyByEnd: not ready for any other reason, still short of the line at
+  // the end year.
+  const { forced, ranOutWhileWorking, notReadyByEnd } = notReadyBreakdown(summary, workEndYear);
   const forcedSentence = (share: string) =>
     `${share} of these futures haven't reached the ready line when your work income ends in ${workEndYear}, so they stop working then without being ready.`;
   const ranOutSentence = (share: string) =>
     `${share} of these futures run out of money while still working, so they never reach the ready line.`;
-  // Not ready for any other reason: still short of the line at the end year.
-  const notReadyByEnd = neverReady - forced - ranOutWhileWorking;
 
   if (median === undefined) {
     const text = [];
@@ -184,7 +184,7 @@ const ReadyLineSummary = ({
           The ready line is the balance, in today's dollars, that gives at
           least this chance of never running out if you retire that year.
           {chartWaitsForSlider &&
-            ' The chart updates once you stop moving the slider.'}
+            ' The balance chart updates once you stop moving the slider.'}
         </Form.Text>
       </Form.Group>
     </div>

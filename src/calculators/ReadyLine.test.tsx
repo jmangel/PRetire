@@ -6,6 +6,8 @@ import {
   readyFutures,
   readyLineAt,
   readyOutcomes,
+  notReadyBreakdown,
+  readyYearHistogram,
   requiredBalancesByYear,
   summarizeReadyYears,
 } from './ReadyLine';
@@ -392,6 +394,48 @@ describe('summarizeReadyYears', () => {
     expect(summary.neverReady).toBe(0.5);
     expect(summary.successRate).toBe(0.5);
   });
+
+  test('counts the futures still short of the line at the end year on their own', () => {
+    const summary = summarizeReadyYears([
+      outcome(2040),
+      outcome(undefined, true),
+      { readyYear: undefined, forced: false, succeeded: false, ranOutWhileWorking: true },
+      outcome(),
+    ]);
+
+    expect(summary.notReadyByEnd).toBe(0.25);
+  });
+
+  test('with 10,000 futures, none forced or out of money means none left over', () => {
+    // 1 forced and 31 out of money: subtracting their shares from neverReady
+    // would leave about 4e-19 instead of 0.
+    const outcomes = [
+      ...Array.from({ length: 9968 }, () => outcome(2040)),
+      outcome(undefined, true),
+      ...Array.from({ length: 31 }, () => ({
+        readyYear: undefined, forced: false, succeeded: false, ranOutWhileWorking: true,
+      })),
+    ];
+    expect(summarizeReadyYears(outcomes).notReadyByEnd).toBe(0);
+  });
+});
+
+describe('notReadyBreakdown', () => {
+  test('uses the counted share when there is one', () => {
+    expect(
+      notReadyBreakdown({ neverReady: 0.3, forcedOut: 0.1, ranOutWhileWorking: 0.1, notReadyByEnd: 0.1 }, 2050)
+    ).toEqual({ forced: 0.1, ranOutWhileWorking: 0.1, notReadyByEnd: 0.1 });
+  });
+
+  test('without one, subtracts and snaps float residue to zero', () => {
+    const shares = { neverReady: 32 / 10000, forcedOut: 1 / 10000, ranOutWhileWorking: 31 / 10000 };
+    expect(notReadyBreakdown(shares, 2050).notReadyByEnd).toBe(0);
+    expect(notReadyBreakdown({ neverReady: 0.2, forcedOut: 0.05 }, 2050).notReadyByEnd).toBeCloseTo(0.15);
+  });
+
+  test('without a work end date, nobody is forced out', () => {
+    expect(notReadyBreakdown({ neverReady: 0.2, forcedOut: 0.2 }).forced).toBe(0);
+  });
 });
 
 describe('summarizeReadyYears success rates by group', () => {
@@ -413,5 +457,43 @@ describe('summarizeReadyYears success rates by group', () => {
 
   test('a group with no futures has no rate', () => {
     expect(summarizeReadyYears([{ readyYear: 2040, succeeded: true }]).forcedSuccessRate).toBeUndefined();
+  });
+});
+
+describe('readyYearHistogram', () => {
+  test('splits each year by whether the money lasts, as shares of all futures', () => {
+    const bars = readyYearHistogram(
+      [
+        { readyYear: 2030, succeeded: true },
+        { readyYear: 2030, succeeded: false },
+        { readyYear: 2032, succeeded: true },
+        { readyYear: undefined, succeeded: false },
+      ],
+      2030,
+      2032
+    );
+
+    expect(bars).toEqual([
+      { year: 2030, lasts: 0.25, runsOut: 0.25 },
+      { year: 2031, lasts: 0, runsOut: 0 },
+      { year: 2032, lasts: 0.25, runsOut: 0 },
+    ]);
+  });
+
+  test('futures that are never ready are in no bar', () => {
+    const bars = readyYearHistogram(
+      [{ readyYear: undefined, succeeded: true }, { readyYear: 2030, succeeded: true }],
+      2030,
+      2031
+    );
+    const total = bars.reduce((sum, { lasts, runsOut }) => sum + lasts + runsOut, 0);
+    expect(total).toBeCloseTo(0.5);
+  });
+
+  test('has a bar for every year even with no futures', () => {
+    expect(readyYearHistogram([], 2030, 2031)).toEqual([
+      { year: 2030, lasts: 0, runsOut: 0 },
+      { year: 2031, lasts: 0, runsOut: 0 },
+    ]);
   });
 });

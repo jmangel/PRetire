@@ -11,6 +11,7 @@ import {
 import { MonteCarloResult } from "../calculators/PlanInputs";
 import { useMemo } from "react";
 import { axisDollarFormatter, compactDollarFormatter } from "./MonteCarloForm";
+import { CHART_CONTAINER_WIDTH, CHART_SIDE_MARGINS, CHART_Y_AXIS_WIDTH } from "./chartLayout";
 
 type Percentiles = {
   max: number,
@@ -216,14 +217,22 @@ export const computeYearExtents = (
   return extents;
 };
 
-/** The y values the axis must fit: each visible year's extents plus its ready-line value. */
+/**
+ * The y values the axis must fit: each visible year's extents plus its
+ * ready-line value. On a log scale the ready line's value in the last year
+ * is left out: that's its $0 end point, which would otherwise pull the axis
+ * down to the floor for every plan. The line then runs off the bottom of the
+ * chart in its last year. Earlier low values still count, so a line that is
+ * $0 for years (other income covers every expense) stays on the chart.
+ */
 export const visibleYValuesFor = (
   chartData: Array<{ year: number; readyLine?: number }>,
-  yearExtents: Record<number, [number, number]>
+  yearExtents: Record<number, [number, number]>,
+  { logScale = false }: { logScale?: boolean } = {}
 ): number[] =>
-  chartData.flatMap((entry) => [
+  chartData.flatMap((entry, index) => [
     ...(yearExtents[entry.year] ?? []),
-    ...(entry.readyLine !== undefined ? [entry.readyLine] : []),
+    ...(entry.readyLine !== undefined && !(logScale && index === chartData.length - 1) ? [entry.readyLine] : []),
   ]);
 
 // The ready line's and steady-returns path's fixed colors.
@@ -388,8 +397,8 @@ export const toPercentilesEntry = (entry: Record<string, number>): PercentilesCh
   return newEntry;
 };
 
-const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResult?: MonteCarloResult, inflationAdjusted: boolean, onlyShowPercentiles: boolean, excludeMinMax: boolean, onlyShowDeterministicLine: boolean, readyLine?: ReadyLineSeries, plannedRetirementYear?: number, retirementLabel?: string, logScale?: boolean }) => {
-  const { results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLine, plannedRetirementYear, retirementLabel = 'Planned retirement', logScale = false } = props;
+const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResult?: MonteCarloResult, inflationAdjusted: boolean, onlyShowPercentiles: boolean, excludeMinMax: boolean, onlyShowDeterministicLine: boolean, readyLine?: ReadyLineSeries, plannedRetirementYear?: number, retirementLabel?: string, logScale?: boolean, syncId?: string }) => {
+  const { results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLine, plannedRetirementYear, retirementLabel = 'Planned retirement', logScale = false, syncId } = props;
 
   const yearEntries = useMemo(
     () => collectBalancesByYear(results, deterministicResult, inflationAdjusted ? 'inflationAdjustedBalance' : 'balance'),
@@ -485,8 +494,8 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
   );
 
   const visibleYValues = useMemo(
-    () => visibleYValuesFor(chartData, yearExtents),
-    [chartData, yearExtents]
+    () => visibleYValuesFor(chartData, yearExtents, { logScale }),
+    [chartData, yearExtents, logScale]
   );
 
   const showPlannedRetirement =
@@ -510,16 +519,13 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
   );
 
   return (
-    <ResponsiveContainer width="95%" height={550} debounce={100}>
+    <ResponsiveContainer width={CHART_CONTAINER_WIDTH} height={550} debounce={100}>
       <LineChart
         key={`${inflationAdjusted ? 'inflationAdjusted' : 'notInflationAdjusted'}${logScale ? 'log' : 'linear'}${results.length > 0 ? results[0].at(-1)?.balance : null}`}
         data={chartData}
-        margin={{
-          top: 5,
-          right: 30,
-          left: 20,
-          bottom: 5,
-        }}
+        syncId={syncId}
+        syncMethod="value"
+        margin={{ top: 5, ...CHART_SIDE_MARGINS, bottom: 5 }}
       >
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="year" />
@@ -527,7 +533,7 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
           ticks={customYTicks} domain={customDomain}
           scale={logScale ? 'log' : 'auto'}
           tickFormatter={logScale ? (value: number) => logTickLabel(value) : yTickFormatter}
-          width={70}
+          width={CHART_Y_AXIS_WIDTH}
           allowDataOverflow={true}
         />
         <Tooltip content={tooltip} />

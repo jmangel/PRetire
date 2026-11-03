@@ -3,12 +3,27 @@ import { useEffect, useMemo, useState } from "react";
 import MonteCarloGraph, { ReadyLineSeries } from "./MonteCarloGraph";
 import SpinnerOverlay from "./SpinnerOverlay";
 import ReadyLineSummary, { readyHeadline } from "./ReadyLineSummary";
+import ReadyYearsChart from "./ReadyYearsChart";
 import { FetcherWithComponents } from "react-router-dom";
 import { MonteCarloResponse } from "../calculators/MonteCarlo";
-import { readyFutures, readyLineAt, readyOutcomes, summarizeReadyYears } from "../calculators/ReadyLine";
+import { readyFutures, readyLineAt, readyOutcomes, readyYearHistogram, summarizeReadyYears } from "../calculators/ReadyLine";
 
 /** How long the slider must be still before a slow chart redraws. */
 export const SLIDER_SETTLE_MS = 300;
+
+/** Links hovering a year on the balance chart and the ready-year bars. */
+const BALANCE_AND_READY_YEARS_SYNC_ID = 'balance-and-ready-years';
+
+/**
+ * A success rate as a whole-number percentage. It never rounds to 100% while
+ * some runs failed, or to 0% while some succeeded.
+ */
+export const successPercent = (successes: number, total: number) => {
+  const rounded = Math.round((successes / total) * 100);
+  if (rounded === 100 && successes < total) return 99;
+  if (rounded === 0 && successes > 0) return 1;
+  return rounded;
+};
 
 /**
  * The value once it has stopped changing for delayMs. Covers mouse, touch,
@@ -57,9 +72,22 @@ const MonteCarloResultsCard = ({
     () => (readyLineData ? readyLineAt(readyLineData, confidence / 100) : undefined),
     [readyLineData, confidence]
   );
-  const readySummary = useMemo(
-    () => (readyLineData && readyLine ? summarizeReadyYears(readyOutcomes(readyLineData, readyLine)) : undefined),
+  const liveOutcomes = useMemo(
+    () => (readyLineData && readyLine ? readyOutcomes(readyLineData, readyLine) : undefined),
     [readyLineData, readyLine]
+  );
+  const readySummary = useMemo(
+    () => (liveOutcomes ? summarizeReadyYears(liveOutcomes) : undefined),
+    [liveOutcomes]
+  );
+  // The ready-year bars are cheap, so unlike the balance chart they follow
+  // the slider live.
+  const readyYearBars = useMemo(
+    () =>
+      retiresWhenReady && readyLineData && liveOutcomes
+        ? readyYearHistogram(liveOutcomes, readyLineData.startYear, readyLineData.endYear)
+        : undefined,
+    [retiresWhenReady, readyLineData, liveOutcomes]
   );
 
   // The chart uses its own confidence. When it only moves the ready line (a
@@ -72,6 +100,9 @@ const MonteCarloResultsCard = ({
   const settledConfidence = useSettledValue(confidence, SLIDER_SETTLE_MS);
   const chartFollowsLive = onlyShowPercentiles && !retiresWhenReady;
   const chartConfidence = chartFollowsLive ? confidence : settledConfidence;
+  // Faded while it still shows an older success rate than the slider, so the
+  // wait reads as on purpose.
+  const chartIsBehind = chartConfidence !== confidence;
 
   // Retiring when ready, the futures themselves depend on the confidence.
   const chartFutures = useMemo(() => {
@@ -96,16 +127,18 @@ const MonteCarloResultsCard = ({
     // The line is in today's dollars, so it only lines up with adjusted balances.
     if (!readyLineData || !inflationAdjusted) return undefined;
     return {
-      values: readyLineAt(readyLineData, chartConfidence / 100),
+      // Retiring at the end of the end year needs nothing more, so the line
+      // ends at $0 there instead of a year before the chart's edge.
+      values: [...readyLineAt(readyLineData, chartConfidence / 100), 0],
       startYear: readyLineData.startYear,
-      // Futures that retire on a fixed date are retired after it, so the line
-      // stops there. Retiring when ready, it stops once 9 in 10 are ready.
-      lastYear: retiresWhenReady
-        ? chartSummary?.p90
-        : readyLineData.plannedRetirement?.getUTCFullYear(),
+      // Futures that retire on a fixed date are all retired after it, so the
+      // line stops there. Retiring when ready, futures retire in different
+      // years, so the line runs to the end year: for a future that has
+      // already retired, it shows the balance needed to stay retired.
+      lastYear: retiresWhenReady ? undefined : readyLineData.plannedRetirement?.getUTCFullYear(),
       label: `Ready line (${chartConfidence}%)`,
     };
-  }, [readyLineData, inflationAdjusted, retiresWhenReady, chartSummary, chartConfidence]);
+  }, [readyLineData, inflationAdjusted, retiresWhenReady, chartConfidence]);
 
   const graph = useMemo(() => (
     <MonteCarloGraph
@@ -121,6 +154,7 @@ const MonteCarloResultsCard = ({
       }
       retirementLabel={retiresWhenReady ? 'Typically ready' : undefined}
       logScale={logScale}
+      syncId={retiresWhenReady ? BALANCE_AND_READY_YEARS_SYNC_ID : undefined}
     />
   ), [results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLineSeries, retiresWhenReady, chartSummary, readyLineData, logScale]);
 
@@ -137,7 +171,7 @@ const MonteCarloResultsCard = ({
         <h3 className="my-1">
           {retiresWhenReady && readySummary && readyLineData
             ? readyHeadline(readySummary, readyLineData.endYear, workEndYear)
-            : `Your simulation succeeded ${successes.length}/${planResults.length} times (${successes.length / planResults.length * 100}%)`}
+            : `Your simulation succeeded ${successes.length}/${planResults.length} times (${successPercent(successes.length, planResults.length)}%)`}
         </h3>
       </Card.Header>
       <Card.Body>
@@ -151,6 +185,17 @@ const MonteCarloResultsCard = ({
             confidence={confidence}
             setConfidence={setConfidence}
             chartWaitsForSlider={!chartFollowsLive}
+          />
+        )}
+        {/* Right under the summary it pictures, above the balance chart's own
+            switches. */}
+        {readyYearBars && readySummary && readyLineData && (
+          <ReadyYearsChart
+            bars={readyYearBars}
+            summary={readySummary}
+            endYear={readyLineData.endYear}
+            workEndYear={workEndYear}
+            syncId={BALANCE_AND_READY_YEARS_SYNC_ID}
           />
         )}
         {
@@ -235,7 +280,13 @@ const MonteCarloResultsCard = ({
         </Row>
 
         <SpinnerOverlay loading={loading}>
-          {graph}
+          <div
+            data-testid="balance-chart"
+            aria-busy={chartIsBehind}
+            style={{ opacity: chartIsBehind ? 0.5 : 1, transition: 'opacity 150ms' }}
+          >
+            {graph}
+          </div>
         </SpinnerOverlay>
       </Card.Body>
     </Card>

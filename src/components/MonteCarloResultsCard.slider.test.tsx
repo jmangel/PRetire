@@ -6,7 +6,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import MonteCarloResultsCard, { SLIDER_SETTLE_MS } from './MonteCarloResultsCard';
 import { ReadyLineSeries } from './MonteCarloGraph';
 import { AssetClass, Inflation, Job, MonteCarloResult } from '../calculators/PlanInputs';
-import { readyLineAt, readyOutcomes, summarizeReadyYears } from '../calculators/ReadyLine';
+import { readyLineAt } from '../calculators/ReadyLine';
 import { MonteCarloResponse, RetirementMode, simulatePlan } from '../calculators/MonteCarlo';
 
 // The real chart, wrapped so tests can read the ready line it was given. Its
@@ -104,7 +104,7 @@ const chartReadyLine = (): ReadyLineSeries => {
 const expectLabelMatchesLine = (data: ReturnType<typeof response>, confidence: number) => {
   const { label, values } = chartReadyLine();
   expect(label).toBe(`Ready line (${confidence}%)`);
-  expect(values).toEqual(readyLineAt(data.readyLine!, confidence / 100));
+  expect(values).toEqual([...readyLineAt(data.readyLine!, confidence / 100), 0]);
 };
 const readyLinePath = (container: HTMLElement) =>
   container.querySelector('.recharts-line-curve[stroke="#198754"]')?.getAttribute('d');
@@ -121,12 +121,14 @@ describe('where the ready line stops', () => {
     expect(chartReadyLine().lastYear).toBe(startYear + 12);
   });
 
-  test('retiring when ready, at the year 9 in 10 futures are ready', () => {
+  test('retiring when ready, not before the end year', () => {
     const { data } = renderCard('ready');
-    const p90 = summarizeReadyYears(readyOutcomes(data.readyLine!, readyLineAt(data.readyLine!, 0.9))).p90;
+    const { lastYear, startYear: lineStart, values } = chartReadyLine();
 
-    expect(p90).toBeDefined();
-    expect(chartReadyLine().lastYear).toBe(p90);
+    expect(lastYear).toBeUndefined();
+    // The last value is for the end year: nothing more is needed then.
+    expect(lineStart + values.length - 1).toBe(data.readyLine!.endYear);
+    expect(values[values.length - 1]).toBe(0);
   });
 });
 
@@ -153,6 +155,7 @@ describe('confidence slider', () => {
     });
     const before = readyLinePath(container);
     expect(screen.getByText(/chart updates once you stop moving the slider/i)).toBeInTheDocument();
+    expect(screen.getByTestId('balance-chart')).toHaveStyle({ opacity: '1' });
 
     // Several quick steps, like arrow-key presses: the summary follows each
     // one, but the chart doesn't redraw yet.
@@ -168,23 +171,36 @@ describe('confidence slider', () => {
     expect(readyLinePath(container)).toBe(before);
     // The chart's label still names the line it shows, not the slider.
     expectLabelMatchesLine(data, 90);
+    // Faded while it's behind the slider.
+    expect(screen.getByTestId('balance-chart')).toHaveStyle({ opacity: '0.5' });
+    expect(screen.getByTestId('balance-chart')).toHaveAttribute('aria-busy', 'true');
 
     // Still for long enough: now it redraws, once.
     act(() => {
       jest.advanceTimersByTime(1);
     });
     expect(readyLinePath(container)).not.toBe(before);
+    expect(screen.getByTestId('balance-chart')).toHaveStyle({ opacity: '1' });
+    expect(screen.getByTestId('balance-chart')).toHaveAttribute('aria-busy', 'false');
     expectLabelMatchesLine(data, 70);
   });
 
   test('retiring when ready, the futures wait until the slider is still, even in the percentiles view', () => {
     jest.useFakeTimers();
-    const { data } = renderCard('ready');
+    const { container, data } = renderCard('ready');
     const chartResults = () => mockGraphProps[mockGraphProps.length - 1].results;
+    // The ready-year bars come first, and follow the slider without waiting.
+    const readyYearBars = () =>
+      Array.from(container.querySelectorAll('.recharts-wrapper')[0].querySelectorAll('.recharts-bar-rectangle path'))
+        .map((bar) => bar.getAttribute('d'))
+        .join(' ');
     expect(chartResults()).toBe(data.results);
     expect(screen.getByText(/chart updates once you stop moving the slider/i)).toBeInTheDocument();
+    const barsBefore = readyYearBars();
+    expect(barsBefore).not.toBe('');
 
     moveSlider(50);
+    expect(readyYearBars()).not.toBe(barsBefore);
     act(() => {
       jest.advanceTimersByTime(SLIDER_SETTLE_MS - 1);
     });
@@ -267,9 +283,15 @@ describe('confidence slider', () => {
 });
 
 describe('chart scale', () => {
+  // Retiring when ready, the ready-year bars come first with their own
+  // y-axis; the balance chart is always the last chart.
+  const balanceChart = (container: HTMLElement) => {
+    const charts = container.querySelectorAll('.recharts-wrapper');
+    return charts[charts.length - 1];
+  };
   const lineCount = (container: HTMLElement) => container.querySelectorAll('.recharts-line-curve').length;
   const topYTick = (container: HTMLElement) => {
-    const ticks = Array.from(container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'));
+    const ticks = Array.from(balanceChart(container).querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'));
     // Ticks are compact, like $1.2M or -$250K.
     const [, sign, amount, suffix] = ticks[ticks.length - 1].textContent!.match(/^(-?)\$([\d.]+)([KMBT]?)$/)!;
     return (sign ? -1 : 1) * Number(amount) * 1000 ** ' KMBT'.indexOf(suffix || ' ');
@@ -301,7 +323,7 @@ describe('chart scale', () => {
 
     fireEvent.click(screen.getByLabelText('Log scale?'));
 
-    const ticks = Array.from(container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'))
+    const ticks = Array.from(balanceChart(container).querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'))
       .map((tick) => tick.textContent);
     expect(ticks.length).toBeGreaterThan(2);
     ticks.forEach((tick) => expect(tick).toMatch(/^(≤ )?\$(1|10|100)[KMBT]?$/));

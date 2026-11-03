@@ -3,7 +3,7 @@
    field's name attribute (the same names parseJobs reads), so they select
    fields by name rather than by label or role. */
 import { useState } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import MonteCarloForm, { axisDollarFormatter, compactDollarFormatter } from './MonteCarloForm';
 import { JOB_FIELD_NAMES, parseJobs } from '../calculators/MonteCarlo';
 
@@ -322,11 +322,20 @@ describe('MonteCarloForm saved scenarios', () => {
   const scenarioSelect = () => screen.getByLabelText('Saved scenarios') as HTMLSelectElement;
   const optionNames = () => Array.from(scenarioSelect().options).slice(1).map((option) => option.text);
 
-  const saveAs = (name: string) => {
+  // Save as new opens a dialog with a name and tags.
+  const saveAs = (name: string, tags: string[] = []) => {
     fireEvent.click(screen.getByText('Save as new…'));
-    fireEvent.change(screen.getByPlaceholderText('Scenario name'), { target: { value: name } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: name } });
+    tags.forEach((tag) => addTagText(tag));
+    fireEvent.click(screen.getByRole('button', { name: 'Save scenario' }));
   };
+  const tagInput = () => screen.getByLabelText('Tags');
+  // Typing a whole tag and pressing Enter adds it (the top suggestion is that tag).
+  const addTagText = (text: string) => {
+    fireEvent.change(tagInput(), { target: { value: text } });
+    fireEvent.keyDown(tagInput(), { key: 'Enter' });
+  };
+
 
   test('saves the form under a name, in this browser only', () => {
     const { form } = renderForm();
@@ -339,10 +348,10 @@ describe('MonteCarloForm saved scenarios', () => {
     expect(stored.scenarios[0].settings.startingBalance).toBe('750000');
   });
 
-  test('Enter in the name field saves the name instead of running the simulation', () => {
+  test('Enter in the name field saves the scenario instead of running the simulation', () => {
     renderForm();
     fireEvent.click(screen.getByText('Save as new…'));
-    const nameInput = screen.getByPlaceholderText('Scenario name');
+    const nameInput = screen.getByLabelText('Name');
     fireEvent.change(nameInput, { target: { value: 'Single' } });
 
     // Enter's default in a form field is submitting the form; false means
@@ -407,6 +416,35 @@ describe('MonteCarloForm saved scenarios', () => {
     await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
     expect(incomesWhenRun).toHaveLength(2);
     expect(incomesWhenRun[1]).toBe('25000');
+  });
+
+  test("shows what the scenario bar did right under it", () => {
+    renderForm();
+    saveAs('Near the bar');
+    expect(screen.getByRole('status')).toHaveTextContent('Saved "Near the bar".');
+  });
+
+  test('the export file name follows a rename, so deleting afterwards still resets it', () => {
+    jest.spyOn(window, 'confirm').mockReturnValue(true);
+    renderForm();
+    saveAs('Old name');
+    const exportName = screen.getByPlaceholderText('pretire-montecarlo-settings') as HTMLInputElement;
+    fireEvent.click(screen.getByText('Rename'));
+    fireEvent.change(screen.getByPlaceholderText('Scenario name'), { target: { value: 'New name' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    expect(exportName.value).toBe('New name');
+    fireEvent.click(screen.getByText('Delete'));
+    expect(exportName.value).toBe('pretire-montecarlo-settings');
+  });
+
+  test("deleting a scenario stops using its name for the export file", () => {
+    jest.spyOn(window, 'confirm').mockReturnValue(true);
+    renderForm();
+    saveAs('Old plan');
+    const exportName = screen.getByPlaceholderText('pretire-montecarlo-settings') as HTMLInputElement;
+    expect(exportName.value).toBe('Old plan');
+    fireEvent.click(screen.getByText('Delete'));
+    expect(exportName.value).toBe('pretire-montecarlo-settings');
   });
 
   test('saves over, renames, and deletes the picked scenario', () => {
@@ -481,6 +519,24 @@ describe('MonteCarloForm saved scenarios', () => {
     expect(scenarioSelect().value).toBe('');
   });
 
+  test("Save keeps a rename or tags another tab gave the scenario", () => {
+    const { form } = renderForm();
+    saveAs('Mine');
+    const stored = JSON.parse(window.localStorage.getItem('pretire.savedScenarios.v1')!);
+    stored.scenarios[0] = {
+      ...stored.scenarios[0],
+      name: 'Renamed elsewhere',
+      tags: { dimensions: { Household: 'Married' }, labels: [] },
+    };
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify(stored));
+
+    fireEvent.change(field(form, 'startingBalance'), { target: { value: '42' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    const [saved] = JSON.parse(window.localStorage.getItem('pretire.savedScenarios.v1')!).scenarios;
+    expect(saved).toMatchObject({ name: 'Renamed elsewhere', tags: { dimensions: { Household: 'Married' } } });
+    expect(saved.settings.startingBalance).toBe('42');
+  });
+
   test('Save puts back a picked scenario that another tab deleted', () => {
     renderForm();
     saveAs('Keep me');
@@ -510,7 +566,9 @@ describe('MonteCarloForm saved scenarios', () => {
     });
 
     saveAs('Refused');
-    expect(screen.getByText(/Couldn't save: this browser is blocking or out of storage/)).toBeInTheDocument();
+    // The dialog stays open, with the name, and says why, since it covers the bar.
+    expect(screen.getByRole('dialog')).toHaveTextContent(/Couldn't save: this browser is blocking or out of storage/);
+    expect(screen.getByLabelText('Name')).toHaveValue('Refused');
     expect(optionNames()).toEqual(['Kept']);
   });
 
@@ -626,6 +684,436 @@ describe('MonteCarloForm saved scenarios', () => {
     importSettings(form, { ...backup, scenarios: [{ ...backup.scenarios[0], id: 'elsewhere', name: 'New' }] });
     expect(await screen.findByText(/Couldn't save: this browser is blocking or out of storage/)).toBeInTheDocument();
     expect(optionNames()).toEqual(['Plan']);
+  });
+});
+
+describe('MonteCarloForm scenario tags', () => {
+  const field = (form: HTMLFormElement, name: string) =>
+    form.querySelector(`[name="${name}"]`) as HTMLInputElement;
+  const tagInput = () => screen.getByLabelText('Tags');
+  const typeTag = (text: string) => fireEvent.change(tagInput(), { target: { value: text } });
+  const pressEnter = () => fireEvent.keyDown(tagInput(), { key: 'Enter' });
+  const openSaveAs = (name?: string) => {
+    fireEvent.click(screen.getByText('Save as new…'));
+    if (name) fireEvent.change(screen.getByLabelText('Name'), { target: { value: name } });
+  };
+  const clickSave = () => fireEvent.click(screen.getByRole('button', { name: 'Save scenario' }));
+  const stored = () => JSON.parse(window.localStorage.getItem('pretire.savedScenarios.v1')!).scenarios;
+  const suggestionTexts = () => screen.queryAllByRole('option').map((option) => option.textContent);
+
+  test('saves a new scenario with dimension tags and labels', () => {
+    renderForm();
+    openSaveAs('Austin, married');
+    typeTag('Household: Married');
+    pressEnter();
+    typeTag('favorite');
+    pressEnter();
+    clickSave();
+
+    expect(stored()[0]).toMatchObject({
+      name: 'Austin, married',
+      tags: { dimensions: { Household: 'Married' }, labels: ['favorite'] },
+    });
+  });
+
+  test('Enter in the tag field adds the tag without saving or running anything', () => {
+    renderForm();
+    openSaveAs('Plan');
+    typeTag('Household: Single');
+    expect(pressEnter()).toBe(false);
+    expect(screen.getByLabelText('Remove tag Household: Single')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(window.localStorage.getItem('pretire.savedScenarios.v1')).toBeNull();
+  });
+
+  test('suggests dimensions and values already in use', () => {
+    renderForm();
+    openSaveAs('First');
+    typeTag('Household: Married');
+    pressEnter();
+    clickSave();
+
+    openSaveAs('Second');
+    // The new dialog starts from First's tags; clear them to start fresh.
+    fireEvent.click(screen.getByLabelText('Remove tag Household: Married'));
+    typeTag('hou');
+    expect(suggestionTexts()).toContain('Household: …');
+    fireEvent.mouseDown(screen.getByRole('option', { name: 'Household: …' }));
+    expect(tagInput()).toHaveValue('Household: ');
+    typeTag('Household: m');
+    fireEvent.mouseDown(screen.getByRole('option', { name: 'Household: Married' }));
+    expect(screen.getByLabelText('Remove tag Household: Married')).toBeInTheDocument();
+    expect(tagInput()).toHaveValue('');
+  });
+
+  test("starts from the picked scenario's tags, and saves a tag that was typed but not added", () => {
+    renderForm();
+    openSaveAs('Base');
+    typeTag('Location: Austin');
+    pressEnter();
+    clickSave();
+
+    openSaveAs('Variant');
+    expect(screen.getByText('Tags copied from "Base".')).toBeInTheDocument();
+    typeTag('Household: Married');
+    clickSave();
+    expect(stored()[1].tags).toEqual({ dimensions: { Location: 'Austin', Household: 'Married' }, labels: [] });
+  });
+
+  test("a tag gets the spelling another tab saved, even before this tab hears of it", () => {
+    renderForm();
+    openSaveAs('Mine');
+    clickSave();
+    const otherTab = { ...stored()[0], id: 'other', name: 'Other', tags: { dimensions: { Household: 'Married' }, labels: [] } };
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify({ scenarios: [otherTab, stored()[0]] }));
+
+    openSaveAs('New');
+    typeTag('household: married');
+    pressEnter();
+    clickSave();
+    expect(stored().find((s: any) => s.name === 'New').tags).toEqual({ dimensions: { Household: 'Married' }, labels: [] });
+  });
+
+  test("another tab's save while Save as is open keeps the dialog and what's typed", () => {
+    renderForm();
+    openSaveAs('Base');
+    clickSave();
+    openSaveAs('Half done');
+    typeTag('Loc');
+    const otherTab = { ...stored()[0], id: 'other', name: 'Other', tags: { dimensions: { Location: 'Austin' }, labels: [] } };
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify({ scenarios: [stored()[0], otherTab] }));
+    fireEvent(window, new StorageEvent('storage', { key: 'pretire.savedScenarios.v1' }));
+
+    expect(screen.getByLabelText('Name')).toHaveValue('Half done');
+    expect(tagInput()).toHaveValue('Loc');
+    // What the other tab saved is suggested right away.
+    fireEvent.focus(tagInput());
+    expect(screen.getAllByRole('option', { name: /Location: …/ })).toHaveLength(1);
+  });
+
+  test('Escape closes the suggestions first, then the dialog', async () => {
+    renderForm();
+    openSaveAs('Plan');
+    typeTag('Household: Married');
+    const suggestions = () => screen.queryAllByRole('option', { name: /Household: Married/ });
+    expect(suggestions()).not.toHaveLength(0);
+    fireEvent.keyDown(tagInput(), { key: 'Escape', keyCode: 27 });
+    expect(suggestions()).toHaveLength(0);
+    expect(screen.getByLabelText('Name')).toHaveValue('Plan');
+    expect(tagInput()).toHaveValue('Household: Married');
+
+    // The modal checks keyCode, so send it as a browser would.
+    fireEvent.keyDown(tagInput(), { key: 'Escape', keyCode: 27 });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  test('removes tags with their buttons or Backspace', () => {
+    renderForm();
+    openSaveAs('Plan');
+    typeTag('Household: Single');
+    pressEnter();
+    typeTag('Location: Austin');
+    pressEnter();
+    typeTag('idea');
+    pressEnter();
+
+    fireEvent.click(screen.getByLabelText('Remove tag Household: Single'));
+    fireEvent.keyDown(tagInput(), { key: 'Backspace' });
+    clickSave();
+    expect(stored()[0].tags).toEqual({ dimensions: { Location: 'Austin' }, labels: [] });
+  });
+
+  test('says when the tags match another scenario, and lists how their settings differ', () => {
+    const { form } = renderForm();
+    fireEvent.change(field(form, 'startingBalance'), { target: { value: '500000' } });
+    openSaveAs('Austin, married');
+    typeTag('Household: Married');
+    pressEnter();
+    clickSave();
+
+    fireEvent.change(field(form, 'startingBalance'), { target: { value: '900000' } });
+    openSaveAs('Austin, married, bigger');
+    expect(screen.getByText('Same tags as "Austin, married".')).toBeInTheDocument();
+    expect(screen.getByText('Starting balance: $900,000 vs $500,000')).toBeInTheDocument();
+
+    typeTag('Housing: Buy');
+    pressEnter();
+    expect(screen.queryByText(/Same tags as/)).toBeNull();
+  });
+
+  test("edits a saved scenario's tags, shown under the dropdown", () => {
+    renderForm();
+    openSaveAs('Plan');
+    typeTag('Household: Single');
+    pressEnter();
+    clickSave();
+    expect(screen.getByLabelText('Tags of Plan')).toHaveTextContent('Household: Single');
+    // An older save time, so the edit has to move it forward.
+    const earlier = '2020-01-01T00:00:00.000Z';
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify({ scenarios: [{ ...stored()[0], savedAt: earlier }] }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    expect(screen.getByText('Edit tags for "Plan"')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Name')).toBeNull();
+    typeTag('Household: Married');
+    pressEnter();
+    typeTag('favorite');
+    pressEnter();
+    fireEvent.click(screen.getByRole('button', { name: 'Save tags' }));
+
+    expect(stored()[0].tags).toEqual({ dimensions: { Household: 'Married' }, labels: ['favorite'] });
+    expect(stored()[0].savedAt > earlier).toBe(true);
+    expect(screen.getByLabelText('Tags of Plan')).toHaveTextContent('Household: Married');
+    expect(screen.getByRole('status')).toHaveTextContent('Saved the tags for "Plan".');
+  });
+
+  test('Edit tags closes, saying why, when another tab deletes the scenario', () => {
+    renderForm();
+    openSaveAs('Plan');
+    clickSave();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    typeTag('favorite');
+
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify({ scenarios: [] }));
+    fireEvent(window, new StorageEvent('storage', { key: 'pretire.savedScenarios.v1' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByText(`"Plan" was deleted in another tab, so its tags weren't saved.`)).toHaveAttribute('role', 'alert');
+    expect(stored()).toEqual([]);
+  });
+
+  test("Save tags says so when another tab deleted the scenario before this tab heard", () => {
+    renderForm();
+    openSaveAs('Plan');
+    clickSave();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    typeTag('favorite');
+    // Deleted in storage, with no storage event yet.
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify({ scenarios: [] }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save tags' }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByText(`"Plan" was deleted in another tab, so its tags weren't saved.`)).toHaveAttribute('role', 'alert');
+    expect(stored()).toEqual([]);
+  });
+
+  test('a tag edit the browser refuses keeps the dialog open and says why', () => {
+    renderForm();
+    openSaveAs('Plan');
+    clickSave();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    typeTag('favorite');
+    jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save tags' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent(/Couldn't save: this browser is blocking or out of storage/);
+    expect(stored()[0].tags).toBeUndefined();
+  });
+
+  test("an edited tag gets the spelling another tab saved, and doesn't change that tab's", () => {
+    renderForm();
+    openSaveAs('Mine');
+    clickSave();
+    // Another tab tagged a scenario after this one, with no storage event yet.
+    const other = { ...stored()[0], id: 'other', name: 'Other', tags: { dimensions: { Household: 'Married' }, labels: [] } };
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify({ scenarios: [stored()[0], other] }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    typeTag('household: married');
+    pressEnter();
+    fireEvent.click(screen.getByRole('button', { name: 'Save tags' }));
+    expect(stored().map((s: any) => s.tags)).toEqual([
+      { dimensions: { Household: 'Married' }, labels: [] },
+      { dimensions: { Household: 'Married' }, labels: [] },
+    ]);
+  });
+
+  test('editing tags compares with other scenarios, not the one being edited', () => {
+    const { form } = renderForm();
+    fireEvent.change(field(form, 'startingBalance'), { target: { value: '100' } });
+    openSaveAs('One');
+    typeTag('Household: Single');
+    pressEnter();
+    clickSave();
+    fireEvent.change(field(form, 'startingBalance'), { target: { value: '200' } });
+    openSaveAs('Two');
+    typeTag('Household: Married');
+    pressEnter();
+    clickSave();
+
+    // Two is picked. Its own tags don't count as a match...
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    expect(screen.queryByText(/Same tags as/)).toBeNull();
+    // ...but changing them to One's does, comparing the two scenarios' own settings.
+    typeTag('Household: Single');
+    pressEnter();
+    expect(screen.getByText('Same tags as "One".')).toBeInTheDocument();
+    expect(screen.getByText('Starting balance: $200 vs $100')).toBeInTheDocument();
+  });
+
+  test('removing every tag leaves the scenario untagged', () => {
+    renderForm();
+    openSaveAs('Plan');
+    typeTag('idea');
+    pressEnter();
+    clickSave();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tags' }));
+    fireEvent.click(screen.getByLabelText('Remove tag idea'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save tags' }));
+    expect(stored()[0].tags).toBeUndefined();
+    expect(screen.getByLabelText('Tags of Plan')).toHaveTextContent('No tags');
+  });
+
+  test('Cancel saves nothing, and a name is needed to save', () => {
+    renderForm();
+    openSaveAs();
+    expect(screen.getByRole('button', { name: 'Save scenario' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(window.localStorage.getItem('pretire.savedScenarios.v1')).toBeNull();
+  });
+});
+
+describe('MonteCarloForm scenario library', () => {
+  const settings = {
+    startingBalance: '1', monthlyExpenses: '0', endYear: '2100', jobs: [], life_events: [],
+    inflation: { averageAnnualReturnPercentage: '2', standardDeviationPercentage: '1' }, asset_classes: [],
+  };
+  const seed = (scenarios: Array<[string, Record<string, string>, string[]?]>) =>
+    window.localStorage.setItem('pretire.savedScenarios.v1', JSON.stringify({
+      scenarios: scenarios.map(([name, dimensions, labels = []], i) => ({
+        id: `s${i}`, name, savedAt: '2026-10-01T00:00:00.000Z', settings: { ...settings, startingBalance: String(i) },
+        ...(Object.keys(dimensions).length || labels.length ? { tags: { dimensions, labels } } : {}),
+      })),
+    }));
+  const sample = () => seed([
+    ['SB single', { Household: 'Single', Location: 'Santa Barbara' }, ['favorite']],
+    ['Austin married', { Household: 'Married', Location: 'Austin' }],
+    ['Austin single', { Household: 'Single', Location: 'Austin' }],
+    ['Lisbon idea', { Location: 'Lisbon' }, ['idea']],
+    ['Untagged', {}],
+  ]);
+  const library = () => screen.getByLabelText('Scenario library');
+  const shownNames = () =>
+    within(library()).queryAllByLabelText(/^Scenario /).map((row) => row.getAttribute('aria-label')!.replace('Scenario ', ''));
+  const openLibrary = () => fireEvent.click(screen.getByRole('button', { name: /^Library/ }));
+  // Each filter's menu holds its own checkboxes, so look for the value inside it.
+  const toggleFilter = (dimension: string, value: string) => {
+    const chip = within(library()).getByRole('button', { name: new RegExp(`^Filter by ${dimension}:`) });
+    fireEvent.click(chip);
+    fireEvent.click(within(chip.parentElement!).getByLabelText(value));
+  };
+  const groupHeadings = () =>
+    within(library()).queryAllByText(/^(Household|Location): /, { selector: 'div' }).map((h) => h.textContent);
+
+  test('opens and closes from the scenario bar, listing every scenario with its tags', () => {
+    sample();
+    renderForm();
+    expect(screen.queryByLabelText('Scenario library')).toBeNull();
+    openLibrary();
+    expect(shownNames()).toEqual(['SB single', 'Austin married', 'Austin single', 'Lisbon idea', 'Untagged']);
+    expect(within(library()).getByText('Showing 5 of 5 scenarios')).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Scenario Untagged')).getByText('No tags')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Hide library/ }));
+    expect(screen.queryByLabelText('Scenario library')).toBeNull();
+  });
+
+  test('filters: any value within a dimension, every dimension, "(none)", and labels', () => {
+    sample();
+    renderForm();
+    openLibrary();
+    toggleFilter('Location', 'Austin');
+    toggleFilter('Location', 'Lisbon');
+    expect(shownNames()).toEqual(['Austin married', 'Austin single', 'Lisbon idea']);
+    toggleFilter('Household', 'Single');
+    expect(shownNames()).toEqual(['Austin single']);
+
+    fireEvent.click(within(library()).getAllByRole('button', { name: 'Clear filters' })[0]);
+    toggleFilter('Household', '(none)');
+    expect(shownNames()).toEqual(['Lisbon idea', 'Untagged']);
+    toggleFilter('Tag', 'idea');
+    expect(shownNames()).toEqual(['Lisbon idea']);
+  });
+
+  test('says when nothing matches, with a way back', () => {
+    sample();
+    renderForm();
+    openLibrary();
+    toggleFilter('Tag', 'favorite');
+    toggleFilter('Location', 'Austin');
+    expect(within(library()).getByText(/No scenarios match these filters/)).toBeInTheDocument();
+    fireEvent.click(within(library()).getAllByRole('button', { name: 'Clear filters' })[0]);
+    expect(shownNames()).toHaveLength(5);
+  });
+
+  test('checked labels match any of them', () => {
+    sample();
+    renderForm();
+    openLibrary();
+    toggleFilter('Tag', 'favorite');
+    toggleFilter('Tag', 'idea');
+    expect(shownNames()).toEqual(['SB single', 'Lisbon idea']);
+  });
+
+  test('a restored backup whose tags differ only in case filters and groups with the tags here', async () => {
+    sample();
+    const { form } = renderForm();
+    openLibrary();
+    importSettings(form, {
+      pretireScenariosBackup: 1,
+      scenarios: [{
+        id: 'elsewhere', name: 'From elsewhere', savedAt: '2026-10-02T00:00:00.000Z', settings,
+        tags: { dimensions: { location: 'AUSTIN', household: 'single' }, labels: [] },
+      }],
+    });
+    expect(await screen.findByText(/added 1 scenario/)).toBeInTheDocument();
+
+    expect(within(library()).queryAllByRole('button', { name: /^Filter by/ }).map((chip) => chip.textContent))
+      .toEqual(['Household: Any', 'Location: Any', 'Tag: Any']);
+    toggleFilter('Location', 'Austin');
+    expect(shownNames()).toEqual(['Austin married', 'Austin single', 'From elsewhere']);
+    fireEvent.change(screen.getByLabelText('Group by'), { target: { value: 'Household' } });
+    expect(groupHeadings()).toEqual(['Household: Married 1', 'Household: Single 2']);
+  });
+
+  test('groups by one or two dimensions, in either order', () => {
+    sample();
+    renderForm();
+    openLibrary();
+    fireEvent.change(screen.getByLabelText('Group by'), { target: { value: 'Location' } });
+    expect(groupHeadings()).toEqual(['Location: Austin 2', 'Location: Lisbon 1', 'Location: Santa Barbara 1', 'Location: (none) 1']);
+
+    fireEvent.change(screen.getByLabelText('then'), { target: { value: 'Household' } });
+    expect(groupHeadings()).toEqual([
+      'Location: Austin 2', 'Household: Married 1', 'Household: Single 1',
+      'Location: Lisbon 1', 'Household: (none) 1',
+      'Location: Santa Barbara 1', 'Household: Single 1',
+      'Location: (none) 1', 'Household: (none) 1',
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Flip order' }));
+    expect(screen.getByLabelText('Group by')).toHaveValue('Household');
+    expect(groupHeadings().slice(0, 3)).toEqual(['Household: Married 1', 'Location: Austin 1', 'Household: Single 2']);
+  });
+
+  test('Load picks the scenario and runs it; Edit tags edits that row', () => {
+    sample();
+    const { submit, form } = renderForm();
+    openLibrary();
+    fireEvent.click(within(screen.getByLabelText('Scenario Austin single')).getByRole('button', { name: 'Load' }));
+    expect(screen.getByLabelText('Saved scenarios')).toHaveDisplayValue('Austin single');
+    expect((form.querySelector('[name="startingBalance"]') as HTMLInputElement).value).toBe('2');
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(within(screen.getByLabelText('Scenario Austin single')).getByText('picked')).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByLabelText('Scenario Lisbon idea')).getByRole('button', { name: 'Edit tags' }));
+    expect(screen.getByText('Edit tags for "Lisbon idea"')).toBeInTheDocument();
+  });
+
+  test('with nothing saved, says how to start', () => {
+    renderForm();
+    openLibrary();
+    expect(within(library()).getByText(/No saved scenarios yet/)).toBeInTheDocument();
+    expect(within(library()).getByText('Tag scenarios to filter them.')).toBeInTheDocument();
   });
 });
 

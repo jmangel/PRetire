@@ -23,21 +23,29 @@ owner until shared).
 
 ## Phases
 
-### A. Save, pick and back up scenarios (#31)
+### A. Save, pick and back up scenarios (done, #31)
 
 Scenario bar above the form: pick, Save, Save as new, Rename, Delete, Export
 all scenarios. Import also restores a backup. The bar says where scenarios
 live and when the last backup was made.
 
-### B. Tags and the library
+### B. Tags and the library (done)
+
+As built: tags are stored with each scenario (optional, so older scenarios
+load as untagged) and travel in backups. Save as new opens a dialog; Rename
+stays inline. The library opens from a "Library" button in the scenario bar.
+The saved-scenario code moved into a `useSavedScenarios` hook. Tags that
+differ only in case are spelled one way: a restored "household: married"
+joins the "Household: Married" already saved.
 
 - A Save as dialog with a tag editor, pre-filled from the scenario you
   started from, that suggests existing dimensions and values as you type.
 - Edit tags on a scenario that's already saved, from the scenario bar
   (next to Rename) and from each row in the library.
 - A library view with a filter chip per dimension (values within one
-  dimension match any; different dimensions must all match) and group by
-  one or two dimensions in either order. No folders.
+  dimension match any; different dimensions must all match; checked labels
+  match any too; "(none)" can't be typed as a value, since it means no
+  value) and group by one or two dimensions in either order. No folders.
 - When saving gives a scenario the same tags as another, show a hint: "This
   has the same tags as 'Austin, married'. Add a tag to tell them apart?",
   with the settings that differ between the two listed (e.g. "Differs in:
@@ -47,24 +55,121 @@ live and when the last backup was made.
 
 ### C. Compare grid
 
-- Store a small result summary with each scenario when it's saved (success
-  rate, median ready year), so the grid fills instantly. Mark scenarios whose
-  settings changed since that run.
+Three PRs, each usable on its own:
+
+- **C1. Result summaries.** Store a summary with each scenario, mark the ones
+  that are out of date, and show it in the library rows.
+- **C2. The grid.**
+- **C3. Create from a neighbor**, then **Split by** (below).
+
+#### C1. Result summaries
+
+- **When one is stored.**
+  - Saving stores a summary only if the results on the page came from
+    exactly the settings being saved, meaning the same fingerprint. Otherwise
+    (the form was edited after the last run, or never ran) the scenario is
+    saved without a summary.
+  - Running a picked scenario whose settings haven't been edited since it
+    loaded also stores its summary: the Run button in the grid, and Run on
+    the page. It changes only `summary`, not the settings, tags or
+    `savedAt`, since it isn't an edit. If the settings were edited, nothing
+    is stored until the user saves.
+  - Editing tags keeps the summary that's there.
+- **What it holds.** `summary?: { mode, successRate, medianReadyYear?,
+  plannedRetirementYear?, confidence, fingerprint }`:
+  - `mode` is the scenario's retirement mode, `'ready'` or `'date'`.
+  - `successRate` (0 to 1) is the share of futures where the money lasts.
+    In ready mode it's `summarizeReadyYears(...).successRate`, at the
+    scenario's own saved desired success rate (`retirement.confidence`). In
+    date mode it's the share of runs that never go below zero, as the
+    results headline shows.
+  - `medianReadyYear` (ready mode only) is `summarizeReadyYears(...).median`.
+    Missing means the median future is never ready before the end year.
+  - `plannedRetirementYear` (date mode only) is the year of
+    `retirement.date`.
+  - `confidence` is the desired success rate the summary used, so a grid can
+    say when two cells used different ones.
+  - `fingerprint` identifies the settings and calculation the run used
+    (below).
+- **Fingerprint.** `fingerprint = RESULTS_VERSION + ':' + hash(canonical
+  settings)`.
+  - The settings are first run through `migrateSettings`, so a file from
+    before a format change and a new file with the same plan give the same
+    fingerprint.
+  - Canonical means JSON with object keys sorted at every level. Arrays (job
+    rows, life events, asset classes) keep their order, since order shows on
+    the page. Values are taken as stored, as strings, so "500000" and
+    "500,000" differ.
+  - The hash only has to tell settings apart, not be secure (e.g. 64-bit
+    FNV-1a, in hex), and it must work without `async`.
+  - `RESULTS_VERSION` is a number in the simulation code. Bump it whenever a
+    change alters what a saved plan produces, so every older summary shows
+    as out of date. The golden tests (#35) find those changes: a PR that
+    updates `golden/expected/` bumps it in the same PR. A test can check
+    that the version and the golden files change together, e.g. by keeping
+    the version in the golden files too.
+- **Out of date.** A summary is out of date when its `fingerprint` doesn't
+  match the fingerprint of the scenario's current settings with the current
+  `RESULTS_VERSION`. `savedAt` isn't used, because editing tags changes it. Out-of-date summaries still show,
+  marked as such.
+- **Library rows** show the summary, e.g. "89% · ready 2040".
+
+#### C2. The grid
+
 - Pick a dimension for rows and one for columns; pin the others with the
-  filter chips. Each cell shows e.g. "89% · 2040", shaded by success rate.
-  A cell with several scenarios shows the best, the count and the range.
-- An empty cell offers to create that combination from a neighbor: a filled
-  cell in the same row or column, which differs by one tag. With one
-  neighbor, it opens Save as from it with that tag changed. With several, it
-  asks which to start from and says which tag each would change. With none,
-  it starts from the current form. Only the tags change; the user still edits
-  the settings to match before saving.
+  filter chips.
+- What a cell shows:
+  - Ready mode: success rate and median ready year, e.g. "89% · 2040", or
+    "89% · never" when `medianReadyYear` is missing.
+  - Date mode: success rate and the planned year, e.g. "89% · retire 2045".
+  - Shading follows the success rate.
+- A cell with several scenarios shows the best, the count and the range.
+- A scenario without a summary shows "Not run" with a Run button, which
+  loads and runs it, then stores its summary (see C1). Out-of-date cells
+  offer Run too. Nothing runs in the background.
+
+#### C3. Create from a neighbor
+
+An empty cell offers to create that combination from a neighbor: a filled
+cell in the same row or column, which differs by one tag. With one neighbor,
+it opens Save as from it with that tag changed. With several, it asks which to
+start from and says which tag each would change. With none, it starts from the
+current form. Only the tags change; the user still edits the settings to match
+before saving.
+
+#### Then: Split by
+
+A grid shows two dimensions. For a third, either pin one value in the filter
+bar, or use **Split by**: one small grid per value of the third dimension,
+side by side, all with the same rows and columns so they compare at a glance.
+Empty cells inside a split keep the split's tag when creating from a
+neighbor. Past three dimensions, more grids stop being readable; the
+library's filters handle that better. Mocked in the Compare grid view.
 
 ### D. Manage tags
 
 Rename a dimension or value everywhere it's used (e.g. "SB" to "Santa
 Barbara"), merge two values, and remove ones no scenario uses. Deferred until
 there are enough tags for it to matter.
+
+- Renaming or merging a tag counts as a tag edit on each scenario that has
+  it, so it updates that scenario's tag save time (see the first follow-up
+  below).
+- Values that differ only in case are already one value: tags are spelled
+  the way the first saved scenario spells them, when scenarios load and when
+  a backup is restored. So merging is for values that are spelled
+  differently ("SB" and "Santa Barbara"). The merged value keeps the
+  spelling the user picks.
+
+## Other follow-ups
+
+- Keep separate save times for settings and tags (`tagsSavedAt`), and when
+  restoring a backup, merge settings and tags separately, each keeping the
+  newer copy. Today editing tags counts as a save of the whole scenario, so
+  restoring a backup from a browser where only the tags were edited brings
+  back that browser's older settings.
+- Check the shape of each item in imported settings, so a hand-edited file
+  can't crash the form (single-file import already had this weakness).
 
 ## Open questions
 
