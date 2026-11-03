@@ -137,7 +137,7 @@ const MonteCarloResultsCard = ({
         <h3 className="my-1">
           {retiresWhenReady && readySummary && readyLineData
             ? readyHeadline(readySummary, readyLineData.endYear, workEndYear)
-            : `Your simulation succeeded ${successes.length}/${planResults.length} times (${successes.length / planResults.length * 100}%)`}
+            : `Your simulation succeeded ${successes.length}/${planResults.length} times (${Math.round(successes.length / planResults.length * 100)}%)`}
         </h3>
       </Card.Header>
       <Card.Body>

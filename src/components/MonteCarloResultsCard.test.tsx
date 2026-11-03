@@ -76,7 +76,7 @@ describe('MonteCarloResultsCard', () => {
   test('a fixed date leads with the success rate, as before', () => {
     renderCard('date');
 
-    expect(screen.getByText(/Your simulation succeeded \d+\/20 times/)).toBeInTheDocument();
+    expect(screen.getByText(/^Your simulation succeeded \d+\/20 times \(\d+%\)$/)).toBeInTheDocument();
     expect(screen.getByText('When you could retire')).toBeInTheDocument();
     expect(screen.getByText(/assumes you retire on July 1/)).toBeInTheDocument();
   });
