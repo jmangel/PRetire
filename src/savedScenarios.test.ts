@@ -129,3 +129,51 @@ describe('backups', () => {
     expect(result.renamed).toBe(0);
   });
 });
+
+describe('tags', () => {
+  test('are kept when stored and loaded, and scenarios without them load as before', () => {
+    const tagged = { ...scenario('a'), tags: { dimensions: { Household: 'Married' }, labels: ['favorite'] } };
+    storeScenarios({ scenarios: [tagged, scenario('b')] });
+    expect(loadScenarios(isSettings).scenarios).toEqual([tagged, scenario('b')]);
+  });
+
+  test('unusable tags are dropped without losing the scenario', () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ scenarios: [{ ...scenario('a'), tags: 'Household: Married' }] }));
+    expect(loadScenarios(isSettings).scenarios).toEqual([scenario('a')]);
+  });
+
+  test('travel in backups', () => {
+    const tagged = { ...scenario('a'), tags: { dimensions: { Location: 'Austin' }, labels: [] } };
+    const backup = JSON.parse(JSON.stringify(toBackup({ scenarios: [tagged] })));
+    expect(scenariosFromBackup(backup, isSettings)).toEqual([tagged]);
+  });
+
+  test('restored in another case join the spelling already here', () => {
+    const here = { ...scenario('a'), tags: { dimensions: { Household: 'Married' }, labels: ['favorite'] } };
+    const restored = { ...scenario('b'), tags: { dimensions: { household: 'MARRIED', location: 'Austin' }, labels: ['Favorite'] } };
+    const { saved } = mergeScenarios({ scenarios: [here] }, [restored]);
+    expect(saved.scenarios[1].tags).toEqual({ dimensions: { Household: 'Married', location: 'Austin' }, labels: ['favorite'] });
+  });
+
+  test('a newer restored copy in another case keeps the spelling of the scenarios here', () => {
+    const a = { ...scenario('a'), tags: { dimensions: { Household: 'Married' }, labels: [] } };
+    const b = { ...scenario('b'), tags: { dimensions: { Household: 'Single' }, labels: [] } };
+    const newerA = { ...a, savedAt: '2026-10-25T00:00:00.000Z', tags: { dimensions: { household: 'married' }, labels: [] } };
+    const { saved, updated } = mergeScenarios({ scenarios: [a, b] }, [newerA]);
+    expect(updated).toBe(1);
+    expect(saved.scenarios.map((s) => s.tags)).toEqual([
+      { dimensions: { Household: 'Married' }, labels: [] },
+      { dimensions: { Household: 'Single' }, labels: [] },
+    ]);
+  });
+
+  test('load with one spelling per dimension, value and label', () => {
+    storeScenarios({
+      scenarios: [
+        { ...scenario('a'), tags: { dimensions: { Household: 'Married' }, labels: [] } },
+        { ...scenario('b'), tags: { dimensions: { household: 'married' }, labels: [] } },
+      ],
+    });
+    expect(loadScenarios(isSettings).scenarios[1].tags).toEqual({ dimensions: { Household: 'Married' }, labels: [] });
+  });
+});
