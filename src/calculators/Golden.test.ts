@@ -163,13 +163,19 @@ const summarize = (response: MonteCarloResponse) => {
   };
 };
 
+// Dollar amounts, which are rounded to cents. Everything else (rates, shares
+// of futures, years) is kept as it is.
+const isDollars = (at: string) => /\.(balancePercentiles|deterministic|line)\./.test(at);
+
 /**
  * Whether two summaries match, allowing for floating-point noise (like
  * adding the same amounts in another order). Returns the paths that differ.
  */
 const differences = (actual: unknown, expected: unknown, at = ''): string[] => {
   if (typeof actual === 'number' && typeof expected === 'number') {
-    const tolerance = Math.max(0.011, Math.abs(expected) * 1e-9);
+    // Rounding to cents can move a dollar amount by a cent either way.
+    const floor = isDollars(at) ? 0.011 : 1e-12;
+    const tolerance = Math.max(floor, Math.abs(expected) * 1e-9);
     return Math.abs(actual - expected) <= tolerance ? [] : [`${at}: ${actual} (expected ${expected})`];
   }
   if (actual && expected && typeof actual === 'object' && typeof expected === 'object') {
@@ -205,6 +211,17 @@ describe('golden plans', () => {
 
   test('there are scenarios to run', () => {
     expect(scenarioNames.length).toBeGreaterThan(0);
+  });
+
+  // A renamed or deleted scenario would otherwise leave its old results
+  // behind without saying so.
+  (UPDATE ? test.skip : test)('every expected result has a scenario', () => {
+    const expectedNames = fs
+      .readdirSync(EXPECTED_DIR)
+      .filter((file) => file.endsWith('.json'))
+      .map((file) => file.replace(/\.json$/, ''))
+      .sort();
+    expect(expectedNames).toEqual(scenarioNames);
   });
 
   test.each(scenarioNames)('%s', (name) => {

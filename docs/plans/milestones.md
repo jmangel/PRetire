@@ -211,6 +211,11 @@ Files: `src/components/MonteCarloResultsCard.tsx`, `ReadyLineSummary.tsx`.
 - The golden tests must pass with no change to `golden/expected/`. Update
   the form data helper in `Golden.test.ts` to the new form fields. Keep the
   scenario files as they are (version 1): they also test the migration.
+- The form data helper is a copy of what the form submits. The golden tests
+  do not use the real form. Thus, add a test that fills the real form from
+  each golden scenario and compares its form data to the helper's form data.
+  If you do not, a change to the form and the helper together is not
+  tested.
 - Add golden scenarios in version 2 format: "Already retired", "No later
   than", and income with "A date" that pays after retirement.
 - Unit tests for the migration table, the date picker and the Retirement
