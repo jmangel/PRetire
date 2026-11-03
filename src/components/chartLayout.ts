@@ -8,8 +8,15 @@
 /** Width of each chart's container, as a share of the card. */
 export const CHART_CONTAINER_WIDTH = '95%';
 
-/** Space left and right of the plot, outside the y-axis. */
-export const CHART_SIDE_MARGINS = { left: 20, right: 30 };
+/**
+ * Space left and right of the plot, outside the y-axis. The right side is
+ * wide enough for the ready-year chart's second axis (its running total),
+ * which that chart draws inside this margin, so both plots stay the same width.
+ */
+export const CHART_SIDE_MARGINS = { left: 20, right: 55 };
+
+/** Width of the ready-year chart's right-hand axis, inside the right margin. */
+export const CHART_RIGHT_AXIS_WIDTH = 50;
 
 /** Width of the y-axis labels. */
 export const CHART_Y_AXIS_WIDTH = 70;

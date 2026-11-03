@@ -2,8 +2,15 @@
    The chart's SVG bars and shading have no roles or labels to query by, so
    these tests find them by class name. */
 import { ReactElement } from 'react';
-import { render, screen } from '@testing-library/react';
-import ReadyYearsChart, { ReadyYearTooltip, formatShare, notReadyNote, percentTick, yearStep } from './ReadyYearsChart';
+import { createEvent, fireEvent, render, screen } from '@testing-library/react';
+import ReadyYearsChart, {
+  ReadyYearTooltip,
+  formatShare,
+  notReadyNote,
+  percentTick,
+  readyByYear,
+  yearStep,
+} from './ReadyYearsChart';
 import { ReadyYearSummary } from '../calculators/ReadyLine';
 
 // ResponsiveContainer measures its parent, which is always 0x0 in jsdom, so
@@ -84,6 +91,19 @@ describe('notReadyNote', () => {
   });
 });
 
+describe('readyByYear', () => {
+  test('adds up both parts of every bar so far', () => {
+    const byYear = readyByYear([
+      { year: 2030, lasts: 0.1, runsOut: 0.05 },
+      { year: 2031, lasts: 0, runsOut: 0 },
+      { year: 2032, lasts: 0.3, runsOut: 0.1 },
+    ]);
+    expect(byYear[2030]).toBeCloseTo(0.15);
+    expect(byYear[2031]).toBeCloseTo(0.15);
+    expect(byYear[2032]).toBeCloseTo(0.55);
+  });
+});
+
 describe('ReadyYearTooltip', () => {
   const bars = { 2031: { year: 2031, lasts: 0.06, runsOut: 0.01 }, 2032: { year: 2032, lasts: 0, runsOut: 0 } };
 
@@ -99,6 +119,11 @@ describe('ReadyYearTooltip', () => {
     render(<ReadyYearTooltip active label={2032} bars={bars} />);
     expect(screen.getByText('No futures')).toBeInTheDocument();
   });
+
+  test('gives the running total, even in a year with no futures', () => {
+    render(<ReadyYearTooltip active label={2032} bars={bars} readyBy={{ 2031: 0.07, 2032: 0.07 }} />);
+    expect(screen.getByText('Ready by then: 7.0%')).toBeInTheDocument();
+  });
 });
 
 describe('ReadyYearsChart', () => {
@@ -112,6 +137,16 @@ describe('ReadyYearsChart', () => {
     expect(screen.getByText('Money lasts')).toBeInTheDocument();
     expect(screen.getByText('Runs out later')).toBeInTheDocument();
     expect(container.querySelectorAll('.recharts-bar-rectangle').length).toBeGreaterThan(0);
+  });
+
+  test('draws the running total on its own 0-100% scale', () => {
+    const { container } = render(<ReadyYearsChart bars={bars} summary={summary()} endYear={2080} />);
+    expect(screen.getByText('Ready by then')).toBeInTheDocument();
+    expect(container.querySelector('.recharts-line-curve')).not.toBeNull();
+    const rightTicks = Array.from(
+      container.querySelectorAll('.recharts-yAxis.yAxis .recharts-cartesian-axis-tick-value')
+    ).map((tick) => tick.textContent);
+    expect(rightTicks).toEqual(expect.arrayContaining(['0%', '25%', '50%', '75%', '100%']));
   });
 
   test('a year with no futures gets no bar', () => {
@@ -131,6 +166,29 @@ describe('ReadyYearsChart', () => {
     // 2031 through 2033 is two steps between points, plus half a step each side.
     expect(Number(shading(container)?.getAttribute('width'))).toBeCloseTo(3 * step);
     expect(screen.getByText(/The shaded years are where the middle half are ready/)).toBeInTheDocument();
+  });
+
+  test('highlights the hovered year, one year wide and the full plot height', () => {
+    const { container } = render(<ReadyYearsChart bars={bars} summary={summary()} endYear={2080} />);
+    // jsdom puts the chart at the page's top left, so page and chart
+    // coordinates are the same. The plot starts after the left margin and
+    // y-axis; 2032 is the third year.
+    const plotLeft = 20 + 70;
+    const yearX = plotLeft + 2 * step;
+    const wrapper = container.querySelector('.recharts-wrapper')!;
+    // Recharts reads pageX/pageY, which jsdom leaves unset on mouse events.
+    const hover = createEvent.mouseMove(wrapper);
+    Object.defineProperties(hover, { pageX: { value: yearX }, pageY: { value: 120 } });
+    fireEvent(wrapper, hover);
+    const cursor = container.querySelector('.ready-years-cursor');
+    expect(cursor).not.toBeNull();
+    expect(Number(cursor?.getAttribute('x'))).toBeCloseTo(yearX - step / 2);
+    expect(Number(cursor?.getAttribute('width'))).toBeCloseTo(step);
+    // Top to bottom of the plot, the same span as the shaded years.
+    const shaded = shading(container);
+    expect(Number(cursor?.getAttribute('y'))).toBeCloseTo(Number(shaded?.getAttribute('y')));
+    expect(Number(cursor?.getAttribute('height'))).toBeCloseTo(Number(shaded?.getAttribute('height')));
+    expect(Number(cursor?.getAttribute('height'))).toBeGreaterThan(0);
   });
 
   test('marks the typical year', () => {
