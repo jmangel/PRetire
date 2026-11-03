@@ -165,6 +165,7 @@
           "neverReady": 0,
           "forcedOut": 0,
           "ranOutWhileWorking": 0,
+          "notReadyByEnd": 0,
           "successRate": 0.598,
           "readySuccessRate": 0.598,
           "forcedSuccessRate": null
@@ -195,6 +196,7 @@
           "neverReady": 0,
           "forcedOut": 0,
           "ranOutWhileWorking": 0,
+          "notReadyByEnd": 0,
           "successRate": 0.823,
           "readySuccessRate": 0.823,
           "forcedSuccessRate": null
@@ -225,6 +227,7 @@
           "neverReady": 0,
           "forcedOut": 0,
           "ranOutWhileWorking": 0,
+          "notReadyByEnd": 0,
           "successRate": 0.932,
           "readySuccessRate": 0.932,
           "forcedSuccessRate": null
@@ -255,6 +258,7 @@
           "neverReady": 0,
           "forcedOut": 0,
           "ranOutWhileWorking": 0,
+          "notReadyByEnd": 0,
           "successRate": 0.9955,
           "readySuccessRate": 0.9955,
           "forcedSuccessRate": null
