@@ -44,6 +44,15 @@ export type MonteCarloResponse = {
 
 const FUTURES = 10000;
 
+/**
+ * Which version of the calculation produced a result. Saved scenarios keep a
+ * summary of their last run, marked with this, so a change that alters what
+ * a saved plan produces must bump it: every older summary then shows as out
+ * of date. The golden tests catch such changes, so a PR that updates their
+ * expected results bumps this too.
+ */
+export const RESULTS_VERSION = 1;
+
 const run = async (formData: FormData): Promise<MonteCarloResponse> => {
   const startingBalance = parseFloat(formData.get('startingBalance') as string) || 0;
 
