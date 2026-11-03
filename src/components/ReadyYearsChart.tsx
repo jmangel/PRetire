@@ -12,13 +12,15 @@ import {
   YAxis,
 } from "recharts";
 import { ReadyYearBar, ReadyYearSummary, notReadyBreakdown } from "../calculators/ReadyLine";
+import { CHART_CONTAINER_WIDTH, CHART_SIDE_MARGINS, CHART_Y_AXIS_WIDTH, plotWidth } from "./chartLayout";
 
 /*
  * When the futures are ready to retire, one bar per year: the picture of the
  * "half of these futures are ready between..." summary, so it sits right
- * under it, above the balance chart. It shares the balance chart's years,
- * margins and y-axis width, and spaces the years the same way (a point scale,
- * like a line chart), so a year lines up with the same year on that chart.
+ * under it, above the balance chart. It shares the balance chart's years and
+ * horizontal layout (chartLayout.ts), and spaces the years the same way (a
+ * point scale, like a line chart), so a year lines up with the same year on
+ * that chart.
  *
  * On a point scale a year is a point, not a band, so Recharts draws the
  * shaded years and the hover highlight with no width of their own. Both are
@@ -32,15 +34,11 @@ const RUNS_OUT_COLOR = '#d0620d';
 const GAP_COLOR = '#f8f9fa';
 const MUTED = '#6c757d';
 
-// Kept in step with the balance chart, so the years line up.
-const MARGIN = { top: 20, right: 30, left: 20, bottom: 5 };
-const Y_AXIS_WIDTH = 70;
+const MARGIN = { top: 20, ...CHART_SIDE_MARGINS, bottom: 5 };
 
 /** Pixels between neighboring years, given the chart's full width. */
-export const yearStep = (chartWidth: number, years: number) => {
-  const plotWidth = chartWidth - MARGIN.left - MARGIN.right - Y_AXIS_WIDTH;
-  return years > 1 ? plotWidth / (years - 1) : plotWidth;
-};
+export const yearStep = (chartWidth: number, years: number) =>
+  years > 1 ? plotWidth(chartWidth) / (years - 1) : plotWidth(chartWidth);
 
 /** Share (0 to 1) as a percentage, with a decimal for small shares. */
 export const formatShare = (share: number) => {
@@ -188,7 +186,7 @@ const ReadyYearsPlot = ({ bars, summary, syncId, width = 0, height = 0 }: PlotPr
         />
       )}
       <XAxis dataKey="year" scale="point" />
-      <YAxis tickFormatter={percentTick} width={Y_AXIS_WIDTH} allowDecimals />
+      <YAxis tickFormatter={percentTick} width={CHART_Y_AXIS_WIDTH} allowDecimals />
       <Tooltip content={tooltip} cursor={<YearCursor step={step} />} />
       <Legend verticalAlign="top" align="right" height={24} iconType="square" formatter={legendText} />
       <Bar
@@ -235,7 +233,7 @@ const ReadyYearsChart = ({ bars, summary, endYear, workEndYear, syncId }: Props)
         end of that year and retire then.
         {shaded && ' The shaded years are where the middle half are ready.'}
       </p>
-      <ResponsiveContainer width="95%" height={220} debounce={100}>
+      <ResponsiveContainer width={CHART_CONTAINER_WIDTH} height={220} debounce={100}>
         <ReadyYearsPlot bars={bars} summary={summary} syncId={syncId} />
       </ResponsiveContainer>
       {note && <p className="text-muted small mb-0">{note}</p>}

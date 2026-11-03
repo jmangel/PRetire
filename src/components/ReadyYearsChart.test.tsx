@@ -133,6 +133,11 @@ describe('ReadyYearsChart', () => {
     expect(screen.getByText(/The shaded years are where the middle half are ready/)).toBeInTheDocument();
   });
 
+  test('marks the typical year', () => {
+    render(<ReadyYearsChart bars={bars} summary={summary()} endYear={2080} />);
+    expect(screen.getByText('Typically ready')).toBeInTheDocument();
+  });
+
   test('shades a single year when the middle half are all ready in it', () => {
     const { container } = render(
       <ReadyYearsChart bars={bars} summary={summary({ p25: 2032, median: 2032, p75: 2032 })} endYear={2080} />
