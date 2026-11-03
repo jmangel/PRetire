@@ -13,7 +13,13 @@ import {
 } from '../scenarioTags';
 import { TagChips } from './TagEditor';
 
-type LibraryScenario = { id: string; name: string; tags?: ScenarioTags };
+type LibraryScenario = {
+  id: string;
+  name: string;
+  tags?: ScenarioTags;
+  /** Its last run's results in a few words, and whether they still match its settings. */
+  result?: { text: string; current: boolean };
+};
 
 /** A filter chip: pick any number of values; none picked means any. */
 const FilterChip = ({ label, values, picked, onChange }: {
@@ -100,6 +106,20 @@ const ScenarioLibrary = ({ scenarios, vocabulary, selectedId, onLoad, onEditTags
           {scenario.id === selectedId && <Badge bg="dark" className="ms-2 fw-normal">picked</Badge>}
         </div>
         <div className="mt-1"><TagChips tags={scenario.tags} /></div>
+      </div>
+      <div className="small text-nowrap" aria-label={`Results of ${scenario.name}`}>
+        {scenario.result ? (
+          <>
+            <span className={scenario.result.current ? '' : 'text-muted'}>{scenario.result.text}</span>
+            {!scenario.result.current && (
+              <Badge bg="warning-subtle" text="warning-emphasis" className="ms-1 fw-normal" title="From an earlier year or an older version of the calculation. Run it again for current results.">
+                out of date
+              </Badge>
+            )}
+          </>
+        ) : (
+          <span className="text-muted">Not run</span>
+        )}
       </div>
       <Button size="sm" variant="outline-primary" onClick={() => onLoad(scenario.id)}>Load</Button>
       <Button size="sm" variant="link" onClick={() => onEditTags(scenario.id)}>Edit tags</Button>

@@ -177,3 +177,31 @@ describe('tags', () => {
     expect(loadScenarios(isSettings).scenarios[1].tags).toEqual({ dimensions: { Household: 'Married' }, labels: [] });
   });
 });
+
+describe('result summaries', () => {
+  const summary = { mode: 'ready' as const, successRate: 0.9, medianReadyYear: 2040, confidence: 90, fingerprint: '1:abc' };
+
+  test('are kept when stored and loaded, and travel in backups', () => {
+    const withSummary = { ...scenario('a'), summary };
+    storeScenarios({ scenarios: [withSummary] });
+    expect(loadScenarios(isSettings).scenarios).toEqual([withSummary]);
+    const backup = JSON.parse(JSON.stringify(toBackup({ scenarios: [withSummary] })));
+    expect(scenariosFromBackup(backup, isSettings)).toEqual([withSummary]);
+  });
+
+  test('an unusable summary is dropped without losing the scenario', () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ scenarios: [{ ...scenario('a'), summary: { successRate: 'high' } }] }));
+    expect(loadScenarios(isSettings).scenarios).toEqual([scenario('a')]);
+  });
+
+  test("a restore adds a backup's results to the same save that has none here", () => {
+    const here = scenario('a');
+    const { saved, unchanged } = mergeScenarios({ scenarios: [here] }, [{ ...here, summary }]);
+    expect(unchanged).toBe(1);
+    expect(saved.scenarios[0].summary).toEqual(summary);
+
+    const other = { ...summary, successRate: 0.5 };
+    expect(mergeScenarios({ scenarios: [{ ...here, summary: other }] }, [{ ...here, summary }]).saved.scenarios[0].summary)
+      .toEqual(other);
+  });
+});
