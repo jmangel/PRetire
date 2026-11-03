@@ -3,7 +3,7 @@ import ReadyLineSummary, { formatPlannedDate, readyHeadline, readySentences, suc
 
 const summary = {
   p25: 2037, median: 2041, p75: 2045, p90: 2050,
-  neverReady: 0, forcedOut: 0, ranOutWhileWorking: 0, successRate: 0.934, readySuccessRate: 0.934,
+  neverReady: 0, forcedOut: 0, ranOutWhileWorking: 0, notReadyByEnd: 0, successRate: 0.934, readySuccessRate: 0.934,
 };
 
 describe('readySentences', () => {

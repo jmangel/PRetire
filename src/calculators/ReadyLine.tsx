@@ -309,6 +309,13 @@ export type ReadyYearSummary = {
    * never reached the line. Part of neverReady.
    */
   ranOutWhileWorking: number;
+  /**
+   * Share of futures (0 to 1) still short of the line at the end year: never
+   * ready, but neither forced out nor out of money. Part of neverReady.
+   * Counted directly, since subtracting the other shares from neverReady
+   * leaves floating-point residue.
+   */
+  notReadyByEnd: number;
   /** Share of all futures (0 to 1) where the money lasts. */
   successRate: number;
   /** Of the futures that reached the line and retired, the share where the money lasts. */
@@ -341,10 +348,33 @@ export const summarizeReadyYears = (outcomes: Outcome[]): ReadyYearSummary => {
     neverReady: share(sorted.filter((year) => !Number.isFinite(year)).length),
     forcedOut: share(forced.length),
     ranOutWhileWorking: share(outcomes.filter((outcome) => outcome.ranOutWhileWorking).length),
+    notReadyByEnd: share(
+      outcomes.filter(
+        ({ readyYear, forced, ranOutWhileWorking }) =>
+          readyYear === undefined && !forced && !ranOutWhileWorking
+      ).length
+    ),
     successRate: share(outcomes.filter(({ succeeded }) => succeeded).length),
     readySuccessRate: successRateOf(outcomes.filter(({ readyYear }) => readyYear !== undefined)),
     forcedSuccessRate: successRateOf(forced),
   };
+};
+
+/**
+ * The futures that are never ready, split by why. Only futures with a work end
+ * date can be forced out. A summary without a counted notReadyByEnd (like a
+ * hand-written one) falls back to subtracting, with float residue snapped to
+ * zero: real shares are multiples of 1 / futures, far above 1e-9.
+ */
+export const notReadyBreakdown = (
+  summary: Pick<ReadyYearSummary, 'neverReady'> &
+    Partial<Pick<ReadyYearSummary, 'forcedOut' | 'ranOutWhileWorking' | 'notReadyByEnd'>>,
+  workEndYear?: number
+) => {
+  const forced = workEndYear !== undefined ? summary.forcedOut ?? 0 : 0;
+  const ranOutWhileWorking = summary.ranOutWhileWorking ?? 0;
+  const byEnd = summary.notReadyByEnd ?? summary.neverReady - forced - ranOutWhileWorking;
+  return { forced, ranOutWhileWorking, notReadyByEnd: byEnd > 1e-9 ? byEnd : 0 };
 };
 
 export type ReadyYearBar = {

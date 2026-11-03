@@ -185,12 +185,20 @@ describe('confidence slider', () => {
 
   test('retiring when ready, the futures wait until the slider is still, even in the percentiles view', () => {
     jest.useFakeTimers();
-    const { data } = renderCard('ready');
+    const { container, data } = renderCard('ready');
     const chartResults = () => mockGraphProps[mockGraphProps.length - 1].results;
+    // The ready-year bars come first, and follow the slider without waiting.
+    const readyYearBars = () =>
+      Array.from(container.querySelectorAll('.recharts-wrapper')[0].querySelectorAll('.recharts-bar-rectangle path'))
+        .map((bar) => bar.getAttribute('d'))
+        .join(' ');
     expect(chartResults()).toBe(data.results);
     expect(screen.getByText(/chart updates once you stop moving the slider/i)).toBeInTheDocument();
+    const barsBefore = readyYearBars();
+    expect(barsBefore).not.toBe('');
 
     moveSlider(50);
+    expect(readyYearBars()).not.toBe(barsBefore);
     act(() => {
       jest.advanceTimersByTime(SLIDER_SETTLE_MS - 1);
     });

@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ReadyYearBar, ReadyYearSummary } from "../calculators/ReadyLine";
+import { ReadyYearBar, ReadyYearSummary, notReadyBreakdown } from "../calculators/ReadyLine";
 
 /*
  * When the futures are ready to retire, one bar per year: the picture of the
@@ -19,6 +19,10 @@ import { ReadyYearBar, ReadyYearSummary } from "../calculators/ReadyLine";
  * under it, above the balance chart. It shares the balance chart's years,
  * margins and y-axis width, and spaces the years the same way (a point scale,
  * like a line chart), so a year lines up with the same year on that chart.
+ *
+ * On a point scale a year is a point, not a band, so Recharts draws the
+ * shaded years and the hover highlight with no width of their own. Both are
+ * widened here by one year's spacing, worked out from the chart's width.
  */
 
 // Blue and orange stay apart for every common kind of color blindness.
@@ -27,6 +31,16 @@ const RUNS_OUT_COLOR = '#d0620d';
 // The card's background, drawn between bars and between stacked segments.
 const GAP_COLOR = '#f8f9fa';
 const MUTED = '#6c757d';
+
+// Kept in step with the balance chart, so the years line up.
+const MARGIN = { top: 20, right: 30, left: 20, bottom: 5 };
+const Y_AXIS_WIDTH = 70;
+
+/** Pixels between neighboring years, given the chart's full width. */
+export const yearStep = (chartWidth: number, years: number) => {
+  const plotWidth = chartWidth - MARGIN.left - MARGIN.right - Y_AXIS_WIDTH;
+  return years > 1 ? plotWidth / (years - 1) : plotWidth;
+};
 
 /** Share (0 to 1) as a percentage, with a decimal for small shares. */
 export const formatShare = (share: number) => {
@@ -38,13 +52,11 @@ export const formatShare = (share: number) => {
 
 /** Plain-language note on the futures that aren't in any bar. */
 export const notReadyNote = (
-  summary: Pick<ReadyYearSummary, 'neverReady' | 'forcedOut' | 'ranOutWhileWorking'>,
+  summary: Parameters<typeof notReadyBreakdown>[0],
   endYear: number,
   workEndYear?: number
 ): string | undefined => {
-  const { neverReady, forcedOut, ranOutWhileWorking } = summary;
-  const forced = workEndYear !== undefined ? forcedOut : 0;
-  const notReadyByEnd = Math.max(0, neverReady - forced - ranOutWhileWorking);
+  const { forced, ranOutWhileWorking, notReadyByEnd } = notReadyBreakdown(summary, workEndYear);
   const parts = [
     forced > 0 && `${formatShare(forced)} stop working in ${workEndYear} without being ready`,
     ranOutWhileWorking > 0 && `${formatShare(ranOutWhileWorking)} run out of money while still working`,
@@ -84,6 +96,38 @@ export const percentTick = (value: number) => `${Number((value * 100).toFixed(1)
 // Legend text stays in the body color; the square beside it shows the series.
 const legendText = (value: string) => <span className="text-body">{value}</span>;
 
+type RectProps = { x?: number; y?: number; width?: number; height?: number };
+
+/**
+ * The shaded years: Recharts gives a rectangle from the first year's point to
+ * the last's, which has no width when they're the same year. Widen it by half
+ * a year on each side so it covers those years' bars whole.
+ */
+const PaddedYears = ({ x = 0, y = 0, width = 0, height = 0, step }: RectProps & { step: number }) => (
+  <rect
+    className="ready-years-shading"
+    x={x - step / 2}
+    y={y}
+    width={width + step}
+    height={height}
+    fill={MUTED}
+    fillOpacity={0.12}
+  />
+);
+
+/** The hover highlight behind a year: one year wide, centered on it. */
+const YearCursor = ({ x = 0, y = 0, height = 0, step }: RectProps & { step: number }) => (
+  <rect
+    className="ready-years-cursor"
+    x={x - step / 2}
+    y={y}
+    width={step}
+    height={height}
+    fill={MUTED}
+    fillOpacity={0.15}
+  />
+);
+
 type Props = {
   bars: ReadyYearBar[];
   summary: ReadyYearSummary;
@@ -93,7 +137,17 @@ type Props = {
   syncId?: string;
 };
 
-const ReadyYearsChart = ({ bars, summary, endYear, workEndYear, syncId }: Props) => {
+type PlotProps = {
+  bars: ReadyYearBar[];
+  summary: ReadyYearSummary;
+  syncId?: string;
+  /** Set by ResponsiveContainer. */
+  width?: number;
+  height?: number;
+};
+
+/** The chart itself. ResponsiveContainer passes in its size. */
+const ReadyYearsPlot = ({ bars, summary, syncId, width = 0, height = 0 }: PlotProps) => {
   const barsByYear = useMemo(() => {
     const byYear: Record<number, ReadyYearBar> = {};
     bars.forEach((bar) => { byYear[bar.year] = bar; });
@@ -110,11 +164,68 @@ const ReadyYearsChart = ({ bars, summary, endYear, workEndYear, syncId }: Props)
     })),
     [bars]
   );
-  const note = notReadyNote(summary, endYear, workEndYear);
+  const step = yearStep(width, bars.length);
   const { p25, median, p75 } = summary;
   const hasYear = (year?: number) => year !== undefined && year in barsByYear;
 
+  return (
+    <BarChart
+      width={width}
+      height={height}
+      data={plotted}
+      syncId={syncId}
+      syncMethod="value"
+      barCategoryGap={1}
+      margin={MARGIN}
+    >
+      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+      {hasYear(p25) && hasYear(p75) && (
+        <ReferenceArea
+          x1={p25}
+          x2={p75}
+          ifOverflow="extendDomain"
+          shape={(props: RectProps) => <PaddedYears {...props} step={step} />}
+        />
+      )}
+      <XAxis dataKey="year" scale="point" />
+      <YAxis tickFormatter={percentTick} width={Y_AXIS_WIDTH} allowDecimals />
+      <Tooltip content={tooltip} cursor={<YearCursor step={step} />} />
+      <Legend verticalAlign="top" align="right" height={24} iconType="square" formatter={legendText} />
+      <Bar
+        dataKey="lasts"
+        name="Money lasts"
+        stackId="ready"
+        fill={LASTS_COLOR}
+        stroke={GAP_COLOR}
+        strokeWidth={1}
+        isAnimationActive={false}
+      />
+      <Bar
+        dataKey="runsOut"
+        name="Runs out later"
+        stackId="ready"
+        fill={RUNS_OUT_COLOR}
+        stroke={GAP_COLOR}
+        strokeWidth={1}
+        isAnimationActive={false}
+      />
+      {hasYear(median) && (
+        <ReferenceLine
+          x={median}
+          stroke={MUTED}
+          strokeDasharray="4 4"
+          label={{ value: 'Typically ready', position: 'top', fill: MUTED, fontSize: 12 }}
+        />
+      )}
+    </BarChart>
+  );
+};
+
+const ReadyYearsChart = ({ bars, summary, endYear, workEndYear, syncId }: Props) => {
   if (bars.length === 0) return null;
+  const note = notReadyNote(summary, endYear, workEndYear);
+  const { p25, p75 } = summary;
+  const shaded = [p25, p75].every((year) => bars.some((bar) => bar.year === year));
 
   return (
     <div className="mb-3">
@@ -122,51 +233,10 @@ const ReadyYearsChart = ({ bars, summary, endYear, workEndYear, syncId }: Props)
       <p className="text-muted small mb-1">
         Each bar is the share of futures that first reach the ready line at the
         end of that year and retire then.
-        {hasYear(p25) && hasYear(p75) && ' The shaded years are where the middle half are ready.'}
+        {shaded && ' The shaded years are where the middle half are ready.'}
       </p>
       <ResponsiveContainer width="95%" height={220} debounce={100}>
-        <BarChart
-          data={plotted}
-          syncId={syncId}
-          syncMethod="value"
-          barCategoryGap={1}
-          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-          {hasYear(p25) && hasYear(p75) && (
-            <ReferenceArea x1={p25} x2={p75} fill={MUTED} fillOpacity={0.12} ifOverflow="extendDomain" />
-          )}
-          <XAxis dataKey="year" scale="point" />
-          <YAxis tickFormatter={percentTick} width={70} allowDecimals />
-          <Tooltip content={tooltip} cursor={{ fill: MUTED, fillOpacity: 0.15 }} />
-          <Legend verticalAlign="top" align="right" height={24} iconType="square" formatter={legendText} />
-          <Bar
-            dataKey="lasts"
-            name="Money lasts"
-            stackId="ready"
-            fill={LASTS_COLOR}
-            stroke={GAP_COLOR}
-            strokeWidth={1}
-            isAnimationActive={false}
-          />
-          <Bar
-            dataKey="runsOut"
-            name="Runs out later"
-            stackId="ready"
-            fill={RUNS_OUT_COLOR}
-            stroke={GAP_COLOR}
-            strokeWidth={1}
-            isAnimationActive={false}
-          />
-          {hasYear(median) && (
-            <ReferenceLine
-              x={median}
-              stroke={MUTED}
-              strokeDasharray="4 4"
-              label={{ value: 'Typically ready', position: 'top', fill: MUTED, fontSize: 12 }}
-            />
-          )}
-        </BarChart>
+        <ReadyYearsPlot bars={bars} summary={summary} syncId={syncId} />
       </ResponsiveContainer>
       {note && <p className="text-muted small mb-0">{note}</p>}
     </div>
