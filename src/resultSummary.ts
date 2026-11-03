@@ -1,7 +1,7 @@
 // A short summary of a scenario's last run, saved with the scenario so the
 // library (and later the compare grid) can show results without re-running.
 
-import { MonteCarloResponse, RESULTS_VERSION, RetirementMode } from './calculators/MonteCarlo';
+import { MonteCarloResponse, RESULTS_VERSION, RetirementMode, simulationStartYear } from './calculators/MonteCarlo';
 import { readyLineAt, readyOutcomes, summarizeReadyYears } from './calculators/ReadyLine';
 import { MonteCarloSettings, migrateSettings } from './calculators/Settings';
 
@@ -81,16 +81,18 @@ export const fnv1a64 = (text: string): string => {
 };
 
 /**
- * Identifies a plan's settings and the calculation that runs them. Files
- * from before a format change are brought up to date first, so they match a
- * new file with the same plan.
+ * Identifies a plan's settings and the calculation that runs them: the
+ * calculation's version, the first simulated year (results change when it
+ * does, every January), and a hash of the settings. Files from before a
+ * format change are brought up to date first, so they match a new file with
+ * the same plan.
  */
-export const settingsFingerprint = (settings: MonteCarloSettings): string =>
-  `${RESULTS_VERSION}:${fnv1a64(canonicalJson(migrateSettings(settings)))}`;
+export const settingsFingerprint = (settings: MonteCarloSettings, startYear = simulationStartYear()): string =>
+  `${RESULTS_VERSION}:${startYear}:${fnv1a64(canonicalJson(migrateSettings(settings)))}`;
 
-/** Whether a summary still describes these settings, run by today's calculation. */
-export const isSummaryCurrent = (summary: ResultSummary, settings: MonteCarloSettings) =>
-  summary.fingerprint === settingsFingerprint(settings);
+/** Whether a summary still describes these settings, run by today's calculation in this year. */
+export const isSummaryCurrent = (summary: ResultSummary, settings: MonteCarloSettings, startYear = simulationStartYear()) =>
+  summary.fingerprint === settingsFingerprint(settings, startYear);
 
 /**
  * Whether a run of `ran` gives the results `settings` would. Only the desired
@@ -113,8 +115,13 @@ const confidenceOf = (settings: MonteCarloSettings, fallback: number) => {
  * The summary of a run for these settings, at their own desired success rate,
  * as the results card shows it.
  */
-export const summarizeRun = (response: MonteCarloResponse, settings: MonteCarloSettings): ResultSummary => {
-  const fingerprint = settingsFingerprint(settings);
+export const summarizeRun = (
+  response: MonteCarloResponse,
+  settings: MonteCarloSettings,
+  /** The run's first simulated year. */
+  startYear = simulationStartYear()
+): ResultSummary => {
+  const fingerprint = settingsFingerprint(settings, startYear);
   const confidence = confidenceOf(settings, response.confidence);
   if (response.mode === 'ready' && response.readyLine) {
     const ready = summarizeReadyYears(

@@ -42,6 +42,9 @@ export type MonteCarloResponse = {
   readyLine?: ReadyLineData;
 };
 
+/** The first simulated year: the simulation starts next year. */
+export const simulationStartYear = () => new Date().getFullYear() + 1;
+
 const FUTURES = 10000;
 
 /**
@@ -59,7 +62,7 @@ const run = async (formData: FormData): Promise<MonteCarloResponse> => {
   const monthlyExpenses = parseFloat(formData.get('monthlyExpenses') as string) || 0;
 
   const endYear = parseInt(formData.get('endYear') as string) || 2100;
-  const startYear = new Date().getFullYear() + 1;
+  const startYear = simulationStartYear();
 
   const confidence = parseConfidence(formData.get('retirement[confidence]') ?? DEFAULT_CONFIDENCE);
   const retirementDateValue = String(formData.get('retirement[date]') ?? '');

@@ -46,8 +46,9 @@ describe('canonicalJson', () => {
 });
 
 describe('settingsFingerprint', () => {
-  test('is the calculation version plus a hash of the settings', () => {
-    expect(settingsFingerprint(settings())).toMatch(new RegExp(`^${RESULTS_VERSION}:[0-9a-f]{16}$`));
+  test('is the calculation version, the first simulated year, and a hash of the settings', () => {
+    expect(settingsFingerprint(settings(), 2027)).toMatch(new RegExp(`^${RESULTS_VERSION}:2027:[0-9a-f]{16}$`));
+    expect(settingsFingerprint(settings())).toBe(settingsFingerprint(settings(), new Date().getFullYear() + 1));
   });
 
   test("doesn't depend on key order, but does on every value", () => {
@@ -70,7 +71,11 @@ describe('settingsFingerprint', () => {
     const summary = { mode: 'ready' as const, successRate: 0.9, confidence: 90, fingerprint: settingsFingerprint(settings()) };
     expect(isSummaryCurrent(summary, settings())).toBe(true);
     expect(isSummaryCurrent(summary, settings({ endYear: '2071' }))).toBe(false);
-    expect(isSummaryCurrent({ ...summary, fingerprint: `0:${summary.fingerprint.split(':')[1]}` }, settings())).toBe(false);
+    // From an older calculation, or a run that started in another year.
+    expect(isSummaryCurrent({ ...summary, fingerprint: summary.fingerprint.replace(/^\d+:/, '0:') }, settings())).toBe(false);
+    const lastYear = { ...summary, fingerprint: settingsFingerprint(settings(), new Date().getFullYear()) };
+    expect(isSummaryCurrent(lastYear, settings())).toBe(false);
+    expect(isSummaryCurrent(lastYear, settings(), new Date().getFullYear())).toBe(true);
   });
 });
 
@@ -108,12 +113,12 @@ describe('summarizeRun', () => {
     const run = response('ready');
     const at75 = settings({ retirement: { mode: 'ready', confidence: '75', date: '' } });
     const expected = summarizeReadyYears(readyOutcomes(run.readyLine!, readyLineAt(run.readyLine!, 0.75)));
-    expect(summarizeRun(run, at75)).toEqual({
+    expect(summarizeRun(run, at75, startYear)).toEqual({
       mode: 'ready',
       successRate: expected.successRate,
       ...(expected.median !== undefined ? { medianReadyYear: expected.median } : {}),
       confidence: 75,
-      fingerprint: settingsFingerprint(at75),
+      fingerprint: settingsFingerprint(at75, startYear),
     });
   });
 
