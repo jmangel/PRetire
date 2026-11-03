@@ -123,13 +123,14 @@ describe('computeYearExtents and visibleYValuesFor', () => {
     expect(visibleYValuesFor(chartData, extents)).toEqual([20, 20, 500, 25, 25, 600, 40, 40]);
   });
 
-  test('on a log scale, leave out ready-line values drawn at the floor, like its $0 end point', () => {
+  test("on a log scale, leave out only the ready line's end point", () => {
     const extents = computeYearExtents(rawData, { excludeMinMax: false, onlyShowDeterministicLine: true });
-    // On a log scale the chart raises the $0 end point to the floor first.
-    const chartData = mergeReadyLine(rawData, line({ values: [50000, 6000, LOG_SCALE_FLOOR] }));
+    // On a log scale the chart raises values below the floor to it first.
+    const chartData = mergeReadyLine(rawData, line({ values: [50000, LOG_SCALE_FLOOR, LOG_SCALE_FLOOR] }));
 
-    expect(visibleYValuesFor(chartData, extents)).toEqual([20, 20, 50000, 25, 25, 6000, 40, 40, LOG_SCALE_FLOOR]);
-    expect(visibleYValuesFor(chartData, extents, { logScale: true })).toEqual([20, 20, 50000, 25, 25, 6000, 40, 40]);
+    expect(visibleYValuesFor(chartData, extents)).toEqual([20, 20, 50000, 25, 25, LOG_SCALE_FLOOR, 40, 40, LOG_SCALE_FLOOR]);
+    // A $0 year before the end still counts, so the line stays on the chart.
+    expect(visibleYValuesFor(chartData, extents, { logScale: true })).toEqual([20, 20, 50000, 25, 25, LOG_SCALE_FLOOR, 40, 40]);
   });
 });
 

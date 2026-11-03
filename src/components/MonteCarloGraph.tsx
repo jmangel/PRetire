@@ -218,19 +218,20 @@ export const computeYearExtents = (
 
 /**
  * The y values the axis must fit: each visible year's extents plus its
- * ready-line value. On a log scale, ready-line values at or below the floor
- * (they're drawn at the floor) are left out, so the line's $0 end point
- * doesn't pull the axis down to the floor for every plan. The line then
- * runs off the bottom of the chart in its last year.
+ * ready-line value. On a log scale the ready line's value in the last year
+ * is left out: that's its $0 end point, which would otherwise pull the axis
+ * down to the floor for every plan. The line then runs off the bottom of the
+ * chart in its last year. Earlier low values still count, so a line that is
+ * $0 for years (other income covers every expense) stays on the chart.
  */
 export const visibleYValuesFor = (
   chartData: Array<{ year: number; readyLine?: number }>,
   yearExtents: Record<number, [number, number]>,
   { logScale = false }: { logScale?: boolean } = {}
 ): number[] =>
-  chartData.flatMap((entry) => [
+  chartData.flatMap((entry, index) => [
     ...(yearExtents[entry.year] ?? []),
-    ...(entry.readyLine !== undefined && !(logScale && entry.readyLine <= LOG_SCALE_FLOOR) ? [entry.readyLine] : []),
+    ...(entry.readyLine !== undefined && !(logScale && index === chartData.length - 1) ? [entry.readyLine] : []),
   ]);
 
 // The ready line's and steady-returns path's fixed colors.
