@@ -1,0 +1,83 @@
+{
+  "startingBalance": "150000",
+  "monthlyExpenses": "-4500",
+  "endYear": "2090",
+  "retirement": {
+    "mode": "ready",
+    "confidence": "90",
+    "date": ""
+  },
+  "jobs": [
+    {
+      "name": "Alex",
+      "postTaxAnnualIncome": "105000",
+      "adjustForInflation": true,
+      "startDate": "",
+      "endDate": "",
+      "atRetirement": "stops"
+    },
+    {
+      "name": "Sam",
+      "postTaxAnnualIncome": "90000",
+      "adjustForInflation": true,
+      "startDate": "",
+      "endDate": "",
+      "atRetirement": "stops"
+    }
+  ],
+  "life_events": [
+    {
+      "name": "Buy house",
+      "date": "2028-05-01",
+      "balanceChange": "-120000",
+      "monthlyExpensesChange": "-1800",
+      "atRetirement": false
+    },
+    {
+      "name": "Have kids",
+      "date": "2030-02-01",
+      "balanceChange": "0",
+      "monthlyExpensesChange": "-2000",
+      "atRetirement": false
+    },
+    {
+      "name": "Kids in college",
+      "date": "2048-09-01",
+      "balanceChange": "0",
+      "monthlyExpensesChange": "-3000",
+      "atRetirement": false
+    },
+    {
+      "name": "Kids out of college",
+      "date": "2052-06-01",
+      "balanceChange": "0",
+      "monthlyExpensesChange": "5000",
+      "atRetirement": false
+    },
+    {
+      "name": "Downsize house",
+      "date": "2058-07-01",
+      "balanceChange": "250000",
+      "monthlyExpensesChange": "1000",
+      "atRetirement": false
+    }
+  ],
+  "inflation": {
+    "averageAnnualReturnPercentage": "2.9",
+    "standardDeviationPercentage": "1.1343"
+  },
+  "asset_classes": [
+    {
+      "name": "S&P 500",
+      "allocationPercentage": "70",
+      "averageAnnualReturnPercentage": "9.9",
+      "standardDeviationPercentage": "19.7028"
+    },
+    {
+      "name": "US 10-yr Treasury Bonds",
+      "allocationPercentage": "30",
+      "averageAnnualReturnPercentage": "4.66",
+      "standardDeviationPercentage": "7.7"
+    }
+  ]
+}
