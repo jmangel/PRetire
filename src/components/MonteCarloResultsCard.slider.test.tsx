@@ -6,7 +6,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import MonteCarloResultsCard, { SLIDER_SETTLE_MS } from './MonteCarloResultsCard';
 import { ReadyLineSeries } from './MonteCarloGraph';
 import { AssetClass, Inflation, Job, MonteCarloResult } from '../calculators/PlanInputs';
-import { readyLineAt, readyOutcomes, summarizeReadyYears } from '../calculators/ReadyLine';
+import { readyLineAt } from '../calculators/ReadyLine';
 import { MonteCarloResponse, RetirementMode, simulatePlan } from '../calculators/MonteCarlo';
 
 // The real chart, wrapped so tests can read the ready line it was given. Its
@@ -104,7 +104,7 @@ const chartReadyLine = (): ReadyLineSeries => {
 const expectLabelMatchesLine = (data: ReturnType<typeof response>, confidence: number) => {
   const { label, values } = chartReadyLine();
   expect(label).toBe(`Ready line (${confidence}%)`);
-  expect(values).toEqual(readyLineAt(data.readyLine!, confidence / 100));
+  expect(values).toEqual([...readyLineAt(data.readyLine!, confidence / 100), 0]);
 };
 const readyLinePath = (container: HTMLElement) =>
   container.querySelector('.recharts-line-curve[stroke="#198754"]')?.getAttribute('d');
@@ -121,12 +121,14 @@ describe('where the ready line stops', () => {
     expect(chartReadyLine().lastYear).toBe(startYear + 12);
   });
 
-  test('retiring when ready, at the year 9 in 10 futures are ready', () => {
+  test('retiring when ready, not before the end year', () => {
     const { data } = renderCard('ready');
-    const p90 = summarizeReadyYears(readyOutcomes(data.readyLine!, readyLineAt(data.readyLine!, 0.9))).p90;
+    const { lastYear, startYear: lineStart, values } = chartReadyLine();
 
-    expect(p90).toBeDefined();
-    expect(chartReadyLine().lastYear).toBe(p90);
+    expect(lastYear).toBeUndefined();
+    // The last value is for the end year: nothing more is needed then.
+    expect(lineStart + values.length - 1).toBe(data.readyLine!.endYear);
+    expect(values[values.length - 1]).toBe(0);
   });
 });
 

@@ -75,7 +75,7 @@ A future whose work income all ends by its own end dates before it's ready
 |---|---|---|
 | Header | "You'd typically be ready by the end of **2038**" with the existing range sentences ("Half are ready between…, 9 in 10 by…") | "Your simulation succeeded 87% of the time", as today |
 | Below it | "If you re-check every year and retire once you reach the ready line, the money lasts in 93% of futures." When some futures never reach the line, the summary says why (forced out by a work income end date, or ran out of money while still working) and splits the success rate: futures that retire when ready, futures forced out, and overall. | The "When you could retire" summary, as today |
-| Chart | Futures that retire when ready, over the whole plan (not zoomed); ready line up to the year 9 in 10 futures are ready | As today: futures retiring on the date; ready line up to that year |
+| Chart | Futures that retire when ready, over the whole plan (not zoomed); ready line to the end year, where it reaches $0 (for a future that has already retired it no longer applies, since each point assumes you retire that year) | As today: futures retiring on the date; ready line up to that year |
 
 - The **"keep working" toggle is removed.** In ready mode the futures already
   keep working until ready. In fixed-date mode the comparison it showed is

@@ -2,6 +2,7 @@ import { ReactElement } from 'react';
 import { render, screen } from '@testing-library/react';
 import MonteCarloGraph, {
   clampForLogScale,
+  LOG_SCALE_FLOOR,
   logScaleTicks,
   logTickLabel,
   collectBalancesByYear,
@@ -120,6 +121,16 @@ describe('computeYearExtents and visibleYValuesFor', () => {
     const chartData = mergeReadyLine(rawData, line({ values: [500, 600, 700], lastYear: 2031 }));
 
     expect(visibleYValuesFor(chartData, extents)).toEqual([20, 20, 500, 25, 25, 600, 40, 40]);
+  });
+
+  test("on a log scale, leave out only the ready line's end point", () => {
+    const extents = computeYearExtents(rawData, { excludeMinMax: false, onlyShowDeterministicLine: true });
+    // On a log scale the chart raises values below the floor to it first.
+    const chartData = mergeReadyLine(rawData, line({ values: [50000, LOG_SCALE_FLOOR, LOG_SCALE_FLOOR] }));
+
+    expect(visibleYValuesFor(chartData, extents)).toEqual([20, 20, 50000, 25, 25, LOG_SCALE_FLOOR, 40, 40, LOG_SCALE_FLOOR]);
+    // A $0 year before the end still counts, so the line stays on the chart.
+    expect(visibleYValuesFor(chartData, extents, { logScale: true })).toEqual([20, 20, 50000, 25, 25, LOG_SCALE_FLOOR, 40, 40]);
   });
 });
 
