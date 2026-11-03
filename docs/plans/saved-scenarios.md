@@ -76,8 +76,8 @@ As built: the code is in `src/resultSummary.ts`, and `RESULTS_VERSION` is in
   first run records how it reads back, and later runs that match it count as
   runs of the saved scenario.
 - Results also depend on the year they're run in, since the simulation starts
-  next year. The fingerprint doesn't cover that, so a summary from last year
-  still shows as current until the scenario runs again.
+  next year. So the fingerprint includes the first simulated year, and every
+  summary shows as out of date each January until its scenario runs again.
 
 - **When one is stored.**
   - Saving stores a summary only if the results on the page came from
@@ -107,8 +107,8 @@ As built: the code is in `src/resultSummary.ts`, and `RESULTS_VERSION` is in
     say when two cells used different ones.
   - `fingerprint` identifies the settings and calculation the run used
     (below).
-- **Fingerprint.** `fingerprint = RESULTS_VERSION + ':' + hash(canonical
-  settings)`.
+- **Fingerprint.** `fingerprint = RESULTS_VERSION + ':' + first simulated
+  year + ':' + hash(canonical settings)`.
   - The settings are first run through `migrateSettings`, so a file from
     before a format change and a new file with the same plan give the same
     fingerprint.
@@ -126,7 +126,7 @@ As built: the code is in `src/resultSummary.ts`, and `RESULTS_VERSION` is in
     the version in the golden files too.
 - **Out of date.** A summary is out of date when its `fingerprint` doesn't
   match the fingerprint of the scenario's current settings with the current
-  `RESULTS_VERSION`. `savedAt` isn't used, because editing tags changes it. Out-of-date summaries still show,
+  `RESULTS_VERSION` and first simulated year. `savedAt` isn't used, because editing tags changes it. Out-of-date summaries still show,
   marked as such.
 - **Library rows** show the summary: "89% · ready 2040", "89% · never ready",
   "89% · already retired" or "89% · retire 2045", with an "out of date" badge
