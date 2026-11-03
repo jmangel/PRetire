@@ -1,6 +1,7 @@
 // Scenarios saved in this browser's localStorage. Nothing here is ever sent
 // anywhere: it's the same settings the JSON export holds, kept under a name.
 
+import { ResultSummary, cleanSummary } from './resultSummary';
 import { ScenarioTags, cleanTags, withSharedSpelling } from './scenarioTags';
 
 export type SavedScenario<Settings> = {
@@ -11,6 +12,8 @@ export type SavedScenario<Settings> = {
   settings: Settings;
   /** Missing on scenarios saved before tags existed, which is the same as no tags. */
   tags?: ScenarioTags;
+  /** Its last run's results, if it was saved or run with them. */
+  summary?: ResultSummary;
 };
 
 export type SavedScenarios<Settings> = {
@@ -47,7 +50,7 @@ export const loadScenarios = <Settings,>(
       scenarios: withSharedSpelling(
         parsed.scenarios
           .filter((scenario: any) => isSavedScenario(scenario, isSettings))
-          .map(withCleanTags)
+          .map(withCleanExtras)
       ),
       ...(typeof parsed.lastBackupAt === 'string' ? { lastBackupAt: parsed.lastBackupAt } : {}),
     };
@@ -66,12 +69,17 @@ export const storeScenarios = <Settings,>(saved: SavedScenarios<Settings>): bool
   }
 };
 
-// Tags that aren't usable (hand-edited, say) are dropped rather than losing
-// the whole scenario.
-const withCleanTags = <Settings,>(scenario: SavedScenario<Settings>): SavedScenario<Settings> => {
-  const { tags, ...rest } = scenario;
-  const cleaned = cleanTags(tags);
-  return cleaned ? { ...rest, tags: cleaned } : rest;
+// Tags or a summary that aren't usable (hand-edited, say) are dropped rather
+// than losing the whole scenario.
+const withCleanExtras = <Settings,>(scenario: SavedScenario<Settings>): SavedScenario<Settings> => {
+  const { tags, summary, ...rest } = scenario;
+  const cleanedTags = cleanTags(tags);
+  const cleanedSummary = cleanSummary(summary);
+  return {
+    ...rest,
+    ...(cleanedTags ? { tags: cleanedTags } : {}),
+    ...(cleanedSummary ? { summary: cleanedSummary } : {}),
+  };
 };
 
 const isSavedScenario = <Settings,>(
@@ -116,7 +124,7 @@ export const scenariosFromBackup = <Settings,>(
   }
   return candidate.scenarios
     .filter((scenario) => isSavedScenario(scenario, isSettings))
-    .map(withCleanTags);
+    .map(withCleanExtras);
 };
 
 /** What restoring a backup did, for telling the user. */

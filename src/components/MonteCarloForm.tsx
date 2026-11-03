@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card, Col, Form, InputGroup, Nav, Row } from 'react-bootstrap';
 import { FetcherWithComponents } from 'react-router-dom';
 import HasManyRows from './HasManyRows';
@@ -9,6 +9,7 @@ import {
   JOB_FIELDS,
   MAX_CONFIDENCE,
   MIN_CONFIDENCE,
+  MonteCarloResponse,
   RetirementMode,
   parseConfidence,
   parseRetirementMode,
@@ -19,6 +20,7 @@ import ScenarioLibrary from './ScenarioLibrary';
 import { describeDifferences } from '../settingsDifferences';
 import { scenariosFromBackup } from '../savedScenarios';
 import { downloadJson, useSavedScenarios } from './useSavedScenarios';
+import { describeSummary, isSummaryCurrent, sameRun, summarizeRun } from '../resultSummary';
 
 const NUM_SETTINGS_TABS = 4;
 
@@ -511,6 +513,7 @@ const MonteCarloForm = ({
   const savedScenarios = useSavedScenarios(isMonteCarloSettings, {
     readSettings: () => buildSettings(),
     loadScenario: (scenario) => {
+      loaded.current = { saved: scenario.settings };
       setExportFileName(scenario.name);
       applySettings(scenario.settings, { run: true });
     },
@@ -526,7 +529,58 @@ const MonteCarloForm = ({
       setImportError(message);
     },
     describeDifferences,
+    summaryFor: (settings) => {
+      const run = lastRun.current;
+      if (!run) return undefined;
+      const asLoaded = loaded.current?.asLoaded;
+      const ranThese =
+        sameRun(run.settings, settings) ||
+        (!!asLoaded && sameRun(loaded.current!.saved, settings) && sameRun(run.settings, asLoaded));
+      return ranThese ? summarizeRun(run.response, settings) : undefined;
+    },
   });
+
+  // The picked scenario's settings as saved, and as the form reads them back
+  // once loaded. They can differ and still be the same plan: an older file,
+  // or no income rows where the form always shows one blank row.
+  const loaded = useRef<{ saved: MonteCarloSettings; asLoaded?: MonteCarloSettings } | null>(null);
+
+  // The settings the last run used, so its results can be saved with them.
+  // They're read when the run starts: the page can't be edited while the
+  // simulation runs.
+  const runningSettings = useRef<MonteCarloSettings | null>(null);
+  const lastRun = useRef<{ settings: MonteCarloSettings; response: MonteCarloResponse } | null>(null);
+  useEffect(() => {
+    if (fetcher.state !== 'idle') {
+      if (!runningSettings.current) {
+        runningSettings.current = buildSettings();
+        // Picking a scenario runs it right away, so its first run is the scenario as loaded.
+        if (loaded.current && !loaded.current.asLoaded && runningSettings.current) {
+          loaded.current.asLoaded = runningSettings.current;
+        }
+      }
+      return;
+    }
+    if (!runningSettings.current) return;
+    const settings = runningSettings.current;
+    runningSettings.current = null;
+    if (!fetcher.data) return;
+    lastRun.current = { settings, response: fetcher.data as MonteCarloResponse };
+    savedScenarios.noteRun();
+    // Runs when a run starts or ends; the rest is read when it does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.state, fetcher.data]);
+
+  const libraryScenarios = useMemo(
+    () =>
+      savedScenarios.scenarios.map((scenario) => ({
+        ...scenario,
+        result: scenario.summary
+          ? { text: describeSummary(scenario.summary), current: isSummaryCurrent(scenario.summary, scenario.settings) }
+          : undefined,
+      })),
+    [savedScenarios.scenarios]
+  );
 
   const handleImportClick = () => {
     setImportError(null);
@@ -600,7 +654,7 @@ const MonteCarloForm = ({
       {savedScenarios.libraryOpen && (
         <div id="scenario_library">
           <ScenarioLibrary
-            scenarios={savedScenarios.scenarios}
+            scenarios={libraryScenarios}
             vocabulary={savedScenarios.vocabulary}
             selectedId={savedScenarios.selectedId}
             onLoad={savedScenarios.select}

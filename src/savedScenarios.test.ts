@@ -177,3 +177,20 @@ describe('tags', () => {
     expect(loadScenarios(isSettings).scenarios[1].tags).toEqual({ dimensions: { Household: 'Married' }, labels: [] });
   });
 });
+
+describe('result summaries', () => {
+  const summary = { mode: 'ready' as const, successRate: 0.9, medianReadyYear: 2040, confidence: 90, fingerprint: '1:abc' };
+
+  test('are kept when stored and loaded, and travel in backups', () => {
+    const withSummary = { ...scenario('a'), summary };
+    storeScenarios({ scenarios: [withSummary] });
+    expect(loadScenarios(isSettings).scenarios).toEqual([withSummary]);
+    const backup = JSON.parse(JSON.stringify(toBackup({ scenarios: [withSummary] })));
+    expect(scenariosFromBackup(backup, isSettings)).toEqual([withSummary]);
+  });
+
+  test('an unusable summary is dropped without losing the scenario', () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ scenarios: [{ ...scenario('a'), summary: { successRate: 'high' } }] }));
+    expect(loadScenarios(isSettings).scenarios).toEqual([scenario('a')]);
+  });
+});
