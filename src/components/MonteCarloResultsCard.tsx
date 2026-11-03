@@ -96,7 +96,9 @@ const MonteCarloResultsCard = ({
     // The line is in today's dollars, so it only lines up with adjusted balances.
     if (!readyLineData || !inflationAdjusted) return undefined;
     return {
-      values: readyLineAt(readyLineData, chartConfidence / 100),
+      // Retiring at the end of the end year needs nothing more, so the line
+      // ends at $0 there instead of a year before the chart's edge.
+      values: [...readyLineAt(readyLineData, chartConfidence / 100), 0],
       startYear: readyLineData.startYear,
       // Futures that retire on a fixed date are all retired after it, so the
       // line stops there. Retiring when ready, futures retire in different

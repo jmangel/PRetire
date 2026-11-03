@@ -104,7 +104,7 @@ const chartReadyLine = (): ReadyLineSeries => {
 const expectLabelMatchesLine = (data: ReturnType<typeof response>, confidence: number) => {
   const { label, values } = chartReadyLine();
   expect(label).toBe(`Ready line (${confidence}%)`);
-  expect(values).toEqual(readyLineAt(data.readyLine!, confidence / 100));
+  expect(values).toEqual([...readyLineAt(data.readyLine!, confidence / 100), 0]);
 };
 const readyLinePath = (container: HTMLElement) =>
   container.querySelector('.recharts-line-curve[stroke="#198754"]')?.getAttribute('d');
@@ -122,8 +122,13 @@ describe('where the ready line stops', () => {
   });
 
   test('retiring when ready, not before the end year', () => {
-    renderCard('ready');
-    expect(chartReadyLine().lastYear).toBeUndefined();
+    const { data } = renderCard('ready');
+    const { lastYear, startYear: lineStart, values } = chartReadyLine();
+
+    expect(lastYear).toBeUndefined();
+    // The last value is for the end year: nothing more is needed then.
+    expect(lineStart + values.length - 1).toBe(data.readyLine!.endYear);
+    expect(values[values.length - 1]).toBe(0);
   });
 });
 
