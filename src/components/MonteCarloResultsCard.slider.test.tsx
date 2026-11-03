@@ -153,6 +153,7 @@ describe('confidence slider', () => {
     });
     const before = readyLinePath(container);
     expect(screen.getByText(/chart updates once you stop moving the slider/i)).toBeInTheDocument();
+    expect(screen.getByTestId('balance-chart')).toHaveStyle({ opacity: '1' });
 
     // Several quick steps, like arrow-key presses: the summary follows each
     // one, but the chart doesn't redraw yet.
@@ -168,12 +169,17 @@ describe('confidence slider', () => {
     expect(readyLinePath(container)).toBe(before);
     // The chart's label still names the line it shows, not the slider.
     expectLabelMatchesLine(data, 90);
+    // Faded while it's behind the slider.
+    expect(screen.getByTestId('balance-chart')).toHaveStyle({ opacity: '0.5' });
+    expect(screen.getByTestId('balance-chart')).toHaveAttribute('aria-busy', 'true');
 
     // Still for long enough: now it redraws, once.
     act(() => {
       jest.advanceTimersByTime(1);
     });
     expect(readyLinePath(container)).not.toBe(before);
+    expect(screen.getByTestId('balance-chart')).toHaveStyle({ opacity: '1' });
+    expect(screen.getByTestId('balance-chart')).toHaveAttribute('aria-busy', 'false');
     expectLabelMatchesLine(data, 70);
   });
 

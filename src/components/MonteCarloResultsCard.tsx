@@ -89,6 +89,9 @@ const MonteCarloResultsCard = ({
   const settledConfidence = useSettledValue(confidence, SLIDER_SETTLE_MS);
   const chartFollowsLive = onlyShowPercentiles && !retiresWhenReady;
   const chartConfidence = chartFollowsLive ? confidence : settledConfidence;
+  // Faded while it still shows an older success rate than the slider, so the
+  // wait reads as on purpose.
+  const chartIsBehind = chartConfidence !== confidence;
 
   // Retiring when ready, the futures themselves depend on the confidence.
   const chartFutures = useMemo(() => {
@@ -264,7 +267,13 @@ const MonteCarloResultsCard = ({
         </Row>
 
         <SpinnerOverlay loading={loading}>
-          {graph}
+          <div
+            data-testid="balance-chart"
+            aria-busy={chartIsBehind}
+            style={{ opacity: chartIsBehind ? 0.5 : 1, transition: 'opacity 150ms' }}
+          >
+            {graph}
+          </div>
         </SpinnerOverlay>
       </Card.Body>
     </Card>
