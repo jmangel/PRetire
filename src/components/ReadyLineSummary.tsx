@@ -184,7 +184,7 @@ const ReadyLineSummary = ({
           The ready line is the balance, in today's dollars, that gives at
           least this chance of never running out if you retire that year.
           {chartWaitsForSlider &&
-            ' The chart updates once you stop moving the slider.'}
+            ' The balance chart updates once you stop moving the slider.'}
         </Form.Text>
       </Form.Group>
     </div>

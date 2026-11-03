@@ -6,6 +6,7 @@ import {
   readyFutures,
   readyLineAt,
   readyOutcomes,
+  readyYearHistogram,
   requiredBalancesByYear,
   summarizeReadyYears,
 } from './ReadyLine';
@@ -413,5 +414,43 @@ describe('summarizeReadyYears success rates by group', () => {
 
   test('a group with no futures has no rate', () => {
     expect(summarizeReadyYears([{ readyYear: 2040, succeeded: true }]).forcedSuccessRate).toBeUndefined();
+  });
+});
+
+describe('readyYearHistogram', () => {
+  test('splits each year by whether the money lasts, as shares of all futures', () => {
+    const bars = readyYearHistogram(
+      [
+        { readyYear: 2030, succeeded: true },
+        { readyYear: 2030, succeeded: false },
+        { readyYear: 2032, succeeded: true },
+        { readyYear: undefined, succeeded: false },
+      ],
+      2030,
+      2032
+    );
+
+    expect(bars).toEqual([
+      { year: 2030, lasts: 0.25, runsOut: 0.25 },
+      { year: 2031, lasts: 0, runsOut: 0 },
+      { year: 2032, lasts: 0.25, runsOut: 0 },
+    ]);
+  });
+
+  test('futures that are never ready are in no bar', () => {
+    const bars = readyYearHistogram(
+      [{ readyYear: undefined, succeeded: true }, { readyYear: 2030, succeeded: true }],
+      2030,
+      2031
+    );
+    const total = bars.reduce((sum, { lasts, runsOut }) => sum + lasts + runsOut, 0);
+    expect(total).toBeCloseTo(0.5);
+  });
+
+  test('has a bar for every year even with no futures', () => {
+    expect(readyYearHistogram([], 2030, 2031)).toEqual([
+      { year: 2030, lasts: 0, runsOut: 0 },
+      { year: 2031, lasts: 0, runsOut: 0 },
+    ]);
   });
 });

@@ -388,8 +388,8 @@ export const toPercentilesEntry = (entry: Record<string, number>): PercentilesCh
   return newEntry;
 };
 
-const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResult?: MonteCarloResult, inflationAdjusted: boolean, onlyShowPercentiles: boolean, excludeMinMax: boolean, onlyShowDeterministicLine: boolean, readyLine?: ReadyLineSeries, plannedRetirementYear?: number, retirementLabel?: string, logScale?: boolean }) => {
-  const { results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLine, plannedRetirementYear, retirementLabel = 'Planned retirement', logScale = false } = props;
+const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResult?: MonteCarloResult, inflationAdjusted: boolean, onlyShowPercentiles: boolean, excludeMinMax: boolean, onlyShowDeterministicLine: boolean, readyLine?: ReadyLineSeries, plannedRetirementYear?: number, retirementLabel?: string, logScale?: boolean, syncId?: string }) => {
+  const { results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLine, plannedRetirementYear, retirementLabel = 'Planned retirement', logScale = false, syncId } = props;
 
   const yearEntries = useMemo(
     () => collectBalancesByYear(results, deterministicResult, inflationAdjusted ? 'inflationAdjustedBalance' : 'balance'),
@@ -514,6 +514,8 @@ const MonteCarloGraph = (props: { results: MonteCarloResult[], deterministicResu
       <LineChart
         key={`${inflationAdjusted ? 'inflationAdjusted' : 'notInflationAdjusted'}${logScale ? 'log' : 'linear'}${results.length > 0 ? results[0].at(-1)?.balance : null}`}
         data={chartData}
+        syncId={syncId}
+        syncMethod="value"
         margin={{
           top: 5,
           right: 30,

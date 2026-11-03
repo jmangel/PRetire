@@ -3,12 +3,16 @@ import { useEffect, useMemo, useState } from "react";
 import MonteCarloGraph, { ReadyLineSeries } from "./MonteCarloGraph";
 import SpinnerOverlay from "./SpinnerOverlay";
 import ReadyLineSummary, { readyHeadline } from "./ReadyLineSummary";
+import ReadyYearsChart from "./ReadyYearsChart";
 import { FetcherWithComponents } from "react-router-dom";
 import { MonteCarloResponse } from "../calculators/MonteCarlo";
-import { readyFutures, readyLineAt, readyOutcomes, summarizeReadyYears } from "../calculators/ReadyLine";
+import { readyFutures, readyLineAt, readyOutcomes, readyYearHistogram, summarizeReadyYears } from "../calculators/ReadyLine";
 
 /** How long the slider must be still before a slow chart redraws. */
 export const SLIDER_SETTLE_MS = 300;
+
+/** Links hovering a year on the balance chart and the ready-year bars. */
+const BALANCE_AND_READY_YEARS_SYNC_ID = 'balance-and-ready-years';
 
 /**
  * The value once it has stopped changing for delayMs. Covers mouse, touch,
@@ -57,9 +61,22 @@ const MonteCarloResultsCard = ({
     () => (readyLineData ? readyLineAt(readyLineData, confidence / 100) : undefined),
     [readyLineData, confidence]
   );
-  const readySummary = useMemo(
-    () => (readyLineData && readyLine ? summarizeReadyYears(readyOutcomes(readyLineData, readyLine)) : undefined),
+  const liveOutcomes = useMemo(
+    () => (readyLineData && readyLine ? readyOutcomes(readyLineData, readyLine) : undefined),
     [readyLineData, readyLine]
+  );
+  const readySummary = useMemo(
+    () => (liveOutcomes ? summarizeReadyYears(liveOutcomes) : undefined),
+    [liveOutcomes]
+  );
+  // The ready-year bars are cheap, so unlike the balance chart they follow
+  // the slider live.
+  const readyYearBars = useMemo(
+    () =>
+      retiresWhenReady && readyLineData && liveOutcomes
+        ? readyYearHistogram(liveOutcomes, readyLineData.startYear, readyLineData.endYear)
+        : undefined,
+    [retiresWhenReady, readyLineData, liveOutcomes]
   );
 
   // The chart uses its own confidence. When it only moves the ready line (a
@@ -121,6 +138,7 @@ const MonteCarloResultsCard = ({
       }
       retirementLabel={retiresWhenReady ? 'Typically ready' : undefined}
       logScale={logScale}
+      syncId={retiresWhenReady ? BALANCE_AND_READY_YEARS_SYNC_ID : undefined}
     />
   ), [results, deterministicResult, inflationAdjusted, onlyShowPercentiles, excludeMinMax, onlyShowDeterministicLine, readyLineSeries, retiresWhenReady, chartSummary, readyLineData, logScale]);
 
@@ -151,6 +169,17 @@ const MonteCarloResultsCard = ({
             confidence={confidence}
             setConfidence={setConfidence}
             chartWaitsForSlider={!chartFollowsLive}
+          />
+        )}
+        {/* Right under the summary it pictures, above the balance chart's own
+            switches. */}
+        {readyYearBars && readySummary && readyLineData && (
+          <ReadyYearsChart
+            bars={readyYearBars}
+            summary={readySummary}
+            endYear={readyLineData.endYear}
+            workEndYear={workEndYear}
+            syncId={BALANCE_AND_READY_YEARS_SYNC_ID}
           />
         )}
         {

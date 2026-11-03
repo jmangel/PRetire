@@ -112,6 +112,18 @@ describe('MonteCarloResultsCard', () => {
     expect(screen.getByText('Desired success rate: 82%')).toBeInTheDocument();
   });
 
+  test('retiring when ready shows when the futures are ready, above the balance chart', () => {
+    renderCard('ready');
+    const heading = screen.getByText('When these futures are ready to retire');
+    const balanceSwitch = screen.getByLabelText('Adjust for inflation?');
+    expect(heading.compareDocumentPosition(balanceSwitch) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test('a fixed date has no ready-year chart', () => {
+    renderCard('date');
+    expect(screen.queryByText('When these futures are ready to retire')).not.toBeInTheDocument();
+  });
+
   test('the ready line needs the inflation-adjusted view', () => {
     renderCard('ready');
     fireEvent.click(screen.getByLabelText('Adjust for inflation?'));

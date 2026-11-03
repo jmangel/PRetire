@@ -346,3 +346,39 @@ export const summarizeReadyYears = (outcomes: Outcome[]): ReadyYearSummary => {
     forcedSuccessRate: successRateOf(forced),
   };
 };
+
+export type ReadyYearBar = {
+  year: number;
+  /** Share of all futures (0 to 1) ready at the end of this year whose money lasts. */
+  lasts: number;
+  /** Share of all futures (0 to 1) ready at the end of this year that run out later. */
+  runsOut: number;
+};
+
+/**
+ * One bar per year from startYear through endYear: the share of all futures
+ * ready at the end of that year, split by whether the money lasts. Futures
+ * that are never ready aren't in any bar, so the bars add up to less than 1
+ * when some never reach the line.
+ */
+export const readyYearHistogram = (
+  outcomes: Pick<Outcome, 'readyYear' | 'succeeded'>[],
+  startYear: number,
+  endYear: number
+): ReadyYearBar[] => {
+  const bars = Array.from({ length: Math.max(0, endYear - startYear + 1) }, (_, k) => ({
+    year: startYear + k,
+    lasts: 0,
+    runsOut: 0,
+  }));
+  if (outcomes.length === 0) return bars;
+  const step = 1 / outcomes.length;
+  outcomes.forEach(({ readyYear, succeeded }) => {
+    if (readyYear === undefined) return;
+    const bar = bars[readyYear - startYear];
+    if (!bar) return;
+    if (succeeded) bar.lasts += step;
+    else bar.runsOut += step;
+  });
+  return bars;
+};

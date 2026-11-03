@@ -267,9 +267,15 @@ describe('confidence slider', () => {
 });
 
 describe('chart scale', () => {
+  // Retiring when ready, the ready-year bars come first with their own
+  // y-axis; the balance chart is always the last chart.
+  const balanceChart = (container: HTMLElement) => {
+    const charts = container.querySelectorAll('.recharts-wrapper');
+    return charts[charts.length - 1];
+  };
   const lineCount = (container: HTMLElement) => container.querySelectorAll('.recharts-line-curve').length;
   const topYTick = (container: HTMLElement) => {
-    const ticks = Array.from(container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'));
+    const ticks = Array.from(balanceChart(container).querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'));
     // Ticks are compact, like $1.2M or -$250K.
     const [, sign, amount, suffix] = ticks[ticks.length - 1].textContent!.match(/^(-?)\$([\d.]+)([KMBT]?)$/)!;
     return (sign ? -1 : 1) * Number(amount) * 1000 ** ' KMBT'.indexOf(suffix || ' ');
@@ -301,7 +307,7 @@ describe('chart scale', () => {
 
     fireEvent.click(screen.getByLabelText('Log scale?'));
 
-    const ticks = Array.from(container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'))
+    const ticks = Array.from(balanceChart(container).querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'))
       .map((tick) => tick.textContent);
     expect(ticks.length).toBeGreaterThan(2);
     ticks.forEach((tick) => expect(tick).toMatch(/^(≤ )?\$(1|10|100)[KMBT]?$/));
