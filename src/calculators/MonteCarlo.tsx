@@ -26,6 +26,9 @@ export const parseConfidence = (value?: unknown): number => {
 
 export type MonteCarloResponse = {
   mode: RetirementMode;
+  /** The first and last simulated years. */
+  startYear: number;
+  endYear: number;
   /** The confidence (a percentage) the plan was run with. */
   confidence: number;
   /**
@@ -42,7 +45,19 @@ export type MonteCarloResponse = {
   readyLine?: ReadyLineData;
 };
 
+/** The first simulated year: the simulation starts next year. */
+export const simulationStartYear = () => new Date().getFullYear() + 1;
+
 const FUTURES = 10000;
+
+/**
+ * Which version of the calculation produced a result. Saved scenarios keep a
+ * summary of their last run, marked with this, so a change that alters what
+ * a saved plan produces must bump it: every older summary then shows as out
+ * of date. The golden tests catch such changes, so a PR that updates their
+ * expected results bumps this too.
+ */
+export const RESULTS_VERSION = 1;
 
 const run = async (formData: FormData): Promise<MonteCarloResponse> => {
   const startingBalance = parseFloat(formData.get('startingBalance') as string) || 0;
@@ -50,7 +65,7 @@ const run = async (formData: FormData): Promise<MonteCarloResponse> => {
   const monthlyExpenses = parseFloat(formData.get('monthlyExpenses') as string) || 0;
 
   const endYear = parseInt(formData.get('endYear') as string) || 2100;
-  const startYear = new Date().getFullYear() + 1;
+  const startYear = simulationStartYear();
 
   const confidence = parseConfidence(formData.get('retirement[confidence]') ?? DEFAULT_CONFIDENCE);
   const retirementDateValue = String(formData.get('retirement[date]') ?? '');
@@ -150,6 +165,8 @@ export const simulatePlan = ({
   if (mode === 'ready' && readyLine) {
     return {
       mode,
+      startYear,
+      endYear,
       confidence,
       ...readyFutures(readyLine, readyLineAt(readyLine, confidence / 100)),
       readyLine,
@@ -165,6 +182,8 @@ export const simulatePlan = ({
 
   return {
     mode,
+    startYear,
+    endYear,
     confidence,
     results: simulateFutures(markets, calendar, retirement, { record: true }).results!,
     deterministicResult: simulateFutures(average, calendar, retirement, { record: true }).results![0],

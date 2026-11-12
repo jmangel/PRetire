@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card, Col, Form, InputGroup, Nav, Row } from 'react-bootstrap';
 import { FetcherWithComponents } from 'react-router-dom';
 import HasManyRows from './HasManyRows';
@@ -12,6 +12,7 @@ import {
   RetirementMode,
   parseConfidence,
   parseRetirementMode,
+  simulationStartYear,
 } from '../calculators/MonteCarlo';
 import { JobSettings, MonteCarloSettings, migrateSettings } from '../calculators/Settings';
 import ScenarioTagsDialog from './ScenarioTagsDialog';
@@ -19,6 +20,8 @@ import ScenarioLibrary from './ScenarioLibrary';
 import { describeDifferences } from '../settingsDifferences';
 import { scenariosFromBackup } from '../savedScenarios';
 import { downloadJson, useSavedScenarios } from './useSavedScenarios';
+import { describeSummary, isSummaryCurrent } from '../resultSummary';
+import { useLastRun } from './useLastRun';
 
 const NUM_SETTINGS_TABS = 4;
 
@@ -424,7 +427,10 @@ const MonteCarloForm = ({
   useEffect(() => {
     if (runRequests === 0) return;
     const form = document.getElementById('monte-carlo-form') as HTMLFormElement | null;
-    if (form) fetcher.submit(form);
+    if (form) {
+      lastRun.submitted();
+      fetcher.submit(form);
+    }
     // Runs once per request; fetcher changes on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runRequests]);
@@ -508,9 +514,18 @@ const MonteCarloForm = ({
     setImportMessage(message);
   };
 
+  const lastRun = useLastRun({
+    fetcher,
+    formId: 'monte-carlo-form',
+    readSettings: buildSettings,
+    // Keeps the results with the picked scenario, if it ran as saved.
+    onRunFinished: () => savedScenarios.noteRun(),
+  });
+
   const savedScenarios = useSavedScenarios(isMonteCarloSettings, {
     readSettings: () => buildSettings(),
     loadScenario: (scenario) => {
+      lastRun.loaded(scenario.settings);
       setExportFileName(scenario.name);
       applySettings(scenario.settings, { run: true });
     },
@@ -526,7 +541,25 @@ const MonteCarloForm = ({
       setImportError(message);
     },
     describeDifferences,
+    summaryFor: lastRun.summaryFor,
   });
+
+  // Read on every render, so a tab left open over New Year marks last
+  // year's results as out of date.
+  const startYear = simulationStartYear();
+  const libraryScenarios = useMemo(
+    () =>
+      savedScenarios.scenarios.map((scenario) => ({
+        ...scenario,
+        result: scenario.summary
+          ? {
+              text: describeSummary(scenario.summary),
+              current: isSummaryCurrent(scenario.summary, scenario.settings, startYear),
+            }
+          : undefined,
+      })),
+    [savedScenarios.scenarios, startYear]
+  );
 
   const handleImportClick = () => {
     setImportError(null);
@@ -600,7 +633,7 @@ const MonteCarloForm = ({
       {savedScenarios.libraryOpen && (
         <div id="scenario_library">
           <ScenarioLibrary
-            scenarios={savedScenarios.scenarios}
+            scenarios={libraryScenarios}
             vocabulary={savedScenarios.vocabulary}
             selectedId={savedScenarios.selectedId}
             onLoad={savedScenarios.select}

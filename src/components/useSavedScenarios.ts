@@ -13,6 +13,7 @@ import {
 } from '../savedScenarios';
 import { ScenarioTags, emptyTags, hasTags, sameDimensionTags, tagVocabulary, withSharedSpelling } from '../scenarioTags';
 import { ScenarioDialogMode, TagTwin } from './ScenarioTagsDialog';
+import { ResultSummary } from '../resultSummary';
 
 /** Have the browser save `data` as a JSON file. */
 export const downloadJson = (fileName: string, data: unknown) => {
@@ -68,6 +69,8 @@ export type ScenarioFormHooks<Settings> = {
   showError: (message: string) => void;
   /** How two scenarios' settings differ, in words. */
   describeDifferences: (a: Settings, b: Settings) => string[];
+  /** The summary of the results on the page, if they came from these settings. */
+  summaryFor: (settings: Settings) => ResultSummary | undefined;
 };
 
 /** A message about the last thing done with the scenario bar, shown right under it. */
@@ -183,16 +186,18 @@ export const useSavedScenarios = <Settings,>(
     const settings = form.readSettings();
     if (!selected || !settings) return;
     const savedAt = new Date().toISOString();
+    // The results on the page go with the settings only if they came from them.
+    const summary = form.summaryFor(settings);
+    const withSettings = ({ summary: _old, ...scenario }: SavedScenario<Settings>): SavedScenario<Settings> =>
+      ({ ...scenario, settings, savedAt, ...(summary ? { summary } : {}) });
     // Only the settings change, on the copy in storage, so a rename or tag
     // edit another tab just made stays. If another tab deleted it
     // meanwhile, saving puts it back.
     const stored = update((current) => ({
       ...current,
       scenarios: current.scenarios.some((scenario) => scenario.id === selected.id)
-        ? current.scenarios.map((scenario) =>
-            scenario.id === selected.id ? { ...scenario, settings, savedAt } : scenario
-          )
-        : [...current.scenarios, { ...selected, settings, savedAt }],
+        ? current.scenarios.map((scenario) => (scenario.id === selected.id ? withSettings(scenario) : scenario))
+        : [...current.scenarios, withSettings(selected)],
     }));
     if (stored) tell(`Saved "${selected.name}".`);
   };
@@ -207,6 +212,8 @@ export const useSavedScenarios = <Settings,>(
       settings,
       ...(hasTags(tags) ? { tags } : {}),
     };
+    const summary = form.summaryFor(settings);
+    if (summary) created.summary = summary;
     const stored = update((current) => ({ ...current, scenarios: [...current.scenarios, created] }));
     if (!stored) return;
     setDialog(null);
@@ -214,6 +221,25 @@ export const useSavedScenarios = <Settings,>(
     setSelectedId(created.id);
     form.onNamed(name);
     tell(`Saved "${name}".`);
+  };
+
+  /**
+   * The page just ran. If it ran the picked scenario as saved, its results
+   * are kept with it. Only the summary changes: running isn't an edit, so
+   * savedAt stays. If the browser refuses, the summary just isn't kept.
+   */
+  const noteRun = () => {
+    if (!selectedId) return;
+    const scenario = loadScenarios(isSettings).scenarios.find((candidate) => candidate.id === selectedId);
+    const summary = scenario && form.summaryFor(scenario.settings);
+    if (!summary) return;
+    update(
+      (latest) => ({
+        ...latest,
+        scenarios: latest.scenarios.map((candidate) => (candidate.id === selectedId ? { ...candidate, summary } : candidate)),
+      }),
+      () => {}
+    );
   };
 
   const rename = (name: string) => {
@@ -324,6 +350,7 @@ export const useSavedScenarios = <Settings,>(
     selectedId,
     selected,
     select,
+    noteRun,
     save,
     saveAs,
     setTags,

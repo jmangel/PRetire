@@ -62,13 +62,34 @@ Three PRs, each usable on its own:
 - **C2. The grid.**
 - **C3. Create from a neighbor**, then **Split by** (below).
 
-#### C1. Result summaries
+#### C1. Result summaries (built)
+
+As built: the code is in `src/resultSummary.ts`, and `RESULTS_VERSION` is in
+`src/calculators/MonteCarlo.tsx`. Additions to what's below:
+
+- A plan with no work income, or whose work has already ended, has no ready
+  year to find. Its summary says `alreadyRetired: true`, shown as "already
+  retired" rather than "never ready".
+- A picked scenario can read back from the form a little differently from how
+  it was saved, and still be the same plan: an older file, or no income rows
+  where the form always shows a blank one. Picking runs it right away, so that
+  first run records how it reads back, and later runs that match it count as
+  runs of the saved scenario. The settings of every run are read as it's
+  submitted, so picking a scenario while another run is going still pairs
+  the results with the right settings.
+- A restore keeps results from the backup when the copy here, saved at the
+  same time, has none: running doesn't change `savedAt`.
+- Results also depend on the year they're run in, since the simulation starts
+  next year. So the fingerprint includes the first simulated year, and every
+  summary shows as out of date each January until its scenario runs again.
 
 - **When one is stored.**
   - Saving stores a summary only if the results on the page came from
-    exactly the settings being saved, meaning the same fingerprint. Otherwise
-    (the form was edited after the last run, or never ran) the scenario is
-    saved without a summary.
+    exactly the settings being saved. The one exception is the desired
+    success rate: the page replays the same futures at any rate, so the
+    summary is worked out at the saved rate and gets the saved settings'
+    fingerprint. Otherwise (the form was edited after the last run, or never
+    ran) the scenario is saved without a summary.
   - Running a picked scenario whose settings haven't been edited since it
     loaded also stores its summary: the Run button in the grid, and Run on
     the page. It changes only `summary`, not the settings, tags or
@@ -84,15 +105,16 @@ Three PRs, each usable on its own:
     date mode it's the share of runs that never go below zero, as the
     results headline shows.
   - `medianReadyYear` (ready mode only) is `summarizeReadyYears(...).median`.
-    Missing means the median future is never ready before the end year.
+    Missing means the median future is never ready before the end year,
+    unless `alreadyRetired`.
   - `plannedRetirementYear` (date mode only) is the year of
     `retirement.date`.
   - `confidence` is the desired success rate the summary used, so a grid can
     say when two cells used different ones.
   - `fingerprint` identifies the settings and calculation the run used
     (below).
-- **Fingerprint.** `fingerprint = RESULTS_VERSION + ':' + hash(canonical
-  settings)`.
+- **Fingerprint.** `fingerprint = RESULTS_VERSION + ':' + first simulated
+  year + ':' + hash(canonical settings)`.
   - The settings are first run through `migrateSettings`, so a file from
     before a format change and a new file with the same plan give the same
     fingerprint.
@@ -110,9 +132,11 @@ Three PRs, each usable on its own:
     the version in the golden files too.
 - **Out of date.** A summary is out of date when its `fingerprint` doesn't
   match the fingerprint of the scenario's current settings with the current
-  `RESULTS_VERSION`. `savedAt` isn't used, because editing tags changes it. Out-of-date summaries still show,
+  `RESULTS_VERSION` and first simulated year. `savedAt` isn't used, because editing tags changes it. Out-of-date summaries still show,
   marked as such.
-- **Library rows** show the summary, e.g. "89% · ready 2040".
+- **Library rows** show the summary: "89% · ready 2040", "89% · never ready",
+  "89% · already retired" or "89% · retire 2045", with an "out of date" badge
+  when it is. A scenario without one says "Not run".
 
 #### C2. The grid
 
@@ -127,6 +151,16 @@ Three PRs, each usable on its own:
 - A scenario without a summary shows "Not run" with a Run button, which
   loads and runs it, then stores its summary (see C1). Out-of-date cells
   offer Run too. Nothing runs in the background.
+- **A new year.** Every summary goes out of date on January 1, since the
+  simulation starts a year later (see C1). Rather than just a badge, an
+  out-of-date cell, and its library row, says when it ran (e.g. "From 2026")
+  and hints at what to do: update the starting balance, then run it again.
+  The old numbers stay visible for comparison until then. This needs the
+  summary's year as its own field, rather than read out of the fingerprint.
+  Decided against: a start-year setting for running a plan as if it started
+  in a past year. The starting balance is always today's, the markets are
+  random rather than historical, and dates in the plan are calendar dates,
+  so the results would look exact but describe nothing real.
 
 #### C3. Create from a neighbor
 
