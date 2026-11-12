@@ -189,8 +189,9 @@ themselves until 65.
 
 ### 8. Double counting
 
-If Social Security is on and an income row looks like Social Security (its
-name includes "social security" or "SSA", and it has no end date), the Income
+If Social Security is on and an income row looks like Social Security (it
+is other income, not work income; its name includes "social security" or
+"SSA"; and it has no end date), the Income
 tab shows a warning: "Social Security is calculated on its own tab. Remove
 this row so it is not counted twice."
 
@@ -255,11 +256,12 @@ once for each plan.
 - **"On a date" and "Already retired":** only one row. Add it to
   `realOtherIncome` in the calendar. The simulation does not change. But
   "On a date" plans also show a ready line and a "when ready" summary
-  (`computeReadyLine` always runs), and the ready line needs the full
-  table (see "The ready line"). Until PR 3, hide the ready line and the
-  "when ready" summary in "On a date" plans with Social Security on. If the
-  one row went into the ready line's calendar instead, every retirement
-  year would get the benefit for the planned date.
+  (`computeReadyLine` always runs, and `main` shows both), so these plans
+  need the full table too (see "The ready line"). Do not put the one row
+  in the ready line's calendar: then every retirement year would get the
+  benefit for the planned date. The engine PR (PR 2) builds all of this
+  before the form can turn Social Security on, so the results never
+  disagree.
 - **"When ready":** `simulateFutures` adds `working[t]` while the future
   works. When the future is ready at the end of year k, it adds
   `retired[k][t]` from then on. When it is forced to retire, it adds
@@ -394,28 +396,24 @@ so we can copy them from it.
 
 1. **Benefit library.** Port the ssa.tools code and its tests into
    `src/calculators/ssa/`, and add `SocialSecurity.ts` with the benefit
-   table. No form, no change to results. This PR does not touch shared
-   files, so it can start before #35, #40 and the milestones work merge.
-2. **Tab and "On a date".** The tab, gross wages on income rows, the
-   earnings table with estimates, the settings, and Social Security in "On
-   a date" and "Already retired" plans, with both claim rules (the
-   retirement date is known in these plans). In "when ready" plans,
-   "Include Social Security" is off and can't be turned on, the tab says
-   "Coming soon", and the Income-tab row says "Not yet used in this plan
-   type". In "On a date" plans with
-   Social Security on, the ready line and the "when ready" summary are
-   hidden until PR 3. Start after the milestones
-   form work merges, because both change `MonteCarloForm.tsx` and the
-   settings version.
-3. **"When ready".** The benefit table in `simulateFutures` (with the
-   forced row and the claim at 70 while still working), the backward pass
-   for each retirement year with the benefit, the "When I retire" rule for
-   futures that retire in different years, the ready line in "On a date"
-   plans again, and the results line. Merge it soon after PR 2.
+   table. No form, no change to results. This PR only adds new files, so
+   it can start before #35, #40 and the milestones work merge.
+2. **Engine, all plan types.** The benefit table in `simulateFutures`
+   (with the forced row and the claim at 70 while still working), the
+   backward pass for each retirement year with the benefit, and both claim
+   rules, in "On a date", "Already retired" and "when ready" plans. No
+   form: Social Security cannot be turned on yet, so results do not
+   change, and the golden files (#35) show it. Start after #35 merges,
+   because #35 splits `run()` in `MonteCarlo.tsx`.
+3. **Tab and form.** The tab, gross wages on income rows, the earnings
+   table with estimates, the settings, the double-counting warning, and
+   the results line. Social Security works in all plan types from the
+   first release. Start after the first milestones PR merges, because both
+   change `MonteCarloForm.tsx` and the settings version.
 4. **Compare claiming ages.** The fixed random sequences, the comparison
    table, and the total benefits.
-5. **Small items.** The typed benefit, the Medicare life event, the
-   double-counting warning, and a graph marker for the claim date.
+5. **Small items.** The typed benefit, the Medicare life event, and a graph
+   marker for the claim date.
 6. **Couples.** Write it as an issue: a record and a birth date for each
    person, the spousal benefit (up to 50% of the other person's benefit at
    full retirement age), and survivor benefits (which need a model of
@@ -445,3 +443,18 @@ income at a forced retirement (it only sets the retirement year), because
 the forced date is the date that the work income runs out. With "No later
 than", a forced future would get wages and the `forced` benefit row at the
 same time. The milestones PR must stop work income at the forced date.
+This is a bug in the milestones work even without Social Security: a
+forced future would keep its salary after it retires.
+
+**To do:** post this as a comment on #35, where `milestones.md` is
+(not posted yet). Draft:
+
+> `milestones.md` adds "No later than", which can force a retirement while
+> a job with no end date still pays. Today `simulateFutures` doesn't stop
+> work income at a forced retirement: it sets `retirementIndex` but not
+> `stillWorking = false`, because today a forced retirement only happens
+> once work income has already run out. With "No later than", a forced
+> future would keep its salary after retiring. The milestones PR needs to
+> stop work income on the forced date (prorated for that year, like
+> `endingBy`) and add a golden scenario for it. The Social Security plan
+> (`docs/plans/social-security.md`) depends on this too.
