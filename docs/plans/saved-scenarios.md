@@ -151,6 +151,16 @@ As built: the code is in `src/resultSummary.ts`, and `RESULTS_VERSION` is in
 - A scenario without a summary shows "Not run" with a Run button, which
   loads and runs it, then stores its summary (see C1). Out-of-date cells
   offer Run too. Nothing runs in the background.
+- **A new year.** Every summary goes out of date on January 1, since the
+  simulation starts a year later (see C1). Rather than just a badge, an
+  out-of-date cell, and its library row, says when it ran (e.g. "From 2026")
+  and hints at what to do: update the starting balance, then run it again.
+  The old numbers stay visible for comparison until then. This needs the
+  summary's year as its own field, rather than read out of the fingerprint.
+  Decided against: a start-year setting for running a plan as if it started
+  in a past year. The starting balance is always today's, the markets are
+  random rather than historical, and dates in the plan are calendar dates,
+  so the results would look exact but describe nothing real.
 
 #### C3. Create from a neighbor
 
